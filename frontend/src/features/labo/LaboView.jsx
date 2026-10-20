@@ -6,53 +6,53 @@ import {
   FlaskConical,
   History,
   Info,
-  ShieldAlert
-} from 'lucide-react';
-import { EmptyState, PageHeading } from '../../components/ui';
+  ShieldAlert,
+} from "lucide-react";
+import { EmptyState, PageHeading } from "../../components/ui";
 
 const futureModules = [
   {
-    title: '1. AI Chat Assistant',
-    phase: 'Phase 5',
+    title: "1. AI Chat Assistant",
+    phase: "Phase 5",
     icon: Bot,
     description:
-      'Explainable conversational assistant powered by local Ollama models and read-only financial tool calling.'
+      "Explainable conversational assistant powered by local Ollama models and read-only financial tool calling.",
   },
   {
-    title: '2. Financial X-Ray',
-    phase: 'Phase 5',
+    title: "2. Financial X-Ray",
+    phase: "Phase 5",
     icon: FileSearch,
     description:
-      'Automated cash-flow diagnostics, category spike detection, and budget health summaries backed by verified SQL evidence.'
+      "Automated cash-flow diagnostics, category spike detection, and budget health summaries backed by verified SQL evidence.",
   },
   {
-    title: '3. Future Lab Simulations',
-    phase: 'Phase 6',
+    title: "3. Future Lab Simulations",
+    phase: "Phase 6",
     icon: Calculator,
     description:
-      'Deterministic JPY what-if simulations for savings targets, debt payoff timelines, and monthly cash-flow changes.'
+      "Deterministic JPY what-if simulations for savings targets, debt payoff timelines, and monthly cash-flow changes.",
   },
   {
-    title: '4. RAG Knowledge Hub',
-    phase: 'Phase 6',
+    title: "4. RAG Knowledge Hub",
+    phase: "Phase 6",
     icon: BookOpen,
     description:
-      'Retrieval-Augmented Generation over curated Japan personal finance guides (tax, NISA, household budgeting).'
+      "Retrieval-Augmented Generation over curated Japan personal finance guides (tax, NISA, household budgeting).",
   },
   {
-    title: '5. Approval-Based AI Action Agent',
-    phase: 'Phase 6',
+    title: "5. Approval-Based AI Action Agent",
+    phase: "Phase 6",
     icon: ShieldAlert,
     description:
-      'Controlled agentic workflows that propose budget or goal adjustments. Never modifies user records without explicit human approval.'
+      "Controlled agentic workflows that propose budget or goal adjustments. Never modifies user records without explicit human approval.",
   },
   {
-    title: '6. Analysis History & Evidence',
-    phase: 'Phase 6',
+    title: "6. Analysis History & Evidence",
+    phase: "Phase 6",
     icon: History,
     description:
-      'Transparent audit log showing the exact database queries, calculation inputs, and timestamps behind every AI insight.'
-  }
+      "Transparent audit log showing the exact database queries, calculation inputs, and timestamps behind every AI insight.",
+  },
 ];
 
 /**
@@ -66,17 +66,20 @@ export default function LaboView() {
   return (
     <>
       <PageHeading
-        title="ProMoney Lab"
+        title="ProMoney LA-BO"
         subtitle="Explainable AI Financial Workspace — Planned for Phases 5 & 6."
       />
 
       <div className="status-banner" role="status">
         <Info size={16} />
         <div>
-          <strong>ProMoney Lab Foundation (Phases 5 &amp; 6 — Arpan &amp; Suman)</strong>
+          <strong>
+            ProMoney Lab Foundation (Phases 5 &amp; 6 — Arpan &amp; Suman)
+          </strong>
           <span>
-            Feature not implemented yet. This workspace is a clean architectural foundation. No AI
-            model is currently active and no fabricated recommendations are displayed.
+            Feature not implemented yet. This workspace is a clean architectural
+            foundation. No AI model is currently active and no fabricated
+            recommendations are displayed.
           </span>
         </div>
       </div>
@@ -95,8 +98,14 @@ export default function LaboView() {
                 <span className="neutral-badge">{phase}</span>
               </div>
               <p>{description}</p>
-              <div className="muted small" style={{ marginTop: 'auto', paddingTop: 6 }}>
-                <Icon size={14} style={{ verticalAlign: 'middle', marginRight: 5 }} />
+              <div
+                className="muted small"
+                style={{ marginTop: "auto", paddingTop: 6 }}
+              >
+                <Icon
+                  size={14}
+                  style={{ verticalAlign: "middle", marginRight: 5 }}
+                />
                 Status: Feature not implemented yet
               </div>
             </article>
@@ -107,16 +116,18 @@ export default function LaboView() {
       <section className="section-card card">
         <h2>Intended Integration &amp; Safety Architecture</h2>
         <p className="muted">
-          1. <strong>Verified Data Pipeline:</strong> React → Express (`/api/lab/*`) → Authenticated
-          Financial Tools (`financeMath.js`) → MySQL (`promoney`).
+          1. <strong>Verified Data Pipeline:</strong> React → Express
+          (`/api/lab/*`) → Authenticated Financial Tools (`financeMath.js`) →
+          MySQL (`promoney`).
         </p>
         <p className="muted">
-          2. <strong>Local AI Runtime (Later):</strong> Express → Local Ollama LLM / RAG Retrieval /
-          Controlled Agent Workflows.
+          2. <strong>Local AI Runtime (Later):</strong> Express → Local Ollama
+          LLM / RAG Retrieval / Controlled Agent Workflows.
         </p>
         <p className="muted" style={{ marginBottom: 0 }}>
-          3. <strong>Strict Human-in-the-Loop Rule:</strong> AI suggestions cannot create, update, or
-          delete any user financial record in MySQL without explicit user confirmation.
+          3. <strong>Strict Human-in-the-Loop Rule:</strong> AI suggestions
+          cannot create, update, or delete any user financial record in MySQL
+          without explicit user confirmation.
         </p>
 
         <EmptyState

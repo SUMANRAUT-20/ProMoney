@@ -21,7 +21,7 @@ const items = [
   { to: '/bills', title: 'Bills & Subscriptions', icon: Receipt },
   { to: '/goals', title: 'Savings Goals', icon: Goal },
   { to: '/reports', title: 'Reports', icon: CreditCard },
-  { to: '/labo', title: 'ProMoney Lab', icon: FlaskConical },
+  { to: '/labo', title: 'ProMoney LA-BO', icon: FlaskConical },
   { to: '/settings', title: 'Settings', icon: Settings2 }
 ];
 
