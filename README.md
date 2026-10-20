@@ -1,4 +1,4 @@
-# ProMoney — AI-Powered Personal Finance Management System for Japan
+# ProMoney — AI-Powered Personal Finance Management System
 
 **ProMoney** helps users in Japan manage income, expenses, accounts, monthly budgets, recurring bills & subscriptions, savings goals, and financial reports in Japanese Yen (`JPY`, `¥`), with a dedicated workspace (**ProMoney Lab**) for explainable AI financial assistance.
 
