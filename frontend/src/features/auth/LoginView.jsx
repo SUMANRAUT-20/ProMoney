@@ -1,80 +1,27 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Info } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
 import AuthLayout from './AuthLayout';
+import { AuthNotice, PasswordField, SocialSignIn } from './AuthControls';
+import WelcomeView from './WelcomeView';
 
-/**
- * Login Page Foundation
- * Owner: Renuka Karmacharya (Member 2)
- *
- * Clean UI foundation for user sign-in. Does not fabricate login success.
- */
 export default function LoginView() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [params] = useSearchParams();
   const [notice, setNotice] = useState('');
-
+  if (params.get('view') === 'welcome') return <WelcomeView />;
   function handleSubmit(event) {
     event.preventDefault();
-    setNotice(
-      'Feature not implemented yet. Authentication login will be connected to POST /api/auth/login in Phase 1.'
-    );
+    // The supplied backend returns HTTP 501. Do not fabricate a session.
+    setNotice('Login is not connected yet. Your details have not been sent or saved.');
   }
-
-  return (
-    <AuthLayout
-      title="Sign in to ProMoney"
-      subtitle="Access your personal finance workspace (JPY)."
-      footer={
-        <span>
-          Don&apos;t have an account yet? <Link to="/register">Create an account</Link>
-        </span>
-      }
-    >
-      <div className="status-banner" role="status">
-        <Info size={16} />
-        <div>
-          <strong>Foundation Placeholder</strong>
-          <span>Feature not implemented yet. Backend authentication is scheduled for Phase 1.</span>
-        </div>
-      </div>
-
-      {notice && (
-        <div className="status-banner" role="alert">
-          <Info size={16} />
-          <div>{notice}</div>
-        </div>
-      )}
-
-      <form className="form" onSubmit={handleSubmit}>
-        <label>
-          Email Address
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            autoComplete="email"
-          />
-        </label>
-
-        <label>
-          Password
-          <input
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter your password"
-            autoComplete="current-password"
-          />
-        </label>
-
-        <button type="submit" className="btn primary" style={{ width: '100%', marginTop: 4 }}>
-          Sign In
-        </button>
-      </form>
-    </AuthLayout>
-  );
+  return <AuthLayout title="Sign in to ProMoney" subtitle="Access your personal finance workspace (JPY)." footer={<span>New to ProMoney? <Link to="/register">Create an account</Link></span>}>
+    <form className="form" onSubmit={handleSubmit}>
+      <label>Email address<input name="email" type="email" required maxLength={255} placeholder="you@example.com" autoComplete="email" /></label>
+      <PasswordField placeholder="Enter your password" />
+      <div className="pm-auth-help"><button type="button" className="pm-auth-text-button" onClick={() => setNotice('Password reset is not available yet. No reset email has been sent.')}>Forgot password?</button></div>
+      <AuthNotice>{notice}</AuthNotice>
+      <button type="submit" className="btn primary pm-auth-submit">Log in</button>
+    </form>
+    <SocialSignIn />
+    <p className="pm-auth-hint">Authentication is under development. This form does not create a session.</p>
+  </AuthLayout>;
 }

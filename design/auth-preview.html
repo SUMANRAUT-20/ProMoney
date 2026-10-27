@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ProMoney • Main Screen, Login & Sign Up Preview</title>
+  <link rel="stylesheet" href="../frontend/src/styles.css" />
+  <style>
+    .landing-topbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      height: 70px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 32px;
+    }
+    .landing-topbar .brand {
+      border-bottom: 0;
+      padding: 0;
+      height: auto;
+      min-height: auto;
+      cursor: pointer;
+    }
+    .landing-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .landing-main {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 48px 24px 64px;
+    }
+    .hero-card {
+      padding: 40px 36px;
+      background: linear-gradient(125deg, var(--mint-soft), var(--surface));
+      margin-bottom: 24px;
+    }
+    .hero-slogan {
+      font-size: 34px;
+      line-height: 1.18;
+      letter-spacing: -1px;
+      margin: 10px 0 14px;
+      max-width: 720px;
+    }
+    .hero-explanation {
+      font-size: 14px;
+      line-height: 1.65;
+      color: var(--muted);
+      max-width: 760px;
+      margin-bottom: 26px;
+    }
+    .hero-cta-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .field-error {
+      color: var(--red);
+      font-size: 11px;
+      font-weight: 600;
+      margin-top: -2px;
+    }
+    .pw-toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .status-banner.error {
+      border-color: var(--red);
+      background: rgba(184, 74, 74, 0.08);
+    }
+    .status-banner.error strong {
+      color: var(--red);
+    }
+    @media (max-width: 640px) {
+      .landing-topbar { padding: 0 16px; }
+      .hero-card { padding: 26px 20px; }
+      .hero-slogan { font-size: 25px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Top Bar with Brand Logo + Log In / Sign Up Buttons -->
+  <header class="landing-topbar">
+    <a href="#home" class="brand" onclick="setView('home'); return false;" aria-label="ProMoney Main Screen">
+      <div class="brand-logo">¥</div>
+      <span>ProMoney</span>
+    </a>
+
+    <div class="landing-actions">
+      <button type="button" class="btn secondary compact" onclick="setView('home')" id="top-home-btn">
+        Main Screen
+      </button>
+      <button type="button" class="btn secondary" onclick="setView('login')" id="top-login-btn">
+        Log In
+      </button>
+      <button type="button" class="btn primary" onclick="setView('register')" id="top-signup-btn">
+        Sign Up
+      </button>
+      <button type="button" class="btn secondary compact" onclick="toggleTheme()" id="btn-theme" title="Toggle Light/Dark Mode">
+        🌙 Dark
+      </button>
+    </div>
+  </header>
+
+  <!-- ========================================== -->
+  <!-- VIEW 1: MAIN SCREEN (Slogan & Explanation) -->
+  <!-- ========================================== -->
+  <main id="screen-home" class="landing-main">
+    <section class="hero-card card">
+      <div class="eyebrow">AI-POWERED PERSONAL FINANCE MANAGEMENT • JAPAN (JPY ¥)</div>
+      <h1 class="hero-slogan">
+        Master Every Yen with Clarity, Confidence, and Explainable AI.
+      </h1>
+      <p class="hero-explanation">
+        <strong>ProMoney</strong> helps individuals and households in Japan manage daily income and expenses,
+        cash wallets, bank accounts, credit cards, monthly category budgets, recurring bills &amp; subscriptions,
+        and savings goals in whole Japanese Yen (<code>¥</code>). With <strong>ProMoney Lab</strong>, you get
+        explainable financial diagnostics and simulations backed by verified records—never altering your financial
+        data without your explicit approval.
+      </p>
+
+      <div class="hero-cta-group">
+        <button type="button" class="btn primary" onclick="setView('register')">
+          Sign Up — Create Free Account
+        </button>
+        <button type="button" class="btn secondary" onclick="setView('login')">
+          Log In to Your Account
+        </button>
+      </div>
+    </section>
+
+    <section class="lab-grid">
+      <article class="lab-card card">
+        <div class="lab-card-head">
+          <h3>🏦 Multi-Account &amp; JPY Ledger</h3>
+          <span class="neutral-badge">Exact Yen</span>
+        </div>
+        <p>
+          Manage cash wallets, bank accounts, and credit cards in whole-integer Japanese Yen (<code>JPY</code>)
+          with zero floating-point rounding errors and fast category filtering.
+        </p>
+      </article>
+
+      <article class="lab-card card">
+        <div class="lab-card-head">
+          <h3>🎯 Budgets, Bills &amp; Goals</h3>
+          <span class="neutral-badge">Smart Tracking</span>
+        </div>
+        <p>
+          Set monthly category spending limits, monitor recurring bills and subscriptions without double-counting
+          expenses, and track progress toward your savings milestones.
+        </p>
+      </article>
+
+      <article class="lab-card card">
+        <div class="lab-card-head">
+          <h3>🧪 Explainable ProMoney Lab</h3>
+          <span class="neutral-badge">Human-in-the-Loop</span>
+        </div>
+        <p>
+          Run automated Financial X-Ray diagnostics, future savings simulations, and AI-assisted planning where
+          every recommendation cites verified data and requires your approval.
+        </p>
+      </article>
+    </section>
+  </main>
+
+  <!-- ========================================== -->
+  <!-- VIEW 2: LOGIN & SIGN UP SCREEN             -->
+  <!-- ========================================== -->
+  <div id="screen-auth" class="auth-shell" style="display: none; min-height: calc(100vh - 70px);">
+    <section class="auth-card card">
+      <div class="auth-header">
+        <a href="#home" class="brand" onclick="setView('home'); return false;" aria-label="ProMoney home">
+          <div class="brand-logo">¥</div>
+          <span>ProMoney</span>
+        </a>
+        <h1 id="view-title">Sign in to ProMoney</h1>
+        <p id="view-subtitle">Access your personal finance workspace (JPY).</p>
+      </div>
+
+      <div id="banner-info" class="status-banner" role="status">
+        <span>ⓘ</span>
+        <div>
+          <strong id="banner-title">Phase 1 Authentication Preview</strong>
+          <span id="banner-desc">Enter your details below to validate the <code>snake_case</code> API request payload.</span>
+        </div>
+      </div>
+
+      <form class="form" id="auth-demo-form" onsubmit="handleDemoSubmit(event)" novalidate>
+        <label id="wrap-display-name" style="display: none;">
+          Display Name
+          <input
+            id="demo-display-name"
+            type="text"
+            maxlength="100"
+            placeholder="e.g. Renuka Karmacharya"
+            autocomplete="name"
+          />
+          <span id="err-display-name" class="field-error" style="display: none;"></span>
+        </label>
+
+        <label>
+          Email Address
+          <input
+            id="demo-email"
+            type="email"
+            required
+            placeholder="you@example.com"
+            autocomplete="email"
+          />
+          <span id="err-email" class="field-error" style="display: none;"></span>
+        </label>
+
+        <label>
+          <span class="pw-toggle-row">
+            <span>Password</span>
+            <button type="button" class="text-action" onclick="togglePwVisibility()" id="pw-toggle-btn">
+              Show
+            </button>
+          </span>
+          <input
+            id="demo-password"
+            type="password"
+            required
+            minlength="8"
+            placeholder="Enter your password (min 8 characters)"
+            autocomplete="current-password"
+          />
+          <span id="err-password" class="field-error" style="display: none;"></span>
+        </label>
+
+        <button id="submit-btn" type="submit" class="btn primary" style="width: 100%; margin-top: 4px;">
+          Log In
+        </button>
+      </form>
+
+      <div class="auth-footer">
+        <span id="footer-prompt">
+          Don't have an account yet?
+          <a href="#register" onclick="setView('register'); return false;">Sign Up</a>
+        </span>
+        <div>
+          <a href="#home" onclick="setView('home'); return false;">← Back to Main Screen</a>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    let mode = 'home';
+
+    function setView(nextMode) {
+      mode = nextMode;
+      const homeEl = document.getElementById('screen-home');
+      const authEl = document.getElementById('screen-auth');
+
+      if (mode === 'home') {
+        homeEl.style.display = 'block';
+        authEl.style.display = 'none';
+        return;
+      }
+
+      homeEl.style.display = 'none';
+      authEl.style.display = 'flex';
+
+      const isRegister = mode === 'register';
+      document.getElementById('view-title').textContent = isRegister
+        ? 'Create your ProMoney Account'
+        : 'Sign in to ProMoney';
+      document.getElementById('view-subtitle').textContent = isRegister
+        ? 'Start managing your JPY income, expenses, budgets, and savings goals.'
+        : 'Access your personal finance workspace (JPY).';
+
+      document.getElementById('wrap-display-name').style.display = isRegister ? 'flex' : 'none';
+      document.getElementById('submit-btn').textContent = isRegister ? 'Sign Up' : 'Log In';
+
+      document.getElementById('footer-prompt').innerHTML = isRegister
+        ? 'Already have an account? <a href="#login" onclick="setView(\'login\'); return false;">Log In</a>'
+        : 'Don\'t have an account yet? <a href="#register" onclick="setView(\'register\'); return false;">Sign Up</a>';
+
+      resetBanner();
+      clearErrors();
+    }
+
+    function toggleTheme() {
+      const html = document.documentElement;
+      const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      document.getElementById('btn-theme').textContent = next === 'dark' ? '☀️ Light' : '🌙 Dark';
+    }
+
+    function togglePwVisibility() {
+      const input = document.getElementById('demo-password');
+      const btn = document.getElementById('pw-toggle-btn');
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = 'Hide';
+      } else {
+        input.type = 'password';
+        btn.textContent = 'Show';
+      }
+    }
+
+    function clearErrors() {
+      ['err-display-name', 'err-email', 'err-password'].forEach((id) => {
+        const el = document.getElementById(id);
+        el.style.display = 'none';
+        el.textContent = '';
+      });
+    }
+
+    function resetBanner() {
+      const banner = document.getElementById('banner-info');
+      banner.classList.remove('error');
+      document.getElementById('banner-title').textContent = 'Phase 1 Authentication Preview';
+      document.getElementById('banner-desc').innerHTML =
+        'Enter your details below to validate the <code>snake_case</code> API request payload.';
+    }
+
+    function handleDemoSubmit(e) {
+      e.preventDefault();
+      clearErrors();
+
+      const displayName = document.getElementById('demo-display-name').value.trim();
+      const email = document.getElementById('demo-email').value.trim();
+      const password = document.getElementById('demo-password').value;
+
+      let invalid = false;
+
+      if (mode === 'register' && !displayName) {
+        const err = document.getElementById('err-display-name');
+        err.textContent = 'display_name is required.';
+        err.style.display = 'block';
+        invalid = true;
+      }
+
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        const err = document.getElementById('err-email');
+        err.textContent = 'Please enter a valid email address.';
+        err.style.display = 'block';
+        invalid = true;
+      }
+
+      if (!password || password.length < 8) {
+        const err = document.getElementById('err-password');
+        err.textContent = 'Password must be at least 8 characters.';
+        err.style.display = 'block';
+        invalid = true;
+      }
+
+      const banner = document.getElementById('banner-info');
+      if (invalid) {
+        banner.classList.add('error');
+        document.getElementById('banner-title').textContent = 'Validation Error (400 Bad Request)';
+        document.getElementById('banner-desc').textContent =
+          'Please complete all required fields before sending to /api/auth/' + mode + '.';
+        return;
+      }
+
+      banner.classList.remove('error');
+      const payload = mode === 'register'
+        ? { display_name: displayName, email, password: '***' }
+        : { email, password: '***' };
+      document.getElementById('banner-title').textContent =
+        'Validated POST /api/auth/' + mode + ' Payload';
+      document.getElementById('banner-desc').textContent =
+        'Request body: ' + JSON.stringify(payload);
+    }
+  </script>
+</body>
+</html>
