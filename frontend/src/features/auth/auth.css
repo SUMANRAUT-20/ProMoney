@@ -1,0 +1,58 @@
+/* Auth-only additions: reuse Template 21 tokens and shared form/button/card styles. */
+.pm-auth { min-height: 100vh; display: flex; flex-direction: column; background: var(--body); color: var(--text); }
+.pm-auth-topbar { display: flex; align-items: center; justify-content: space-between; gap: 24px; width: min(1180px, 100%); margin: 0 auto; padding: 22px 28px; border-bottom: 1px solid var(--border); }
+.pm-auth-topbar .brand { padding: 0; min-height: 44px; height: auto; border: 0; font-size: 22px; }
+.pm-auth-topbar .brand-logo { width: 40px; height: 40px; font-size: 25px; }
+.pm-auth-topbar .brand small { display: block; font-size: 10px; font-weight: 500; letter-spacing: .2px; color: var(--muted); margin-top: 3px; }
+.pm-auth-header-tools, .pm-auth-topbar nav { display: flex; align-items: center; gap: 10px; }
+.pm-auth-header-tools { gap: 24px; }
+.pm-auth-clock { display: flex; align-items: center; gap: 9px; color: var(--green-dark); }
+.pm-auth-clock time { display: block; color: var(--text); font-size: 17px; font-variant-numeric: tabular-nums; letter-spacing: .5px; }
+.pm-auth-clock small { display: block; color: var(--muted); font-size: 10px; margin-top: 3px; }
+.pm-auth-main { flex: 1; width: 100%; padding: 36px 20px; }
+.pm-auth .pm-auth-card { width: min(520px, 100%); margin: 0 auto; padding: 28px 32px; }
+.pm-auth-back { display: inline-flex; align-items: center; gap: 6px; color: var(--green-dark); font-size: 12px; font-weight: 600; margin-bottom: 24px; }
+.pm-auth .auth-header { align-items: flex-start; text-align: left; }
+.pm-auth .auth-header h1 { font-size: 24px; margin-bottom: 8px; }
+.pm-auth .auth-header p { line-height: 1.6; }
+.pm-auth .pm-auth-field { display: flex; flex-direction: column; gap: 6px; }
+.pm-auth-password { position: relative; }
+.pm-auth .pm-auth-password input { padding-right: 44px; }
+.pm-auth-password button { position: absolute; right: 5px; top: 3px; width: 32px; height: 32px; display: grid; place-items: center; background: transparent; color: var(--muted); border: 0; border-radius: 6px; }
+.pm-auth .form input { min-height: 42px; }
+.pm-auth-password button:hover { color: var(--green-dark); background: var(--mint-soft); }
+.pm-auth-help { display: flex; justify-content: flex-end; }
+.pm-auth-text-button { padding: 0; border: 0; background: transparent; color: var(--green-dark); font-size: 12px; font-weight: 600; }
+.pm-auth .pm-auth-submit { min-height: 42px; width: 100%; }
+.pm-auth-divider { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 11px; margin: 23px 0 16px; }
+.pm-auth-divider::before, .pm-auth-divider::after { content: ''; height: 1px; flex: 1; background: var(--border); }
+.pm-auth-social { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pm-auth-social .btn { min-height: 40px; }
+.pm-auth-hint { font-size: 11px; line-height: 1.6; color: var(--muted); margin: 12px 0 0; }
+.pm-auth .pm-auth-field-hint { margin: -9px 0 0; }
+.pm-auth-notice { margin: 12px 0 0; }
+.pm-auth-notice svg { flex-shrink: 0; }
+.pm-auth-bottom { display: flex; justify-content: space-between; gap: 12px; width: min(1180px, 100%); padding: 20px 28px; margin: 0 auto; font-size: 11px; color: var(--muted); }
+.pm-auth-welcome { max-width: 1180px; margin: 0 auto; padding: 36px 28px; }
+.pm-auth-hero { padding: 48px; background: var(--mint-soft); }
+.pm-auth-eyebrow { color: var(--green-dark); font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
+.pm-auth-hero h1 { max-width: 850px; font-size: clamp(32px, 4.5vw, 56px); line-height: 1.15; letter-spacing: -1.8px; margin: 22px 0; }
+.pm-auth-hero em { font-style: normal; color: var(--green-dark); }
+.pm-auth-hero > p { max-width: 700px; color: var(--muted); }
+.pm-auth-actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 26px 0 18px; }
+.pm-auth-actions .btn { min-height: 42px; }
+.pm-auth-features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 18px; }
+.pm-auth-features section { padding: 24px; }
+.pm-auth-features svg { color: var(--green-dark); margin-bottom: 18px; }
+.pm-auth-features h2 { font-size: 15px; }
+.pm-auth-features p { color: var(--muted); font-size: 12px; margin-bottom: 0; }
+@media (max-width: 650px) {
+  .pm-auth-topbar { flex-wrap: wrap; padding: 18px 20px; gap: 18px; }
+  .pm-auth-header-tools { width: 100%; justify-content: space-between; gap: 12px; }
+  .pm-auth-clock svg { display: none; }
+  .pm-auth-main { padding: 24px 16px; }
+  .pm-auth .pm-auth-card { padding: 24px 20px; }
+  .pm-auth-hero { padding: 28px 22px; }
+  .pm-auth-features { grid-template-columns: 1fr; }
+  .pm-auth-bottom { flex-wrap: wrap; padding: 16px 20px; }
+}
