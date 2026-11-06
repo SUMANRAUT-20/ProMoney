@@ -73,12 +73,13 @@ export function Modal({ title, onClose, children }) {
   );
 }
 
-export function EmptyState({ icon = '✨', title, description }) {
+export function EmptyState({ icon = '✨', title, description, action }) {
   return (
     <div className="empty-state">
       <div>{icon}</div>
       <h3>{title}</h3>
       {description && <p>{description}</p>}
+      {action && <div style={{ marginTop: 14 }}>{action}</div>}
     </div>
   );
 }
@@ -87,7 +88,7 @@ export function Amount({ amount, type }) {
   return (
     <span className={type === 'income' ? 'positive' : 'negative'}>
       {type === 'income' ? '+' : '−'}
-      {money(amount)}
+      {money(Math.abs(Number(amount || 0)))}
     </span>
   );
 }
