@@ -49,6 +49,10 @@ export const apiClient = {
     return request('/auth/login', { method: 'POST', body: JSON.stringify(body) });
   },
 
+  async me() {
+    return request('/auth/me', { method: 'GET' });
+  },
+
   // Phase 2: Transactions & Accounts (Rajesh + Arpan/Suman)
   async getTransactions(queryString = '') {
     return request(`/transactions${queryString ? `?${queryString}` : ''}`, { method: 'GET' });
@@ -75,3 +79,27 @@ export const apiClient = {
     return request('/goals', { method: 'GET' });
   }
 };
+
+// Session helpers: the JWT lives in localStorage as pm_auth_token (read by
+// request() above) and the public user profile as pm_auth_user.
+export function saveSession(token, user) {
+  localStorage.setItem('pm_auth_token', token);
+  localStorage.setItem('pm_auth_user', JSON.stringify(user || {}));
+}
+
+export function clearSession() {
+  localStorage.removeItem('pm_auth_token');
+  localStorage.removeItem('pm_auth_user');
+}
+
+export function getSessionUser() {
+  try {
+    return JSON.parse(localStorage.getItem('pm_auth_user') || 'null');
+  } catch {
+    return null;
+  }
+}
+
+export function hasSession() {
+  return Boolean(localStorage.getItem('pm_auth_token'));
+}

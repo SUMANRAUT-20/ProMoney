@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from './AuthLayout';
 import { AuthNotice, PasswordField, SocialSignIn } from './AuthControls';
+import { apiClient, saveSession } from '../../services/api';
 
 export default function RegisterView() {
+  const navigate = useNavigate();
   const [notice, setNotice] = useState('');
+  const [busy, setBusy] = useState(false);
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
     const form = event.currentTarget;
     const values = new FormData(form);
@@ -19,9 +22,24 @@ export default function RegisterView() {
       form.elements.confirm_password.reportValidity();
       return;
     }
-    // Username, names, and birth date are UI-only until the API contract is extended.
-    // Never discard them silently or pretend that an account was created.
-    setNotice('Registration is not connected yet. Your information has not been sent or saved, and no account has been created.');
+    // The API contract (docs/INTEGRATION_CONTRACT.md) takes display_name,
+    // email and password. Username and birth date are part of the form
+    // design but are not sent until the contract is extended.
+    setBusy(true);
+    setNotice('');
+    try {
+      const { token, user } = await apiClient.register({
+        display_name: `${values.get('first_name').trim()} ${values.get('last_name').trim()}`,
+        email: String(values.get('email') || '').trim(),
+        password: String(values.get('password') || '')
+      });
+      saveSession(token, user);
+      navigate('/dashboard');
+    } catch (err) {
+      setNotice(err.message || 'Registration failed. Is the backend running?');
+    } finally {
+      setBusy(false);
+    }
   }
   return <AuthLayout title="Create your ProMoney account" subtitle="Start managing your money with clarity and confidence." footer={<span>Already have an account? <Link to="/login">Log in</Link></span>}>
     <form className="form" onSubmit={handleSubmit} onInput={event => { const confirm = event.currentTarget.elements.confirm_password; if (confirm) confirm.setCustomValidity(''); setNotice(''); }}>
@@ -36,9 +54,9 @@ export default function RegisterView() {
       <PasswordField minLength={8} autoComplete="new-password" placeholder="At least 8 characters" />
       <PasswordField name="confirm_password" label="Confirm password" minLength={8} autoComplete="new-password" placeholder="Re-enter your password" />
       <AuthNotice>{notice}</AuthNotice>
-      <button className="btn primary pm-auth-submit" type="submit">Create account</button>
+      <button className="btn primary pm-auth-submit" type="submit" disabled={busy}>{busy ? 'Creating account…' : 'Create account'}</button>
     </form>
     <SocialSignIn />
-    <p className="pm-auth-hint">Registration is under development. This form does not save personal details.</p>
+    <p className="pm-auth-hint">Your password is stored only as a secure hash on the server — never as plain text.</p>
   </AuthLayout>;
 }

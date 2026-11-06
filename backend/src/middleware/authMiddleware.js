@@ -1,9 +1,12 @@
+import jwt from 'jsonwebtoken';
+
 /**
- * Authentication Middleware Foundation
+ * Authentication Middleware
  * Joint Owners: Arpan Khatiwada & Suman Raut
  *
- * Does NOT silently bypass authentication with a fake user.
- * In Phase 1, this middleware will verify the signed JWT token and attach req.user.
+ * Verifies the signed JWT from the Authorization: Bearer <token> header
+ * and attaches req.user = { id, email }. No token or an invalid/expired
+ * token is a 401 — there is no silent bypass and no fake user.
  */
 export function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -13,8 +16,21 @@ export function requireAuth(req, res, next) {
       status: 401
     });
   }
-  return res.status(501).json({
-    error: 'Feature not implemented yet. JWT verification will be enabled in Phase 1.',
-    status: 501
-  });
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    return res.status(500).json({
+      error: 'JWT_SECRET is not configured on the server',
+      status: 500
+    });
+  }
+  try {
+    const payload = jwt.verify(authHeader.slice('Bearer '.length), secret);
+    req.user = { id: Number(payload.sub), email: payload.email };
+    return next();
+  } catch {
+    return res.status(401).json({
+      error: 'Invalid or expired token. Please log in again.',
+      status: 401
+    });
+  }
 }

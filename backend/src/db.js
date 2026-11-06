@@ -1,7 +1,7 @@
 import mysql from 'mysql2/promise';
 
-// ONLY enable once MySQL is configured in Phase 3.
-// Do not call this from server.js until the team is ready for database work.
+// Cloud databases (TiDB Cloud, Aiven) require TLS: set DB_SSL=true in .env.
+// Local MySQL/MariaDB does not need it, so it stays off by default.
 export function createDbPool() {
   return mysql.createPool({
     host: process.env.DB_HOST || 'localhost',
@@ -12,5 +12,8 @@ export function createDbPool() {
     waitForConnections: true,
     connectionLimit: 5,
     decimalNumbers: true,
+    ...(process.env.DB_SSL === 'true'
+      ? { ssl: { minVersion: 'TLSv1.2', rejectUnauthorized: true } }
+      : {}),
   });
 }

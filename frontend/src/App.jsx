@@ -16,6 +16,18 @@ import LaboView from './features/labo/LaboView';
 import SettingsView from './features/settings/SettingsView';
 import LoginView from './features/auth/LoginView';
 import RegisterView from './features/auth/RegisterView';
+import { hasSession } from './services/api';
+
+// The workspace is private: without a saved login token, go to /login.
+// The token itself is verified by the backend on every API call.
+function RequireAuth({ children }) {
+  return hasSession() ? children : <Navigate to="/login" replace />;
+}
+
+// Signed-in users do not need the login/register pages again.
+function GuestOnly({ children }) {
+  return hasSession() ? <Navigate to="/dashboard" replace /> : children;
+}
 
 function WorkspaceLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -62,9 +74,9 @@ export default function App() {
     <FinanceProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/login" element={<LoginView />} />
-          <Route path="/register" element={<RegisterView />} />
-          <Route path="/*" element={<WorkspaceLayout />} />
+          <Route path="/login" element={<GuestOnly><LoginView /></GuestOnly>} />
+          <Route path="/register" element={<GuestOnly><RegisterView /></GuestOnly>} />
+          <Route path="/*" element={<RequireAuth><WorkspaceLayout /></RequireAuth>} />
         </Routes>
       </BrowserRouter>
     </FinanceProvider>
