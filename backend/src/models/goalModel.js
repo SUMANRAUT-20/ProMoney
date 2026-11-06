@@ -1,49 +1,53 @@
+import { getDbPool } from '../db.js';
+
 /**
- * Savings Goal Model — IN-MEMORY STORE (no database)
+ * Savings Goal Model — DATABASE STORE (MySQL / TiDB Cloud)
  * Author: Rajesh
  *
- * DATABASE RESET — 2026-11-06, Arpan's decision: all backend database
- * integration was removed (MySQL pool, sql/, Turso). This model keeps
- * the same interface and snake_case row shape as the MySQL version,
- * backed by a process-memory Map until a new database is integrated.
- * Data is lost when the backend restarts.
+ * Step 2 (2026-11-06): same interface and snake_case row shape as the
+ * in-memory baseline from the database reset, now backed by real SQL
+ * storage (backend/sql/schema.sql). Data survives backend restarts.
  */
-const goalsById = new Map();
-let nextGoalId = 1;
+const pool = getDbPool();
+
+function toRow(row) {
+  return { ...row, id: Number(row.id), user_id: Number(row.user_id) };
+}
 
 export const GoalModel = {
   async findByUser(userId) {
-    return [...goalsById.values()]
-      .filter((row) => row.user_id === Number(userId))
-      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const [rows] = await pool.execute(
+      `SELECT id, user_id, title, target_amount, saved_amount, monthly_plan, created_at
+       FROM goals WHERE user_id = ? ORDER BY created_at DESC, id DESC`,
+      [Number(userId)]
+    );
+    return rows.map(toRow);
   },
 
   async create({ userId, title, targetAmount, savedAmount = 0, monthlyPlan = 0 }) {
-    const row = {
-      id: nextGoalId++,
-      user_id: Number(userId),
-      title,
-      target_amount: targetAmount,
-      saved_amount: savedAmount,
-      monthly_plan: monthlyPlan,
-      created_at: new Date(),
-    };
-    goalsById.set(row.id, row);
-    return { id: row.id };
+    const [result] = await pool.execute(
+      `INSERT INTO goals (user_id, title, target_amount, saved_amount, monthly_plan)
+       VALUES (?, ?, ?, ?, ?)`,
+      [Number(userId), title, targetAmount, savedAmount, monthlyPlan]
+    );
+    return { id: Number(result.insertId) };
   },
 
   async contribute(id, userId, contribution) {
-    const row = goalsById.get(Number(id));
-    if (!row || row.user_id !== Number(userId)) return false;
-    // Same cap semantics as the old SQL: LEAST(target_amount, saved + ?)
-    row.saved_amount = Math.min(row.target_amount, row.saved_amount + contribution);
-    return true;
+    // Same cap semantics as the in-memory version: LEAST(target, saved + ?)
+    const [result] = await pool.execute(
+      `UPDATE goals SET saved_amount = LEAST(target_amount, saved_amount + ?)
+       WHERE id = ? AND user_id = ?`,
+      [contribution, Number(id), Number(userId)]
+    );
+    return result.affectedRows > 0;
   },
 
   async delete(id, userId) {
-    const row = goalsById.get(Number(id));
-    if (!row || row.user_id !== Number(userId)) return false;
-    goalsById.delete(row.id);
-    return true;
+    const [result] = await pool.execute(
+      'DELETE FROM goals WHERE id = ? AND user_id = ?',
+      [Number(id), Number(userId)]
+    );
+    return result.affectedRows > 0;
   }
 };
