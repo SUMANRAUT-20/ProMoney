@@ -1,280 +1,134 @@
-
 import { useState } from 'react';
+import { CheckCircle2, Coins, Pencil, Plus, Target, Trash2, TrendingUp, Wallet } from 'lucide-react';
+import { useFinance } from '../../context/FinanceContext';
+import { EmptyState, Metric, Modal, PageHeading, ProgressBar } from '../../components/ui';
 import {
-  CheckCircle2,
-  Coins,
-  Pencil,
-  Plus,
-  Target,
-  Trash2,
-  TrendingUp,
-  Wallet,
-} from 'lucide-react';
-import {
-  EmptyState,
-  Modal,
-  PageHeading,
-  ProgressBar,
-} from '../../components/ui';
+  addMonthsISO,
+  formatDate,
+  goalPercent,
+  isValidISODate,
+  makeId,
+  money,
+  parseWholeYen,
+  sum,
+  todayISO,
+} from '../../utils/formatters';
+import { getGoalForecast, getMonthlySavingPace } from '../../utils/financeMath';
 
-const formatYen = (value) =>
-  `¥${Number(value || 0).toLocaleString('ja-JP')}`;
+function GoalForecastBlock({ goal, monthlyPace, today }) {
+  const forecast = getGoalForecast(goal, monthlyPace, today);
+  const startY = 30 - Math.round((goalPercent(goal) / 100) * 22);
 
-const emptyGoalForm = {
-  title: '',
-  target_amount: '',
-  saved_amount: '0',
-  monthly_plan: '0',
-};
-
-const parseWholeYen = (value, allowZero = false) => {
-  const text = String(value).trim();
-
-  if (!/^\d+$/.test(text)) return null;
-
-  const amount = Number(text);
-
-  if (!Number.isSafeInteger(amount)) return null;
-  if (allowZero ? amount < 0 : amount <= 0) return null;
-
-  return amount;
-};
-
-const getProgress = (goal) => {
-  if (goal.target_amount <= 0) return 0;
-
-  return Math.min(
-    100,
-    (goal.saved_amount / goal.target_amount) * 100
+  return (
+    <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+      <svg viewBox="0 0 220 36" width="100%" height="36" role="img" aria-label="Goal growth forecast line">
+        <line x1="8" y1="8" x2="212" y2="8" stroke="var(--border)" strokeDasharray="4 3" />
+        {monthlyPace > 0 || forecast.completed ? (
+          <>
+            <polyline
+              fill="none"
+              stroke="var(--green)"
+              strokeWidth="2.2"
+              points={`8,${startY} 212,8`}
+            />
+            <circle cx="8" cy={startY} r="3" fill="var(--green)" />
+            <circle cx="212" cy="8" r="3" fill="var(--green)" />
+          </>
+        ) : (
+          <line x1="8" y1={startY} x2="212" y2={startY} stroke="var(--red)" strokeWidth="2" strokeDasharray="3 3" />
+        )}
+      </svg>
+      <p className="small" style={{ margin: '4px 0 0', color: forecast.completed || forecast.onTrack ? 'var(--green-dark)' : 'var(--red)' }}>
+        {forecast.completed
+          ? 'Completed! Savings target reached.'
+          : monthlyPace > 0
+            ? `Growth forecast: At ${money(monthlyPace)}/mo saving pace → est. ${formatDate(forecast.expectedDate)} (${forecast.monthsNeeded} mo · ${forecast.onTrack ? 'On track' : 'After deadline'})`
+            : `Growth forecast: Net saving pace is ${money(monthlyPace)}/mo — increase monthly savings to project completion.`}
+      </p>
+    </div>
   );
-};
+}
 
 export default function GoalsView() {
-  const [goals, setGoals] = useState([]);
+  const { goals, setGoals, transactions } = useFinance();
+  const today = todayISO();
+  const defaultDeadline = addMonthsISO(today, 6);
+
   const [filter, setFilter] = useState('all');
-
-  const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState(null);
-  const [goalForm, setGoalForm] = useState(emptyGoalForm);
-  const [goalError, setGoalError] = useState('');
+  const [form, setForm] = useState({ title: '', target_amount: '', saved_amount: '0', target_date: defaultDeadline, monthly_plan: '10000' });
+  const [error, setError] = useState('');
 
-  const [contributionGoal, setContributionGoal] = useState(null);
-  const [contributionAmount, setContributionAmount] = useState('');
-  const [contributionError, setContributionError] = useState('');
-
+  const [contribGoal, setContribGoal] = useState(null);
+  const [contribAmount, setContribAmount] = useState('');
+  const [contribError, setContribError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
 
-  const totalTarget = goals.reduce(
-    (sum, goal) => sum + goal.target_amount,
-    0
-  );
+  const totalTarget = sum(goals, 'target_amount');
+  const totalSaved = sum(goals, 'saved_amount');
+  const monthlyPace = getMonthlySavingPace(transactions);
+  const completedCount = goals.filter((g) => g.saved_amount >= g.target_amount).length;
 
-  const totalSaved = goals.reduce(
-    (sum, goal) => sum + goal.saved_amount,
-    0
-  );
-
-  const activeGoals = goals.filter(
-    (goal) => goal.saved_amount < goal.target_amount
-  ).length;
-
-  const completedGoals = goals.filter(
-    (goal) => goal.saved_amount >= goal.target_amount
-  ).length;
-
-  const filteredGoals = goals.filter((goal) => {
-    const completed = goal.saved_amount >= goal.target_amount;
-
-    if (filter === 'active') return !completed;
-    if (filter === 'completed') return completed;
-
+  const filteredGoals = goals.filter((g) => {
+    const done = g.saved_amount >= g.target_amount;
+    if (filter === 'active') return !done;
+    if (filter === 'completed') return done;
     return true;
   });
 
-  const updateGoalForm = (field, value) => {
-    setGoalForm((previous) => ({
-      ...previous,
-      [field]: value,
-    }));
-    setGoalError('');
-  };
-
-  const openAddGoal = () => {
+  const openAdd = () => {
     setEditingGoal(null);
-    setGoalForm({ ...emptyGoalForm });
-    setGoalError('');
-    setIsGoalModalOpen(true);
+    setForm({ title: '', target_amount: '', saved_amount: '0', target_date: defaultDeadline, monthly_plan: '10000' });
+    setError('');
+    setModalOpen(true);
   };
 
-  const openEditGoal = (goal) => {
+  const openEdit = (goal) => {
     setEditingGoal(goal);
-    setGoalForm({
+    setForm({
       title: goal.title,
       target_amount: String(goal.target_amount),
       saved_amount: String(goal.saved_amount),
-      monthly_plan: String(goal.monthly_plan),
+      target_date: goal.target_date || defaultDeadline,
+      monthly_plan: String(goal.monthly_plan ?? 0),
     });
-    setGoalError('');
-    setIsGoalModalOpen(true);
-  };
-
-  const closeGoalModal = () => {
-    setIsGoalModalOpen(false);
-    setEditingGoal(null);
-    setGoalError('');
+    setError('');
+    setModalOpen(true);
   };
 
   const saveGoal = (event) => {
     event.preventDefault();
+    const title = form.title.trim();
+    const target = parseWholeYen(form.target_amount);
+    const saved = parseWholeYen(form.saved_amount, { allowZero: true });
+    const plan = parseWholeYen(form.monthly_plan, { allowZero: true });
+    if (!title || title.length > 80) return setError('Enter a goal name (1–80 characters).');
+    if (target === null) return setError('Target amount must be a whole number greater than ¥0.');
+    if (saved === null) return setError('Current saved amount must be ¥0 or a positive whole number.');
+    if (saved > target) return setError('Current saved amount cannot exceed target amount.');
+    if (!isValidISODate(form.target_date)) return setError('Select a valid deadline date (YYYY-MM-DD).');
+    if (plan === null) return setError('Monthly saving plan must be ¥0 or a positive whole number.');
 
-    const title = goalForm.title.trim();
-
-    const targetAmount = parseWholeYen(
-      goalForm.target_amount
-    );
-
-    const savedAmount = parseWholeYen(
-      goalForm.saved_amount,
-      true
-    );
-
-    const monthlyPlan = parseWholeYen(
-      goalForm.monthly_plan,
-      true
-    );
-
-    if (!title) {
-      setGoalError('Please enter a goal name.');
-      return;
-    }
-
-    if (title.length > 100) {
-      setGoalError('Goal name must be 100 characters or fewer.');
-      return;
-    }
-
-    if (targetAmount === null) {
-      setGoalError(
-        'Target amount must be a positive whole-yen number.'
-      );
-      return;
-    }
-
-    if (savedAmount === null) {
-      setGoalError(
-        'Saved amount must be zero or a positive whole-yen number.'
-      );
-      return;
-    }
-
-    if (monthlyPlan === null) {
-      setGoalError(
-        'Monthly plan must be zero or a positive whole-yen number.'
-      );
-      return;
-    }
-
-    if (savedAmount > targetAmount) {
-      setGoalError(
-        'Saved amount cannot exceed the target amount.'
-      );
-      return;
-    }
-
-    const nextGoal = {
-      id: editingGoal?.id ?? crypto.randomUUID(),
-      title,
-      target_amount: targetAmount,
-      saved_amount: savedAmount,
-      monthly_plan: monthlyPlan,
-    };
-
-    setGoals((previous) => {
-      if (editingGoal) {
-        return previous.map((goal) =>
-          goal.id === editingGoal.id ? nextGoal : goal
-        );
-      }
-
-      return [...previous, nextGoal];
-    });
-
-    closeGoalModal();
-  };
-
-  const openContributionModal = (goal) => {
-    setContributionGoal(goal);
-    setContributionAmount('');
-    setContributionError('');
-  };
-
-  const closeContributionModal = () => {
-    setContributionGoal(null);
-    setContributionAmount('');
-    setContributionError('');
+    const next = { id: editingGoal?.id ?? makeId('goal'), title, target_amount: target, saved_amount: saved, target_date: form.target_date, monthly_plan: plan };
+    setGoals((prev) => (editingGoal ? prev.map((g) => (g.id === editingGoal.id ? next : g)) : [...prev, next]));
+    setModalOpen(false);
   };
 
   const saveContribution = (event) => {
     event.preventDefault();
-
-    if (!contributionGoal) return;
-
-    const amount = parseWholeYen(contributionAmount);
-
-    if (amount === null) {
-      setContributionError(
-        'Please enter a positive whole-yen contribution.'
-      );
-      return;
-    }
-
-    const currentGoal = goals.find(
-      (goal) => goal.id === contributionGoal.id
-    );
-
-    if (!currentGoal) {
-      setContributionError('This goal no longer exists.');
-      return;
-    }
-
-    const remaining =
-      currentGoal.target_amount - currentGoal.saved_amount;
-
-    if (remaining <= 0) {
-      setContributionError(
-        'This goal is already completed.'
-      );
-      return;
-    }
-
-    if (amount > remaining) {
-      setContributionError(
-        `The maximum contribution is ${formatYen(remaining)}.`
-      );
-      return;
-    }
-
-    setGoals((previous) =>
-      previous.map((goal) =>
-        goal.id === currentGoal.id
-          ? {
-              ...goal,
-              saved_amount: goal.saved_amount + amount,
-            }
-          : goal
-      )
-    );
-
-    closeContributionModal();
+    if (!contribGoal) return;
+    const amt = parseWholeYen(contribAmount);
+    const remaining = Math.max(0, contribGoal.target_amount - contribGoal.saved_amount);
+    if (amt === null) return setContribError('Enter a whole-yen amount greater than ¥0.');
+    if (amt > remaining) return setContribError(`Maximum remaining amount is ${money(remaining)}.`);
+    setGoals((prev) => prev.map((g) => (g.id === contribGoal.id ? { ...g, saved_amount: g.saved_amount + amt } : g)));
+    setContribGoal(null);
   };
 
   const confirmDelete = () => {
     if (!deleteTarget) return;
-
-    setGoals((previous) =>
-      previous.filter((goal) => goal.id !== deleteTarget.id)
-    );
-
+    setGoals((prev) => prev.filter((g) => g.id !== deleteTarget.id));
     setDeleteTarget(null);
   };
 
@@ -282,252 +136,88 @@ export default function GoalsView() {
     <>
       <PageHeading
         title="Savings Goals"
-        subtitle="Create savings targets, plan monthly savings, and track your progress in JPY."
+        subtitle="Track JPY savings targets, deadlines, and real-time completion forecasts."
         action={
-          <button
-            className="btn primary"
-            type="button"
-            onClick={openAddGoal}
-          >
-            <Plus size={17} />
-            Add Goal
+          <button className="btn primary" type="button" onClick={openAdd}>
+            <Plus size={16} /> Add Goal
           </button>
         }
       />
 
-      <section
-        className="metrics-grid"
-        style={{ marginBottom: 18 }}
-      >
-        <div className="metric card">
-          <div className="metric-icon green">
-            <Target size={19} />
-          </div>
-          <div>
-            <span className="metric-label">Total target</span>
-            <strong className="metric-number">
-              {formatYen(totalTarget)}
-            </strong>
-          </div>
-        </div>
-
-        <div className="metric card">
-          <div className="metric-icon">
-            <Wallet size={19} />
-          </div>
-          <div>
-            <span className="metric-label">Total saved</span>
-            <strong className="metric-number">
-              {formatYen(totalSaved)}
-            </strong>
-          </div>
-        </div>
-
-        <div className="metric card">
-          <div className="metric-icon">
-            <TrendingUp size={19} />
-          </div>
-          <div>
-            <span className="metric-label">Active goals</span>
-            <strong className="metric-number">
-              {activeGoals}
-            </strong>
-          </div>
-        </div>
-
-        <div className="metric card">
-          <div className="metric-icon">
-            <CheckCircle2 size={19} />
-          </div>
-          <div>
-            <span className="metric-label">Completed</span>
-            <strong className="metric-number">
-              {completedGoals}
-            </strong>
-          </div>
-        </div>
+      <section className="dashboard-metrics" style={{ marginBottom: 16 }}>
+        <Metric icon={Target} label="Total target" value={money(totalTarget)} small={`${goals.length} goals`} />
+        <Metric icon={Wallet} label="Total saved" value={money(totalSaved)} small="Across all goals" />
+        <Metric icon={TrendingUp} label="Monthly saving pace" value={`${money(monthlyPace)}/mo`} small="Avg income − expenses" />
+        <Metric icon={CheckCircle2} label="Completed goals" value={`${completedCount} / ${goals.length}`} small="Targets reached" />
       </section>
 
       <section className="section-card card">
-        <div
-          className="section-title"
-          style={{ marginBottom: 12 }}
-        >
-          <h2>My Savings Goals</h2>
-          <span className="support-note">
-            {goals.length} total
-          </span>
-        </div>
-
-        <div
-          className="segmented"
-          style={{
-            display: 'flex',
-            gap: 6,
-            flexWrap: 'wrap',
-            marginBottom: 18,
-          }}
-        >
-          {[
-            ['all', 'All'],
-            ['active', 'Active'],
-            ['completed', 'Completed'],
-          ].map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              className={filter === value ? 'selected' : ''}
-              onClick={() => setFilter(value)}
-              aria-pressed={filter === value}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="section-toolbar" style={{ flexWrap: 'wrap' }}>
+          <h2 style={{ margin: 0 }}>My Savings Goals</h2>
+          <div className="segmented">
+            {[
+              ['all', 'All'],
+              ['active', 'Active'],
+              ['completed', 'Completed'],
+            ].map(([val, label]) => (
+              <button key={val} type="button" className={filter === val ? 'selected' : ''} onClick={() => setFilter(val)}>
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {filteredGoals.length === 0 ? (
           <EmptyState
             icon="🎯"
-            title={
-              goals.length === 0
-                ? 'No savings goals yet'
-                : `No ${filter} goals`
-            }
-            description={
-              goals.length === 0
-                ? 'Create your first savings goal to start tracking progress.'
-                : 'Try another filter to see your savings goals.'
+            title={goals.length === 0 ? 'No savings goals yet' : `No ${filter} goals`}
+            description={goals.length === 0 ? 'Create a JPY target and deadline to forecast your completion date.' : 'Switch tabs or create another savings goal.'}
+            action={
+              goals.length === 0 ? (
+                <button className="btn primary" type="button" onClick={openAdd}>
+                  <Plus size={15} /> Create First Goal
+                </button>
+              ) : (
+                <button className="btn secondary" type="button" onClick={() => setFilter('all')}>
+                  Show All Goals
+                </button>
+              )
             }
           />
         ) : (
-          <div
-            className="budget-grid"
-            style={{ marginTop: 8 }}
-          >
+          <div className="budget-grid" style={{ marginTop: 8 }}>
             {filteredGoals.map((goal) => {
-              const progress = getProgress(goal);
-              const completed =
-                goal.saved_amount >= goal.target_amount;
-
-              const remaining =
-                goal.target_amount - goal.saved_amount;
-
+              const completed = goal.saved_amount >= goal.target_amount;
+              const remaining = Math.max(0, goal.target_amount - goal.saved_amount);
               return (
-                <article
-                  key={goal.id}
-                  className="budget-card card"
-                >
+                <article key={goal.id} className="budget-card card">
                   <div className="budget-top">
                     <div>
-                      <h3 style={{ margin: 0 }}>
-                        {goal.title}
-                      </h3>
-
-                      <p className="support-note">
-                        {completed
-                          ? 'Goal completed'
-                          : 'Savings in progress'}
-                      </p>
+                      <h3>{goal.title}</h3>
+                      <span className="muted small">
+                        Deadline: {formatDate(goal.target_date)} · Plan: {money(goal.monthly_plan || 0)}/mo
+                      </span>
                     </div>
-
-                    {completed ? (
-                      <CheckCircle2
-                        size={23}
-                        color="#299365"
-                      />
-                    ) : (
-                      <Coins size={23} />
-                    )}
+                    {completed ? <CheckCircle2 size={20} color="var(--green)" /> : <Coins size={20} color="var(--muted)" />}
                   </div>
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      gap: 10,
-                      marginTop: 14,
-                      marginBottom: 8,
-                    }}
-                  >
-                    <strong style={{ fontSize: 19 }}>
-                      {formatYen(goal.saved_amount)}
-                    </strong>
-
-                    <span className="support-note">
-                      {Math.round(progress)}%
-                    </span>
+                  <div className="budget-figures">
+                    <strong>{money(goal.saved_amount)}</strong>
+                    <span>of {money(goal.target_amount)} ({goalPercent(goal)}%)</span>
                   </div>
-
-                  <ProgressBar
-                    current={goal.saved_amount}
-                    target={goal.target_amount}
-                    color="green"
-                  />
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      gap: 12,
-                      marginTop: 12,
-                      flexWrap: 'wrap',
-                    }}
-                  >
-                    <span className="support-note">
-                      Target: {formatYen(goal.target_amount)}
-                    </span>
-
-                    <span className="support-note">
-                      Remaining: {formatYen(remaining)}
-                    </span>
-                  </div>
-
-                  <p
-                    className="support-note"
-                    style={{ marginTop: 10 }}
-                  >
-                    Monthly plan:{' '}
-                    {formatYen(goal.monthly_plan)}
-                  </p>
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      gap: 8,
-                      flexWrap: 'wrap',
-                      marginTop: 16,
-                    }}
-                  >
+                  <ProgressBar current={goal.saved_amount} target={goal.target_amount} color={completed ? 'complete' : 'green'} />
+                  <p className="muted">Remaining: {money(remaining)}</p>
+                  <GoalForecastBlock goal={goal} monthlyPace={monthlyPace} today={today} />
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
                     {!completed && (
-                      <button
-                        className="btn primary"
-                        type="button"
-                        onClick={() =>
-                          openContributionModal(goal)
-                        }
-                      >
-                        <Plus size={15} />
-                        Add Savings
+                      <button className="btn primary compact" type="button" onClick={() => { setContribGoal(goal); setContribAmount(''); setContribError(''); }}>
+                        <Plus size={14} /> Add Savings
                       </button>
                     )}
-
-                    <button
-                      className="btn"
-                      type="button"
-                      onClick={() => openEditGoal(goal)}
-                    >
-                      <Pencil size={15} />
-                      Edit
+                    <button className="btn secondary compact" type="button" onClick={() => openEdit(goal)}>
+                      <Pencil size={14} /> Edit
                     </button>
-
-                    <button
-                      className="btn"
-                      type="button"
-                      onClick={() => setDeleteTarget(goal)}
-                    >
-                      <Trash2 size={15} />
-                      Delete
+                    <button className="btn secondary compact" type="button" onClick={() => setDeleteTarget(goal)} aria-label={`Delete ${goal.title}`}>
+                      <Trash2 size={14} /> Delete
                     </button>
                   </div>
                 </article>
@@ -537,205 +227,65 @@ export default function GoalsView() {
         )}
       </section>
 
-      <p className="support-note">
-        Savings goals are stored temporarily in page memory.
-        Refreshing clears them. Adding savings does not
-        automatically change account balances or create transactions.
-      </p>
-
-      {isGoalModalOpen && (
-        <Modal
-          title={editingGoal ? 'Edit Savings Goal' : 'Add Savings Goal'}
-          onClose={closeGoalModal}
-        >
-          <form className="form" onSubmit={saveGoal}>
+      {modalOpen && (
+        <Modal title={editingGoal ? 'Edit Savings Goal' : 'Add Savings Goal'} onClose={() => setModalOpen(false)}>
+          <form className="form" onSubmit={saveGoal} noValidate>
             <label>
               Goal Name
-              <input
-                type="text"
-                value={goalForm.title}
-                onChange={(event) =>
-                  updateGoalForm('title', event.target.value)
-                }
-                placeholder="e.g. Buy a Laptop"
-                maxLength={100}
-                required
-              />
+              <input type="text" value={form.title} maxLength={80} placeholder="e.g. Graduation Laptop Fund" onChange={(e) => { setForm({ ...form, title: e.target.value }); setError(''); }} required />
             </label>
-
-            <label>
-              Target Amount (JPY)
-              <input
-                type="number"
-                min="1"
-                step="1"
-                value={goalForm.target_amount}
-                onChange={(event) =>
-                  updateGoalForm(
-                    'target_amount',
-                    event.target.value
-                  )
-                }
-                placeholder="e.g. 150000"
-                required
-              />
-            </label>
-
-            <label>
-              Already Saved (JPY)
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={goalForm.saved_amount}
-                onChange={(event) =>
-                  updateGoalForm(
-                    'saved_amount',
-                    event.target.value
-                  )
-                }
-                required
-              />
-            </label>
-
-            <label>
-              Monthly Savings Plan (JPY)
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={goalForm.monthly_plan}
-                onChange={(event) =>
-                  updateGoalForm(
-                    'monthly_plan',
-                    event.target.value
-                  )
-                }
-                required
-              />
-            </label>
-
-            {goalError && (
-              <p className="negative" role="alert">
-                {goalError}
-              </p>
-            )}
-
+            <div className="form-row">
+              <label>
+                Target Amount (JPY)
+                <input type="number" min="1" step="1" value={form.target_amount} placeholder="e.g. 180000" onChange={(e) => { setForm({ ...form, target_amount: e.target.value }); setError(''); }} required />
+              </label>
+              <label>
+                Current Saved (JPY)
+                <input type="number" min="0" step="1" value={form.saved_amount} onChange={(e) => { setForm({ ...form, saved_amount: e.target.value }); setError(''); }} required />
+              </label>
+            </div>
+            <div className="form-row">
+              <label>
+                Deadline
+                <input type="date" value={form.target_date} onChange={(e) => { setForm({ ...form, target_date: e.target.value }); setError(''); }} required />
+              </label>
+              <label>
+                Monthly Plan (JPY)
+                <input type="number" min="0" step="1" value={form.monthly_plan} onChange={(e) => { setForm({ ...form, monthly_plan: e.target.value }); setError(''); }} required />
+              </label>
+            </div>
+            {error && <p className="negative" role="alert" style={{ margin: 0 }}>{error}</p>}
             <div className="form-actions">
-              <button
-                className="btn"
-                type="button"
-                onClick={closeGoalModal}
-              >
-                Cancel
-              </button>
-
-              <button
-                className="btn primary"
-                type="submit"
-              >
-                {editingGoal ? 'Save Changes' : 'Add Goal'}
-              </button>
+              <button className="btn secondary" type="button" onClick={() => setModalOpen(false)}>Cancel</button>
+              <button className="btn primary" type="submit">{editingGoal ? 'Save Changes' : 'Add Goal'}</button>
             </div>
           </form>
         </Modal>
       )}
 
-      {contributionGoal && (
-        <Modal
-          title="Add Savings"
-          onClose={closeContributionModal}
-        >
-          <form
-            className="form"
-            onSubmit={saveContribution}
-          >
-            <p>
-              Add savings toward{' '}
-              <strong>{contributionGoal.title}</strong>.
-            </p>
-
-            <p className="support-note">
-              Remaining:{' '}
-              {formatYen(
-                contributionGoal.target_amount -
-                  contributionGoal.saved_amount
-              )}
-            </p>
-
+      {contribGoal && (
+        <Modal title={`Add Savings · ${contribGoal.title}`} onClose={() => setContribGoal(null)}>
+          <form className="form" onSubmit={saveContribution} noValidate>
+            <p className="muted" style={{ margin: 0 }}>Remaining toward target: <strong>{money(contribGoal.target_amount - contribGoal.saved_amount)}</strong></p>
             <label>
               Contribution Amount (JPY)
-              <input
-                type="number"
-                min="1"
-                step="1"
-                value={contributionAmount}
-                onChange={(event) => {
-                  setContributionAmount(event.target.value);
-                  setContributionError('');
-                }}
-                placeholder="Enter amount in yen"
-                required
-              />
+              <input type="number" min="1" step="1" value={contribAmount} placeholder="e.g. 15000" onChange={(e) => { setContribAmount(e.target.value); setContribError(''); }} required />
             </label>
-
-            {contributionError && (
-              <p className="negative" role="alert">
-                {contributionError}
-              </p>
-            )}
-
+            {contribError && <p className="negative" role="alert" style={{ margin: 0 }}>{contribError}</p>}
             <div className="form-actions">
-              <button
-                className="btn"
-                type="button"
-                onClick={closeContributionModal}
-              >
-                Cancel
-              </button>
-
-              <button
-                className="btn primary"
-                type="submit"
-              >
-                Add Savings
-              </button>
+              <button className="btn secondary" type="button" onClick={() => setContribGoal(null)}>Cancel</button>
+              <button className="btn primary" type="submit">Add Savings</button>
             </div>
           </form>
         </Modal>
       )}
 
       {deleteTarget && (
-        <Modal
-          title="Delete Savings Goal"
-          onClose={() => setDeleteTarget(null)}
-        >
-          <p>
-            Are you sure you want to delete{' '}
-            <strong>{deleteTarget.title}</strong>?
-          </p>
-
-          <p className="support-note">
-            This goal and its temporary saved amount
-            will be removed from the current session.
-          </p>
-
+        <Modal title="Delete Savings Goal" onClose={() => setDeleteTarget(null)}>
+          <p>Delete <strong>{deleteTarget.title}</strong> ({money(deleteTarget.saved_amount)} saved)?</p>
           <div className="form-actions">
-            <button
-              className="btn"
-              type="button"
-              onClick={() => setDeleteTarget(null)}
-            >
-              Cancel
-            </button>
-
-            <button
-              className="btn primary"
-              type="button"
-              onClick={confirmDelete}
-            >
-              Delete Goal
-            </button>
+            <button className="btn secondary" type="button" onClick={() => setDeleteTarget(null)}>Cancel</button>
+            <button className="btn primary" type="button" onClick={confirmDelete}>Delete Goal</button>
           </div>
         </Modal>
       )}
