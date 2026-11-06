@@ -1,0 +1,28 @@
+/* Topbar clock — layout-local styles (the shared .topbar rules stay in
+   styles.css). Date + live time, stacked, right-aligned. */
+
+.topbar-clock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.topbar-clock-date {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.topbar-clock-time {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 800px) {
+  .topbar-clock {
+    display: none;
+  }
+}
