@@ -9,7 +9,7 @@ export default function WelcomeView() {
       <h1>Master every yen with <em>clarity, confidence,</em> and explainable AI.</h1>
       <p>ProMoney is designed for life in Japan. Bring daily income, expenses, monthly budgets, recurring bills, and savings goals together in one clear workspace.</p>
       <div className="pm-auth-actions"><Link className="btn primary" to="/register">Create free account <ArrowUpRight size={17} /></Link><Link className="btn secondary" to="/login">Log in to your account</Link></div>
-      <p className="pm-auth-hint">Authentication is under development. Account creation is not available yet.</p>
+      <p className="pm-auth-hint">Create an account or log in to open your workspace.</p>
     </section>
     <div className="pm-auth-features">
       <section className="card"><Wallet size={22} /><h2>Know where your yen goes.</h2><p>Income, expenses, cash, and bank accounts in one overview.</p></section>

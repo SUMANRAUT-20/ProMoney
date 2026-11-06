@@ -1,12 +1,23 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, Sun, Moon, Menu } from 'lucide-react';
+import { Search, Sun, Moon, Menu, LogOut } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
+import { useAuth } from '../../context/AuthContext';
 
 export default function Topbar({ toggleMenu }) {
   const [search, setSearch] = useState('');
   const navigate = useNavigate();
   const { theme, setTheme } = useFinance();
+  const { user, logout } = useAuth();
+
+  const initials = user?.display_name
+    ? user.display_name.split(' ').map((part) => part[0]).slice(0, 2).join('').toUpperCase()
+    : 'PM';
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login', { replace: true });
+  };
 
   const submit = (event) => {
     event.preventDefault();
@@ -48,9 +59,25 @@ export default function Topbar({ toggleMenu }) {
         >
           {theme === 'light' ? <Sun size={19} /> : <Moon size={19} />}
         </button>
-        <Link to="/login" className="avatar" aria-label="Sign in to user account" title="Sign In">
-          PM
+        <Link
+          to="/settings"
+          className="avatar"
+          aria-label={user ? `Signed in as ${user.display_name}` : 'Sign in to user account'}
+          title={user ? user.display_name : 'Sign In'}
+        >
+          {initials}
         </Link>
+        {user && (
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Log out"
+            title="Log out"
+            onClick={handleLogout}
+          >
+            <LogOut size={19} />
+          </button>
+        )}
       </div>
     </header>
   );

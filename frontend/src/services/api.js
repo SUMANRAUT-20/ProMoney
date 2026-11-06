@@ -49,6 +49,14 @@ export const apiClient = {
     return request('/auth/login', { method: 'POST', body: JSON.stringify(body) });
   },
 
+  async getMe() {
+    return request('/auth/me', { method: 'GET' });
+  },
+
+  async googleAuth(body) {
+    return request('/auth/google', { method: 'POST', body: JSON.stringify(body) });
+  },
+
   // Phase 2: Transactions & Accounts (Rajesh + Arpan/Suman)
   async getTransactions(queryString = '') {
     return request(`/transactions${queryString ? `?${queryString}` : ''}`, { method: 'GET' });
