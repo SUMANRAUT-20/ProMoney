@@ -57,9 +57,14 @@ Confirm password stays client-side only.
   Without `VITE_GOOGLE_CLIENT_ID`, the button area explains Google sign-in is
   not configured instead of rendering a dead button.
 
+## Social sign-in scope
+
+- Google is the ONLY social provider offered. Apple / Microsoft / GitHub
+  buttons were REMOVED from the UI on 2026-10-30 (Arpan's decision) rather
+  than shown as not-connected placeholders.
+
 ## Still NOT implemented (kept honest in the UI)
 
-- Apple / Microsoft / GitHub sign-in — buttons still explain they are not connected.
 - Password reset — the link still explains no reset email is sent; there is no
   reset endpoint in the contract.
 
