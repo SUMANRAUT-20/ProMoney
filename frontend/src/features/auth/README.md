@@ -80,6 +80,7 @@ Confirm password stays client-side only.
 ## Validation
 
 See the delivery handoff for the exact commands run (frontend production build and
-backend test suite). End-to-end register/login in a browser still requires a local
-MySQL database with `backend/sql/schema.sql` imported and a backend `.env`
-(`JWT_SECRET`, `DB_*`) — the same open verification item as the Task 1 backend.
+backend test suite). End-to-end register/login in a browser requires the backend
+running with a `.env` that sets `JWT_SECRET`. Since the 2026-11-06 database reset
+the backend has no database: accounts live in backend process memory and are lost
+when the backend restarts.

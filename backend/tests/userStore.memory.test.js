@@ -1,8 +1,6 @@
-// In-memory auth store tests — AUTH_STORE=memory (no MySQL needed).
-// This file must set the env var BEFORE importing userModel, and it
-// runs in its own process under `node --test`, so the MySQL-mode
-// tests in the other files are unaffected.
-process.env.AUTH_STORE = 'memory';
+// In-memory user store tests. Since the 2026-11-06 database reset the
+// in-memory store is the ONLY store, so no env setup is needed; the
+// file still runs in its own process under `node --test`.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
