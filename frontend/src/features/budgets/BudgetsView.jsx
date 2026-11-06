@@ -1,183 +1,121 @@
-
 import { useState } from 'react';
-import { CalendarDays, Pencil, Plus, Wallet } from 'lucide-react';
-import {
-  EmptyState,
-  Modal,
-  PageHeading,
-  ProgressBar,
-} from '../../components/ui';
-
-const formatYen = (value) =>
-  `¥${Number(value || 0).toLocaleString('ja-JP')}`;
-
-const currentMonth = () => {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  return `${year}-${month}`;
-};
-
-const formatMonth = (month) => {
-  const [year, monthNumber] = month.split('-');
-  return `${year} / ${monthNumber}`;
-};
+import { AlertTriangle, CalendarDays, Pencil, Plus, Trash2, Wallet } from 'lucide-react';
+import { useFinance } from '../../context/FinanceContext';
+import { EmptyState, Modal, PageHeading, ProgressBar } from '../../components/ui';
+import { currentMonthISO, formatMonth, makeId, money, parseWholeYen, sum } from '../../utils/formatters';
+import { getBudgetStatus } from '../../utils/financeMath';
 
 export default function BudgetsView() {
-  const [selectedMonth, setSelectedMonth] = useState(currentMonth);
-  const [budgets, setBudgets] = useState([]);
-  const [categories] = useState([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const { budgets, setBudgets, transactions, categories } = useFinance();
+  const expenseCategories = categories.filter((c) => c.kind === 'expense');
+
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthISO);
+  const [modalOpen, setModalOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [categoryId, setCategoryId] = useState('');
   const [amountLimit, setAmountLimit] = useState('');
   const [error, setError] = useState('');
 
-  // ROS-01 uses local UI state only.
-  // ROS-02 will load actual categories, budgets, and spending from the API.
-  const monthlyBudgets = budgets.filter(
-    (budget) => budget.budget_month === selectedMonth
-  );
+  const monthlyBudgets = budgets
+    .filter((b) => String(b.budget_month || '').slice(0, 7) === selectedMonth)
+    .map((b) => getBudgetStatus(b, transactions));
 
-  const totalLimit = monthlyBudgets.reduce(
-    (sum, budget) => sum + budget.amount_limit,
-    0
-  );
+  const totalLimit = sum(monthlyBudgets, 'amount_limit');
+  const totalSpent = sum(monthlyBudgets, 'spent_amount');
+  const totalRemaining = totalLimit - totalSpent;
+  const overBudgetItems = monthlyBudgets.filter((b) => b.over_budget);
 
-  const totalSpent = monthlyBudgets.reduce(
-    (sum, budget) => sum + budget.spent_amount,
-    0
-  );
-
-  const remaining = totalLimit - totalSpent;
-
-  const openAddModal = () => {
+  const openAdd = () => {
+    const usedIds = new Set(monthlyBudgets.map((b) => String(b.category_id)));
+    const firstAvailable = expenseCategories.find((c) => !usedIds.has(String(c.id)));
     setEditingBudget(null);
-    setCategoryId('');
+    setCategoryId(firstAvailable ? String(firstAvailable.id) : '');
     setAmountLimit('');
     setError('');
-    setIsModalOpen(true);
+    setModalOpen(true);
   };
 
-  const openEditModal = (budget) => {
+  const openEdit = (budget) => {
     setEditingBudget(budget);
     setCategoryId(String(budget.category_id));
     setAmountLimit(String(budget.amount_limit));
     setError('');
-    setIsModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setError('');
+    setModalOpen(true);
   };
 
   const handleSave = (event) => {
     event.preventDefault();
-
-    if (!categoryId) {
-      setError('Please select a category.');
-      return;
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(selectedMonth)) {
+      return setError('Select a valid budget month (YYYY-MM).');
     }
+    const category = expenseCategories.find((c) => String(c.id) === String(categoryId));
+    if (!category) return setError('Please select an expense category.');
+    const limit = parseWholeYen(amountLimit);
+    if (limit === null) return setError('Monthly limit must be a whole number greater than ¥0.');
 
-    if (!/^[1-9]\d*$/.test(amountLimit)) {
-      setError('Enter a positive whole-yen amount.');
-      return;
-    }
-
-    const limit = Number(amountLimit);
-
-    if (!Number.isSafeInteger(limit)) {
-      setError('The amount is too large.');
-      return;
-    }
-
-    const category = categories.find(
-      (item) => String(item.id) === categoryId
+    const duplicate = budgets.some(
+      (b) =>
+        String(b.budget_month).slice(0, 7) === selectedMonth &&
+        String(b.category_id) === String(category.id) &&
+        b.id !== editingBudget?.id,
     );
+    if (duplicate) return setError(`${category.name} already has a budget for ${formatMonth(selectedMonth)}.`);
 
-    if (!category) {
-      setError('Please select a valid category.');
-      return;
-    }
-
-    const duplicate = monthlyBudgets.some(
-      (budget) =>
-        String(budget.category_id) === categoryId &&
-        budget.id !== editingBudget?.id
-    );
-
-    if (duplicate) {
-      setError('This category already has a budget for this month.');
-      return;
-    }
-
-    const spentAmount = editingBudget?.spent_amount ?? 0;
-    const progressPercent =
-      limit > 0 ? (spentAmount / limit) * 100 : 0;
-
-    const nextBudget = {
-      id: editingBudget?.id ?? `local-${Date.now()}`,
+    const next = {
+      id: editingBudget?.id ?? makeId('budget'),
       category_id: category.id,
       category_name: category.name,
       budget_month: selectedMonth,
       amount_limit: limit,
-      spent_amount: spentAmount,
-      remaining_amount: limit - spentAmount,
-      progress_percent: progressPercent,
-      bar_percent: Math.min(100, progressPercent),
-      over_budget: spentAmount > limit,
     };
+    setBudgets((prev) => (editingBudget ? prev.map((b) => (b.id === editingBudget.id ? next : b)) : [...prev, next]));
+    setModalOpen(false);
+  };
 
-    setBudgets((previous) => {
-      if (editingBudget) {
-        return previous.map((budget) =>
-          budget.id === editingBudget.id ? nextBudget : budget
-        );
-      }
-
-      return [...previous, nextBudget];
-    });
-
-    closeModal();
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    setBudgets((prev) => prev.filter((b) => b.id !== deleteTarget.id));
+    setDeleteTarget(null);
   };
 
   return (
     <>
       <PageHeading
         title="Monthly Budgets"
-        subtitle="Set monthly JPY spending limits by category and track budget usage."
+        subtitle="Set monthly JPY category limits with live spending tracked from transactions."
         action={
-          <button
-            className="btn primary"
-            type="button"
-            onClick={openAddModal}
-            disabled={categories.length === 0}
-            title={
-              categories.length === 0
-                ? 'Categories will be available after API integration.'
-                : undefined
-            }
-          >
-            <Plus size={17} />
-            Add Budget
+          <button className="btn primary" type="button" onClick={openAdd}>
+            <Plus size={16} /> Add Budget
           </button>
         }
       />
 
+      {overBudgetItems.length > 0 && (
+        <div className="status-banner danger" role="alert">
+          <AlertTriangle size={18} color="var(--red)" />
+          <div>
+            <strong>
+              Over-Budget Warning ({overBudgetItems.length} {overBudgetItems.length === 1 ? 'category' : 'categories'})
+            </strong>
+            <span>
+              {overBudgetItems
+                .map((b) => `${b.category_name} exceeded by ${money(Math.abs(b.remaining_amount))}`)
+                .join(' · ')}
+            </span>
+          </div>
+        </div>
+      )}
+
       <section className="section-card card">
-        <div className="section-title">
-          <h2>Select Month</h2>
-          <label className="inline-editor">
+        <div className="section-title" style={{ marginBottom: 0, flexWrap: 'wrap' }}>
+          <h2>Budget Period</h2>
+          <label className="inline-editor" style={{ marginTop: 0, alignItems: 'center' }}>
             <CalendarDays size={18} />
             <input
               type="month"
               value={selectedMonth}
-              onChange={(event) => {
-                if (event.target.value) {
-                  setSelectedMonth(event.target.value);
-                }
-              }}
+              onChange={(e) => e.target.value && setSelectedMonth(e.target.value)}
               aria-label="Budget month"
             />
           </label>
@@ -186,13 +124,14 @@ export default function BudgetsView() {
 
       <section className="budget-overview card">
         <div>
-          <span className="eyebrow">
-            MONTHLY BUDGET OVERVIEW
-          </span>
-          <h2>{formatYen(totalSpent)} / {formatYen(totalLimit)}</h2>
-          <p>
-            {formatMonth(selectedMonth)} ·
-            {' '}Remaining: {formatYen(remaining)}
+          <span className="eyebrow">MONTHLY BUDGET OVERVIEW · {formatMonth(selectedMonth)}</span>
+          <h2>
+            {money(totalSpent)} / {money(totalLimit)}
+          </h2>
+          <p className={totalRemaining < 0 ? 'negative' : ''}>
+            {totalRemaining < 0
+              ? `Over total budget by ${money(Math.abs(totalRemaining))}`
+              : `Remaining across budgeted categories: ${money(totalRemaining)}`}
           </p>
         </div>
         <div className="illustration-circle">
@@ -203,11 +142,12 @@ export default function BudgetsView() {
       {monthlyBudgets.length === 0 ? (
         <EmptyState
           icon="📊"
-          title="No budgets for this month"
-          description={
-            categories.length === 0
-              ? 'No categories are loaded yet. Budget creation will be available when the categories API is connected in ROS-02.'
-              : 'Select Add Budget to set a monthly spending limit.'
+          title={`No budgets set for ${formatMonth(selectedMonth)}`}
+          description="Set spending limits on categories like Groceries, Housing, or Food & Dining."
+          action={
+            <button className="btn primary" type="button" onClick={openAdd}>
+              <Plus size={15} /> Add First Budget
+            </button>
           }
         />
       ) : (
@@ -216,19 +156,19 @@ export default function BudgetsView() {
             <article className="budget-card card" key={budget.id}>
               <div className="budget-top">
                 <h3>{budget.category_name}</h3>
-                <button
-                  className="icon-button"
-                  type="button"
-                  onClick={() => openEditModal(budget)}
-                  aria-label={`Edit ${budget.category_name} budget`}
-                >
-                  <Pencil size={16} />
-                </button>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button className="icon-button" type="button" onClick={() => openEdit(budget)} aria-label={`Edit ${budget.category_name} budget`}>
+                    <Pencil size={15} />
+                  </button>
+                  <button className="icon-button" type="button" onClick={() => setDeleteTarget(budget)} aria-label={`Delete ${budget.category_name} budget`}>
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </div>
 
               <div className="budget-figures">
-                <strong>{formatYen(budget.spent_amount)}</strong>
-                <span>of {formatYen(budget.amount_limit)}</span>
+                <strong>{money(budget.spent_amount)}</strong>
+                <span>of {money(budget.amount_limit)}</span>
               </div>
 
               <ProgressBar
@@ -237,57 +177,41 @@ export default function BudgetsView() {
                 color={budget.over_budget ? 'red' : 'green'}
               />
 
-              <p>
+              <p className={budget.over_budget ? 'negative' : 'muted'} style={{ fontWeight: budget.over_budget ? 700 : 400 }}>
                 {budget.over_budget
-                  ? `${formatYen(Math.abs(budget.remaining_amount))} over budget`
-                  : `${formatYen(budget.remaining_amount)} remaining`}
-                {' · '}
-                {Math.round(budget.progress_percent)}% used
+                  ? `⚠️ Over budget by ${money(Math.abs(budget.remaining_amount))} (${budget.progress_percent}% used)`
+                  : `${money(budget.remaining_amount)} remaining · ${budget.progress_percent}% used`}
               </p>
             </article>
           ))}
         </section>
       )}
 
-      <p className="support-note">
-        Budget limits are spending plans, not transactions.
-        This UI does not save changes to the database yet.
-      </p>
-
-      {isModalOpen && (
-        <Modal
-          title={editingBudget ? 'Edit Budget' : 'Add Budget'}
-          onClose={closeModal}
-        >
-          <form className="form" onSubmit={handleSave}>
+      {modalOpen && (
+        <Modal title={editingBudget ? 'Edit Budget' : 'Add Budget'} onClose={() => setModalOpen(false)}>
+          <form className="form" onSubmit={handleSave} noValidate>
             <label>
-              Category
+              Expense Category
               <select
                 value={categoryId}
-                onChange={(event) => {
-                  setCategoryId(event.target.value);
+                onChange={(e) => {
+                  setCategoryId(e.target.value);
                   setError('');
                 }}
                 disabled={Boolean(editingBudget)}
               >
                 <option value="">Select a category</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
+                {expenseCategories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
                   </option>
                 ))}
               </select>
             </label>
-
             <label>
               Month
-              <input
-                type="month"
-                value={selectedMonth}
-                readOnly
-              />
+              <input type="month" value={selectedMonth} readOnly />
             </label>
-
             <label>
               Monthly Limit (JPY)
               <input
@@ -295,34 +219,33 @@ export default function BudgetsView() {
                 min="1"
                 step="1"
                 value={amountLimit}
-                onChange={(event) => {
-                  setAmountLimit(event.target.value);
+                placeholder="e.g. 25000"
+                onChange={(e) => {
+                  setAmountLimit(e.target.value);
                   setError('');
                 }}
-                placeholder="Enter amount in yen"
                 required
               />
             </label>
-
-            {error && (
-              <p role="alert" className="negative">
-                {error}
-              </p>
-            )}
-
+            {error && <p role="alert" className="negative" style={{ margin: 0 }}>{error}</p>}
             <div className="form-actions">
-              <button
-                className="btn"
-                type="button"
-                onClick={closeModal}
-              >
-                Cancel
-              </button>
-              <button className="btn primary" type="submit">
-                {editingBudget ? 'Save Changes' : 'Add Budget'}
-              </button>
+              <button className="btn secondary" type="button" onClick={() => setModalOpen(false)}>Cancel</button>
+              <button className="btn primary" type="submit">{editingBudget ? 'Save Changes' : 'Add Budget'}</button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {deleteTarget && (
+        <Modal title="Delete Budget" onClose={() => setDeleteTarget(null)}>
+          <p>
+            Delete the <strong>{deleteTarget.category_name}</strong> budget ({money(deleteTarget.amount_limit)}) for{' '}
+            {formatMonth(selectedMonth)}?
+          </p>
+          <div className="form-actions">
+            <button className="btn secondary" type="button" onClick={() => setDeleteTarget(null)}>Cancel</button>
+            <button className="btn primary" type="button" onClick={confirmDelete}>Delete Budget</button>
+          </div>
         </Modal>
       )}
     </>

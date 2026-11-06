@@ -2,69 +2,49 @@ import { useState } from "react";
 import { Modal } from "../../components/ui";
 import { useFinance } from "../../context/FinanceContext";
 
-// UI-only choices: these are not additional API account kinds.
 export const accountGroups = [
   { id: "cash", label: "Cash", kind: "cash", providers: [] },
-  {
-    id: "bank",
-    label: "Bank accounts",
-    kind: "bank",
-    providers: ["Japan Post Bank", "MUFG", "SMBC", "Mizuho", "Rakuten Bank"],
-  },
-  {
-    id: "app",
-    label: "Payment apps",
-    kind: "cash",
-    providers: ["PayPay", "FamiPay", "Rakuten Pay balance"],
-  },
-  {
-    id: "prepaid",
-    label: "Transport & prepaid cards",
-    kind: "cash",
-    providers: ["Suica", "PASMO", "ICOCA", "nanaco", "WAON"],
-  },
+  { id: "bank", label: "Bank accounts", kind: "bank", providers: ["Japan Post Bank", "MUFG", "SMBC", "Mizuho", "Rakuten Bank"] },
+  { id: "app", label: "Payment apps", kind: "cash", providers: ["PayPay", "FamiPay", "Rakuten Pay balance"] },
+  { id: "prepaid", label: "Transport & prepaid cards", kind: "cash", providers: ["Suica", "PASMO", "ICOCA", "nanaco", "WAON"] },
   { id: "credit", label: "Credit Card", kind: "credit_card", providers: [] },
 ];
 
 export function accountGroup(account) {
   return (
-    accountGroups.find((group) => group.id === account.ui_details?.group) ??
-    accountGroups.find((group) => group.kind === account.kind) ??
+    accountGroups.find((g) => g.id === account.ui_details?.group) ??
+    accountGroups.find((g) => g.kind === account.kind) ??
     accountGroups[0]
   );
 }
 
 export function validateAccount(values) {
   const errors = {};
-  if (!values.name.trim()) errors.name = "Enter an account name.";
-  if (!["cash", "bank", "credit_card"].includes(values.kind)) {
-    errors.kind = "Choose a valid account kind.";
-  }
-  if (
-    !/^\d+$/.test(values.manual_balance) ||
-    !Number.isSafeInteger(Number(values.manual_balance))
-  ) {
-    errors.manual_balance =
-      "Enter a non-negative whole JPY amount (no decimals).";
+  const name = values.name.trim();
+  const balText = String(values.manual_balance ?? "").trim();
+  if (!name || name.length > 80) errors.name = "Enter an account name (1–80 characters).";
+  if (!["cash", "bank", "credit_card"].includes(values.kind)) errors.kind = "Choose a valid account kind.";
+  if (!/^\d+$/.test(balText) || !Number.isSafeInteger(Number(balText)) || Number(balText) > 1000000000) {
+    errors.manual_balance = "Enter a non-negative whole JPY amount (no decimals).";
   }
   return errors;
 }
 
-export default function AccountFormModal({
-  account,
-  initialGroup = "bank",
-  onClose,
-  onSave,
-}) {
+export default function AccountFormModal({ account, initialGroup = "bank", onClose, onSave }) {
   const { accounts } = useFinance();
-  const startingGroup = account
-    ? accountGroup(account)
-    : accountGroups.find((group) => group.id === initialGroup);
+  const startingGroup = account ? accountGroup(account) : accountGroups.find((g) => g.id === initialGroup) || accountGroups[1];
   const [groupId, setGroupId] = useState(startingGroup.id);
   const [provider, setProvider] = useState(account?.ui_details?.provider ?? "");
   const [addingProvider, setAddingProvider] = useState(false);
   const [customProvider, setCustomProvider] = useState("");
   const [note, setNote] = useState(account?.ui_details?.note ?? "");
+  const [values, setValues] = useState({
+    name: account?.name ?? "",
+    kind: startingGroup.kind,
+    manual_balance: String(account?.manual_balance ?? ""),
+  });
+  const [errors, setErrors] = useState({});
+
   const group = accountGroups.find((item) => item.id === groupId);
   const providerOptions = [
     ...new Set([
@@ -75,62 +55,35 @@ export default function AccountFormModal({
         .filter((item) => item && item !== "Other"),
     ]),
   ];
-  const providerLabel =
-    groupId === "bank"
-      ? "bank account"
-      : groupId === "app"
-        ? "payment app"
-        : "prepaid card";
-  const hintStyle = {
-    color: "var(--red, #c43838)",
-    fontSize: 12,
-    fontWeight: 400,
-  };
-  const chosenProvider =
-    groupId === "cash"
-      ? ""
-      : (addingProvider ? customProvider : provider).trim();
-  const [values, setValues] = useState({
-    name: account?.name ?? "",
-    kind: startingGroup.kind,
-    manual_balance: String(account?.manual_balance ?? ""),
-  });
-  const [errors, setErrors] = useState({});
+  const providerLabel = groupId === "bank" ? "bank account" : groupId === "app" ? "payment app" : "prepaid card";
+  const hintStyle = { color: "var(--red, #c43838)", fontSize: 12, fontWeight: 400 };
+  const chosenProvider = groupId === "cash" ? "" : (addingProvider ? customProvider : provider).trim();
 
   function update(event) {
     const { name, value } = event.target;
-    setValues((current) => ({ ...current, [name]: value }));
-    setErrors((current) => ({ ...current, [name]: undefined }));
+    setValues((cur) => ({ ...cur, [name]: value }));
+    setErrors((cur) => ({ ...cur, [name]: undefined }));
   }
 
   function submit(event) {
     event.preventDefault();
     const nextErrors = validateAccount(values);
-    if (groupId !== "cash" && !chosenProvider)
-      nextErrors.provider = "Enter or select a provider name.";
+    if (groupId !== "cash" && (!chosenProvider || chosenProvider.length > 80)) {
+      nextErrors.provider = "Enter or select a provider name (max 80 characters).";
+    }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
     onSave(
-      {
-        name: values.name.trim(),
-        kind: values.kind,
-        manual_balance: Number(values.manual_balance),
-      },
-      { group: groupId, provider: chosenProvider, note: note.trim() },
+      { name: values.name.trim(), kind: values.kind, manual_balance: Number(String(values.manual_balance).trim()) },
+      { group: groupId, provider: chosenProvider, note: note.trim().slice(0, 150) },
     );
   }
 
   return (
     <Modal title={account ? "Edit Account" : "Add Account"} onClose={onClose}>
-      <form
-        className="form"
-        noValidate
-        onSubmit={submit}
-        style={{ maxHeight: "70dvh", overflowY: "auto", paddingRight: 4 }}
-      >
-        <p className="muted">
-          Balances are set manually in JPY. Changes are kept for this session
-          only.
+      <form className="form" noValidate onSubmit={submit} style={{ maxHeight: "70dvh", overflowY: "auto", paddingRight: 4 }}>
+        <p className="muted" style={{ margin: 0 }}>
+          Set your opening manual balance in JPY. Linked transactions adjust the live balance automatically.
         </p>
         <div className="form-row">
           <label htmlFor="account-group">
@@ -138,26 +91,18 @@ export default function AccountFormModal({
             <select
               id="account-group"
               value={groupId}
-              onChange={(event) => {
-                const next = accountGroups.find(
-                  (item) => item.id === event.target.value,
-                );
+              onChange={(e) => {
+                const next = accountGroups.find((item) => item.id === e.target.value);
                 setGroupId(next.id);
                 setProvider("");
                 setAddingProvider(false);
                 setCustomProvider("");
-                setValues((current) => ({
-                  ...current,
-                  kind: next.kind,
-                  manual_balance: "",
-                }));
+                setValues((cur) => ({ ...cur, kind: next.kind, manual_balance: "" }));
                 setErrors({});
               }}
             >
               {accountGroups.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
+                <option key={item.id} value={item.id}>{item.label}</option>
               ))}
             </select>
           </label>
@@ -168,55 +113,26 @@ export default function AccountFormModal({
                 <input
                   id="account-provider"
                   value={provider}
-                  placeholder="e.g. Mastercard"
-                  required
-                  aria-invalid={Boolean(errors.provider)}
-                  aria-describedby={
-                    errors.provider ? "provider-error" : undefined
-                  }
-                  onChange={(event) => {
-                    setProvider(event.target.value);
-                    setErrors((current) => ({
-                      ...current,
-                      provider: undefined,
-                    }));
-                  }}
+                  maxLength={80}
+                  placeholder="e.g. Rakuten Card"
+                  onChange={(e) => { setProvider(e.target.value); setErrors((c) => ({ ...c, provider: undefined })); }}
                 />
               ) : (
                 <select
                   id="account-provider"
                   value={addingProvider ? "__add__" : provider}
-                  aria-invalid={Boolean(errors.provider)}
-                  aria-describedby={
-                    errors.provider ? "provider-error" : undefined
-                  }
-                  onChange={(event) => {
-                    setAddingProvider(event.target.value === "__add__");
-                    setProvider(
-                      event.target.value === "__add__"
-                        ? ""
-                        : event.target.value,
-                    );
-                    setErrors((current) => ({
-                      ...current,
-                      provider: undefined,
-                    }));
+                  onChange={(e) => {
+                    setAddingProvider(e.target.value === "__add__");
+                    setProvider(e.target.value === "__add__" ? "" : e.target.value);
+                    setErrors((c) => ({ ...c, provider: undefined }));
                   }}
                 >
-                  <option value="" disabled>
-                    Select a {providerLabel}
-                  </option>
-                  {providerOptions.map((item) => (
-                    <option key={item}>{item}</option>
-                  ))}
+                  <option value="" disabled>Select a {providerLabel}</option>
+                  {providerOptions.map((item) => <option key={item}>{item}</option>)}
                   <option value="__add__">+ Add {providerLabel}</option>
                 </select>
               )}
-              {errors.provider && (
-                <span id="provider-error" role="alert" style={hintStyle}>
-                  {errors.provider}
-                </span>
-              )}
+              {errors.provider && <span role="alert" style={hintStyle}>{errors.provider}</span>}
             </label>
           )}
         </div>
@@ -226,20 +142,9 @@ export default function AccountFormModal({
             <input
               id="custom-provider"
               value={customProvider}
-              required
-              placeholder={
-                groupId === "bank"
-                  ? "e.g. SBI Sumishin Net Bank"
-                  : groupId === "app"
-                    ? "e.g. My payment app"
-                    : "e.g. My prepaid card"
-              }
-              aria-invalid={Boolean(errors.provider)}
-              aria-describedby={errors.provider ? "provider-error" : undefined}
-              onChange={(event) => {
-                setCustomProvider(event.target.value);
-                setErrors((current) => ({ ...current, provider: undefined }));
-              }}
+              maxLength={80}
+              placeholder="e.g. SBI Sumishin Net Bank"
+              onChange={(e) => { setCustomProvider(e.target.value); setErrors((c) => ({ ...c, provider: undefined })); }}
             />
           </label>
         )}
@@ -249,30 +154,15 @@ export default function AccountFormModal({
             id="account-name"
             name="name"
             value={values.name}
+            maxLength={80}
             onChange={update}
-            autoFocus
-            required
-            placeholder={
-              groupId === "cash"
-                ? "e.g. Daily wallet"
-                : groupId === "credit"
-                  ? "e.g. Shopping card"
-                  : "e.g. Salary account"
-            }
-            aria-invalid={Boolean(errors.name)}
-            aria-describedby={errors.name ? "account-name-error" : undefined}
+            placeholder={groupId === "cash" ? "e.g. Daily wallet" : groupId === "credit" ? "e.g. Shopping card" : "e.g. Salary account"}
           />
-          {errors.name && (
-            <span id="account-name-error" role="alert" style={hintStyle}>
-              {errors.name}
-            </span>
-          )}
+          {errors.name && <span role="alert" style={hintStyle}>{errors.name}</span>}
         </label>
         <div className="form-row">
           <label htmlFor="account-balance">
-            {groupId === "credit"
-              ? "Amount you owe (JPY)"
-              : "Current balance (JPY)"}
+            {groupId === "credit" ? "Opening amount owed (JPY)" : "Opening balance (JPY)"}
             <input
               id="account-balance"
               name="manual_balance"
@@ -280,40 +170,24 @@ export default function AccountFormModal({
               inputMode="numeric"
               value={values.manual_balance}
               onChange={update}
-              required
               placeholder="e.g. 50000"
-              aria-invalid={Boolean(errors.manual_balance)}
-              aria-describedby={
-                errors.manual_balance ? "account-balance-error" : undefined
-              }
             />
-            {errors.manual_balance && (
-              <span id="account-balance-error" role="alert" style={hintStyle}>
-                {errors.manual_balance}
-              </span>
-            )}
+            {errors.manual_balance && <span role="alert" style={hintStyle}>{errors.manual_balance}</span>}
           </label>
-        </div>
-        <details>
-          <summary>Optional details</summary>
           <label htmlFor="account-note">
-            Note
+            Note (Optional)
             <input
               id="account-note"
               value={note}
-              onChange={(event) => setNote(event.target.value)}
+              onChange={(e) => setNote(e.target.value)}
               maxLength={150}
-              placeholder="e.g. For daily groceries"
+              placeholder="e.g. Main account"
             />
           </label>
-        </details>
+        </div>
         <div className="form-actions">
-          <button className="btn secondary" type="button" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="btn primary" type="submit">
-            {account ? "Save Changes" : "Add Account"}
-          </button>
+          <button className="btn secondary" type="button" onClick={onClose}>Cancel</button>
+          <button className="btn primary" type="submit">{account ? "Save Changes" : "Add Account"}</button>
         </div>
       </form>
     </Modal>
