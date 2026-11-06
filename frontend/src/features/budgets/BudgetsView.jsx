@@ -92,14 +92,10 @@ export default function BudgetsView() {
       />
 
       {overBudgetItems.length > 0 && (
-        <div
-          className="status-banner"
-          role="alert"
-          style={{ background: '#fdecec', borderColor: '#f3c2c2' }}
-        >
+        <div className="status-banner danger" role="alert">
           <AlertTriangle size={18} color="var(--red)" />
           <div>
-            <strong style={{ color: 'var(--red)' }}>
+            <strong>
               Over-Budget Warning ({overBudgetItems.length} {overBudgetItems.length === 1 ? 'category' : 'categories'})
             </strong>
             <span>

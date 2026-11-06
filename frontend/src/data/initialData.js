@@ -1,4 +1,4 @@
-import { addDaysISO, addMonthsISO, prevMonthISO, todayISO } from "../utils/formatters";
+import { addDaysISO, addMonthsISO, prevMonthISO, todayISO } from "../utils/formatters.js";
 
 export const initialGoals = [];
 export const initialTransactions = [];

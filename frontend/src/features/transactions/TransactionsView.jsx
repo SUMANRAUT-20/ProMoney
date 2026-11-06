@@ -3,38 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { ArrowDownLeft, ArrowUpRight, Download, Pencil, Plus, Scale, Trash2 } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { Amount, EmptyState, Metric, Modal, PageHeading } from '../../components/ui';
-import { formatDate, isValidISODate, makeId, money, parseWholeYen, sum, todayISO } from '../../utils/formatters';
-
-function escapeCsvCell(value) {
-  const raw = String(value ?? '');
-  const safe = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
-  return `"${safe.replace(/"/g, '""')}"`;
-}
-
-function downloadTransactionsCsv(rows, getCatName, getAccName) {
-  const header = ['Date', 'Type', 'Category', 'Account', 'Amount (JPY)', 'Note'].join(',');
-  const lines = rows.map((tx) =>
-    [
-      tx.transaction_date,
-      tx.kind,
-      getCatName(tx),
-      getAccName(tx.account_id),
-      tx.amount,
-      tx.note || tx.title || '',
-    ]
-      .map(escapeCsvCell)
-      .join(','),
-  );
-  const blob = new Blob([`\uFEFF${[header, ...lines].join('\r\n')}`], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `promoney-transactions-${todayISO()}.csv`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
+import { exportTransactionsCsv, formatDate, isValidISODate, makeId, money, parseWholeYen, sum, todayISO } from '../../utils/formatters';
 
 export default function TransactionsView() {
   const { transactions, setTransactions, accounts, categories } = useFinance();
@@ -50,21 +19,13 @@ export default function TransactionsView() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    const q = searchParams.get('search') || '';
-    setSearch(q);
-  }, [searchParams]);
+  useEffect(() => setSearch(searchParams.get('search') || ''), [searchParams]);
 
   const firstCatForKind = (kind) => categories.find((c) => c.kind === kind)?.id || '';
   const defaultAccountId = accounts[0]?.id ? String(accounts[0].id) : '';
 
   const [form, setForm] = useState({
-    kind: 'expense',
-    amount: '',
-    category_id: firstCatForKind('expense'),
-    account_id: defaultAccountId,
-    transaction_date: todayISO(),
-    note: '',
+    kind: 'expense', amount: '', category_id: firstCatForKind('expense'), account_id: defaultAccountId, transaction_date: todayISO(), note: '',
   });
 
   const getCatName = (tx) =>
@@ -79,26 +40,19 @@ export default function TransactionsView() {
       if (monthFilter && String(tx.transaction_date || '').slice(0, 7) !== monthFilter) return false;
       if (categoryFilter !== 'all' && String(tx.category_id) !== categoryFilter) return false;
       if (!query) return true;
-      const noteText = String(tx.note || tx.title || '').toLowerCase();
-      const catText = getCatName(tx).toLowerCase();
-      const accText = getAccName(tx.account_id).toLowerCase();
-      return noteText.includes(query) || catText.includes(query) || accText.includes(query);
+      const text = `${tx.note || tx.title || ''} ${getCatName(tx)} ${getAccName(tx.account_id)}`.toLowerCase();
+      return text.includes(query);
     })
     .sort((a, b) => String(b.transaction_date).localeCompare(String(a.transaction_date)));
 
   const periodIncome = sum(filtered.filter((t) => t.kind === 'income'), 'amount');
   const periodExpense = sum(filtered.filter((t) => t.kind === 'expense'), 'amount');
-  const periodBalance = periodIncome - periodExpense;
 
   const openAdd = () => {
     setEditingTx(null);
     setForm({
-      kind: 'expense',
-      amount: '',
-      category_id: firstCatForKind('expense'),
-      account_id: accounts[0]?.id ? String(accounts[0].id) : '',
-      transaction_date: todayISO(),
-      note: '',
+      kind: 'expense', amount: '', category_id: firstCatForKind('expense'),
+      account_id: accounts[0]?.id ? String(accounts[0].id) : '', transaction_date: todayISO(), note: '',
     });
     setError('');
     setModalOpen(true);
@@ -134,14 +88,8 @@ export default function TransactionsView() {
 
     const next = {
       id: editingTx?.id ?? makeId('tx'),
-      kind: form.kind,
-      amount,
-      category_id: cat.id,
-      category_name: cat.name,
-      account_id: accounts.length > 0 ? form.account_id : '',
-      transaction_date: form.transaction_date,
-      note,
-      title: note,
+      kind: form.kind, amount, category_id: cat.id, category_name: cat.name,
+      account_id: accounts.length > 0 ? form.account_id : '', transaction_date: form.transaction_date, note, title: note,
     };
     setTransactions((prev) => (editingTx ? prev.map((t) => (t.id === editingTx.id ? next : t)) : [next, ...prev]));
     setModalOpen(false);
@@ -165,12 +113,14 @@ export default function TransactionsView() {
             <button
               className="btn secondary"
               type="button"
+              title="Export CSV"
+              aria-label="Export CSV"
               disabled={filtered.length === 0}
-              onClick={() => downloadTransactionsCsv(filtered, getCatName, getAccName)}
+              onClick={() => exportTransactionsCsv(filtered, getCatName, getAccName)}
             >
               <Download size={15} /> Export CSV
             </button>
-            <button className="btn primary" type="button" onClick={openAdd}>
+            <button className="btn primary" type="button" title="Add Transaction" aria-label="Add Transaction" onClick={openAdd}>
               <Plus size={16} /> Add Transaction
             </button>
           </div>
@@ -180,37 +130,18 @@ export default function TransactionsView() {
       <section className="metrics-grid" style={{ marginBottom: 16 }}>
         <Metric icon={ArrowDownLeft} label="Period income" value={money(periodIncome)} small={`${filtered.filter((t) => t.kind === 'income').length} entries`} />
         <Metric icon={ArrowUpRight} label="Period expenses" value={money(periodExpense)} small={`${filtered.filter((t) => t.kind === 'expense').length} entries`} />
-        <Metric icon={Scale} label="Period balance" value={money(periodBalance)} small="Income minus expenses" />
+        <Metric icon={Scale} label="Period balance" value={money(periodIncome - periodExpense)} small="Income minus expenses" />
       </section>
 
       <section className="section-card card">
         <div className="section-toolbar" style={{ flexWrap: 'wrap' }}>
-          <input
-            className="filter-input"
-            type="search"
-            value={search}
-            placeholder="Search by note, category, or account..."
-            aria-label="Search transactions"
-            onChange={(e) => setSearch(e.target.value)}
-          />
+          <input className="filter-input" type="search" value={search} placeholder="Search by note, category, or account..." aria-label="Search transactions" onChange={(e) => setSearch(e.target.value)} />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <input
-              className="filter-select"
-              type="month"
-              value={monthFilter}
-              aria-label="Filter by month"
-              onChange={(e) => setMonthFilter(e.target.value)}
-            />
-            {monthFilter && (
-              <button className="btn secondary compact" type="button" onClick={() => setMonthFilter('')}>
-                All Months
-              </button>
-            )}
+            <input className="filter-select" type="month" value={monthFilter} aria-label="Filter by month" onChange={(e) => setMonthFilter(e.target.value)} />
+            {monthFilter && <button className="btn secondary compact" type="button" onClick={() => setMonthFilter('')}>All Months</button>}
             <select className="filter-select" value={categoryFilter} aria-label="Filter by category" onChange={(e) => setCategoryFilter(e.target.value)}>
               <option value="all">All Categories</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
+              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <select className="filter-select" value={kindFilter} aria-label="Filter by type" onChange={(e) => setKindFilter(e.target.value)}>
               <option value="all">All Types</option>
@@ -226,15 +157,9 @@ export default function TransactionsView() {
             title={transactions.length === 0 ? 'No transactions recorded yet' : 'No matching transactions'}
             description={transactions.length === 0 ? 'Add your income and expenses to keep balances, budgets, and reports updated.' : 'Adjust your search or clear active filters to view entries.'}
             action={
-              transactions.length === 0 ? (
-                <button className="btn primary" type="button" onClick={openAdd}>
-                  <Plus size={15} /> Add First Transaction
-                </button>
-              ) : (
-                <button className="btn secondary" type="button" onClick={resetFilters}>
-                  Reset Filters
-                </button>
-              )
+              transactions.length === 0
+                ? <button className="btn primary" type="button" onClick={openAdd}><Plus size={15} /> Add First Transaction</button>
+                : <button className="btn secondary" type="button" onClick={resetFilters}>Reset Filters</button>
             }
           />
         ) : (
@@ -242,13 +167,8 @@ export default function TransactionsView() {
             <table className="finance-table">
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Note</th>
-                  <th>Category</th>
-                  <th>Account</th>
-                  <th>Type</th>
-                  <th className="align-right">Amount</th>
-                  <th className="align-right">Actions</th>
+                  <th>Date</th><th>Note</th><th>Category</th><th>Account</th><th>Type</th>
+                  <th className="align-right">Amount</th><th className="align-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -261,12 +181,8 @@ export default function TransactionsView() {
                     <td><span className={`type-badge ${tx.kind}`}>{tx.kind}</span></td>
                     <td className="align-right table-strong"><Amount amount={tx.amount} type={tx.kind} /></td>
                     <td className="align-right">
-                      <button className="icon-button" type="button" onClick={() => openEdit(tx)} aria-label={`Edit ${tx.note || tx.title}`}>
-                        <Pencil size={15} />
-                      </button>
-                      <button className="icon-button" type="button" onClick={() => setDeleteTarget(tx)} aria-label={`Delete ${tx.note || tx.title}`}>
-                        <Trash2 size={15} />
-                      </button>
+                      <button className="icon-button" type="button" onClick={() => openEdit(tx)} aria-label={`Edit ${tx.note || tx.title}`}><Pencil size={15} /></button>
+                      <button className="icon-button" type="button" onClick={() => setDeleteTarget(tx)} aria-label={`Delete ${tx.note || tx.title}`}><Trash2 size={15} /></button>
                     </td>
                   </tr>
                 ))}
@@ -281,18 +197,7 @@ export default function TransactionsView() {
           <form className="form" onSubmit={handleSave} noValidate>
             <div className="segmented">
               {['expense', 'income'].map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  style={{ flex: 1, textTransform: 'capitalize' }}
-                  className={form.kind === k ? 'selected' : ''}
-                  onClick={() => {
-                    setForm({ ...form, kind: k, category_id: firstCatForKind(k) });
-                    setError('');
-                  }}
-                >
-                  {k}
-                </button>
+                <button key={k} type="button" style={{ flex: 1, textTransform: 'capitalize' }} className={form.kind === k ? 'selected' : ''} onClick={() => { setForm({ ...form, kind: k, category_id: firstCatForKind(k) }); setError(''); }}>{k}</button>
               ))}
             </div>
             <div className="form-row">
@@ -309,21 +214,13 @@ export default function TransactionsView() {
               <label>
                 Category
                 <select value={form.category_id} onChange={(e) => { setForm({ ...form, category_id: e.target.value }); setError(''); }}>
-                  {categories.filter((c) => c.kind === form.kind).map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
+                  {categories.filter((c) => c.kind === form.kind).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </label>
               <label>
                 Account
                 <select value={form.account_id} onChange={(e) => { setForm({ ...form, account_id: e.target.value }); setError(''); }} disabled={accounts.length === 0}>
-                  {accounts.length === 0 ? (
-                    <option value="">Unassigned (add account first)</option>
-                  ) : (
-                    accounts.map((a) => (
-                      <option key={a.id} value={a.id}>{a.name}</option>
-                    ))
-                  )}
+                  {accounts.length === 0 ? <option value="">Unassigned (add account first)</option> : accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
               </label>
             </div>

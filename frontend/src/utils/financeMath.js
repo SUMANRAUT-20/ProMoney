@@ -1,4 +1,4 @@
-import { addMonthsISO, daysBetweenISO } from './formatters';
+import { addMonthsISO, daysBetweenISO } from './formatters.js';
 
 export function getAccountBalance(account, transactions) {
   const base = Number(account?.manual_balance || 0);

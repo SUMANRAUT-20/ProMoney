@@ -1,36 +1,11 @@
 import { useState } from 'react';
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Clock3,
-  Pencil,
-  Plus,
-  ReceiptText,
-  RotateCcw,
-  Trash2,
-  Wallet,
-} from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock3, Pencil, Plus, ReceiptText, RotateCcw, Trash2, Wallet } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { EmptyState, Metric, Modal, PageHeading } from '../../components/ui';
-import {
-  addMonthsISO,
-  daysBetweenISO,
-  formatDate,
-  isValidISODate,
-  makeId,
-  money,
-  parseWholeYen,
-  sum,
-  todayISO,
-} from '../../utils/formatters';
+import { addMonthsISO, daysBetweenISO, formatDate, isValidISODate, makeId, money, parseWholeYen, sum, todayISO } from '../../utils/formatters';
 import { getBillStatus } from '../../utils/financeMath';
 
-const STATUS_META = {
-  overdue: { label: 'Overdue', bg: '#fdecec', color: '#b84a4a' },
-  due_soon: { label: 'Due Soon', bg: '#fff4e5', color: '#ad6a1b' },
-  upcoming: { label: 'Upcoming', bg: 'var(--surface-alt)', color: 'var(--muted)' },
-  paid: { label: 'Paid', bg: 'var(--mint-soft)', color: 'var(--green-dark)' },
-};
+const STATUS_LABELS = { overdue: 'Overdue', due_soon: 'Due Soon', upcoming: 'Upcoming', paid: 'Paid' };
 
 function describeDue(bill, status, today) {
   if (status === 'paid') return `Paid · Due ${formatDate(bill.due_date)}`;
@@ -51,13 +26,7 @@ export default function BillsView() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [error, setError] = useState('');
   const [form, setForm] = useState({
-    name: '',
-    amount: '',
-    due_date: todayISO(),
-    category: defaultCategory,
-    frequency: 'monthly',
-    is_paid: false,
-    notes: '',
+    name: '', amount: '', due_date: todayISO(), category: defaultCategory, frequency: 'monthly', is_paid: false, notes: '',
   });
 
   const today = todayISO();
@@ -105,33 +74,17 @@ export default function BillsView() {
 
     const next = {
       id: editingBill?.id ?? makeId('bill'),
-      name,
-      amount,
-      due_date: form.due_date,
-      category: form.category,
-      frequency: form.frequency,
-      is_paid: Boolean(form.is_paid),
-      notes,
+      name, amount, due_date: form.due_date, category: form.category, frequency: form.frequency, is_paid: Boolean(form.is_paid), notes,
     };
     setBills((prev) => (editingBill ? prev.map((b) => (b.id === editingBill.id ? next : b)) : [...prev, next]));
     setModalOpen(false);
   };
 
-  const togglePaid = (id) => {
-    setBills((prev) => prev.map((b) => (b.id === id ? { ...b, is_paid: !b.is_paid } : b)));
-  };
+  const togglePaid = (id) => setBills((prev) => prev.map((b) => (b.id === id ? { ...b, is_paid: !b.is_paid } : b)));
 
   const advanceCycle = (bill) => {
     const months = bill.frequency === 'yearly' ? 12 : 1;
-    setBills((prev) =>
-      prev.map((b) => (b.id === bill.id ? { ...b, due_date: addMonthsISO(b.due_date, months), is_paid: false } : b)),
-    );
-  };
-
-  const confirmDelete = () => {
-    if (!deleteTarget) return;
-    setBills((prev) => prev.filter((b) => b.id !== deleteTarget.id));
-    setDeleteTarget(null);
+    setBills((prev) => prev.map((b) => (b.id === bill.id ? { ...b, due_date: addMonthsISO(b.due_date, months), is_paid: false } : b)));
   };
 
   return (
@@ -139,11 +92,7 @@ export default function BillsView() {
       <PageHeading
         title="Bills & Subscriptions"
         subtitle="Track upcoming bills, due-soon reminders, overdue items, and payment status in JPY."
-        action={
-          <button className="btn primary" type="button" onClick={openAdd}>
-            <Plus size={16} /> Add Bill
-          </button>
-        }
+        action={<button className="btn primary" type="button" onClick={openAdd}><Plus size={16} /> Add Bill</button>}
       />
 
       <section className="dashboard-metrics" style={{ marginBottom: 16 }}>
@@ -157,16 +106,8 @@ export default function BillsView() {
         <div className="section-toolbar" style={{ flexWrap: 'wrap' }}>
           <h2 style={{ margin: 0 }}>Scheduled Bills ({bills.length})</h2>
           <div className="segmented" style={{ flexWrap: 'wrap' }}>
-            {[
-              ['all', 'All'],
-              ['due_soon', 'Due Soon'],
-              ['upcoming', 'Upcoming'],
-              ['overdue', 'Overdue'],
-              ['paid', 'Paid'],
-            ].map(([val, label]) => (
-              <button key={val} type="button" className={filter === val ? 'selected' : ''} onClick={() => setFilter(val)}>
-                {label}
-              </button>
+            {[['all', 'All'], ['due_soon', 'Due Soon'], ['upcoming', 'Upcoming'], ['overdue', 'Overdue'], ['paid', 'Paid']].map(([val, label]) => (
+              <button key={val} type="button" className={filter === val ? 'selected' : ''} onClick={() => setFilter(val)}>{label}</button>
             ))}
           </div>
         </div>
@@ -177,33 +118,22 @@ export default function BillsView() {
             title={bills.length === 0 ? 'No bills scheduled yet' : 'No bills match this status'}
             description={bills.length === 0 ? 'Add rent, utilities, phone, or subscriptions to track due dates.' : 'Switch filters or add a new scheduled bill.'}
             action={
-              bills.length === 0 ? (
-                <button className="btn primary" type="button" onClick={openAdd}>
-                  <Plus size={15} /> Add First Bill
-                </button>
-              ) : (
-                <button className="btn secondary" type="button" onClick={() => setFilter('all')}>
-                  Show All Bills
-                </button>
-              )
+              bills.length === 0
+                ? <button className="btn primary" type="button" onClick={openAdd}><Plus size={15} /> Add First Bill</button>
+                : <button className="btn secondary" type="button" onClick={() => setFilter('all')}>Show All Bills</button>
             }
           />
         ) : (
           <div>
             {filteredBills.map((bill) => {
               const status = getBillStatus(bill, today);
-              const badge = STATUS_META[status];
               return (
                 <div key={bill.id} className="bill-row" style={{ flexWrap: 'wrap' }}>
-                  <div className="bill-icon">
-                    <ReceiptText size={18} />
-                  </div>
+                  <div className="bill-icon"><ReceiptText size={18} /></div>
                   <div style={{ minWidth: 180, flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <strong>{bill.name}</strong>
-                      <span style={{ background: badge.bg, color: badge.color, padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 700 }}>
-                        {badge.label}
-                      </span>
+                      <span className={`status-pill ${status}`}>{STATUS_LABELS[status]}</span>
                     </div>
                     <p className="muted">
                       {bill.category} · {bill.frequency === 'one_time' ? 'One-time' : bill.frequency === 'yearly' ? 'Yearly' : 'Monthly'} · {describeDue(bill, status, today)}
@@ -255,12 +185,8 @@ export default function BillsView() {
               <label>
                 Category
                 <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-                  {expenseCategories.map((c) => (
-                    <option key={c.id} value={c.name}>{c.name}</option>
-                  ))}
-                  {!expenseCategories.some((c) => c.name === form.category) && form.category && (
-                    <option value={form.category}>{form.category}</option>
-                  )}
+                  {expenseCategories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                  {!expenseCategories.some((c) => c.name === form.category) && form.category && <option value={form.category}>{form.category}</option>}
                 </select>
               </label>
               <label>
@@ -299,7 +225,7 @@ export default function BillsView() {
           <p>Delete <strong>{deleteTarget.name}</strong> ({money(deleteTarget.amount)})?</p>
           <div className="form-actions">
             <button className="btn secondary" type="button" onClick={() => setDeleteTarget(null)}>Cancel</button>
-            <button className="btn primary" type="button" onClick={confirmDelete}>Delete Bill</button>
+            <button className="btn primary" type="button" onClick={() => { setBills((prev) => prev.filter((b) => b.id !== deleteTarget.id)); setDeleteTarget(null); }}>Delete Bill</button>
           </div>
         </Modal>
       )}

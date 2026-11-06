@@ -80,3 +80,27 @@ export const makeId = (prefix = 'pm') =>
   typeof crypto !== 'undefined' && crypto.randomUUID
     ? `${prefix}-${crypto.randomUUID()}`
     : `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const escapeCsv = (value) => {
+  const raw = String(value ?? '');
+  const safe = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
+  return `"${safe.replace(/"/g, '""')}"`;
+};
+
+export function exportTransactionsCsv(rows, getCatName, getAccName) {
+  const header = 'Date,Type,Category,Account,Amount (JPY),Note';
+  const lines = rows.map((tx) =>
+    [tx.transaction_date, tx.kind, getCatName(tx), getAccName(tx.account_id), tx.amount, tx.note || tx.title || '']
+      .map(escapeCsv)
+      .join(','),
+  );
+  const blob = new Blob([`\uFEFF${[header, ...lines].join('\r\n')}`], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `promoney-transactions-${todayISO()}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
