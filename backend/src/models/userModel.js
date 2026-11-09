@@ -1,30 +1,22 @@
 import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
+import { getDbPool } from '../db.js';
 
 /**
- * User Model + password hashing — IN-MEMORY STORE (no database)
+ * User Model + password hashing — DATABASE STORE (MySQL / TiDB Cloud)
  * Joint Owners: Arpan Khatiwada & Suman Raut (Member 4 & 5)
  *
- * DATABASE RESET — 2026-11-06, Arpan's decision: ALL backend database
- * integration was removed (the MySQL pool in src/db.js, the pluggable
- * AUTH_STORE switch, and the Turso/libSQL mode) so database work can
- * restart from a clean first step later. Until a new database is
- * integrated, users and their seeded categories live in process
- * memory (Maps below).
- *
- * Honest limitations of this baseline:
- * - Accounts are LOST when the backend process restarts.
- * - Google sign-in accounts work the same way (google_sub kept on the
- *   in-memory row); GOOGLE_CLIENT_ID is still required for the flow.
+ * Step 2 (2026-11-06, Suman + Munna): the in-memory baseline from the
+ * database reset is replaced with real SQL storage. The exported
+ * interface (UserModel methods, hashPassword, verifyPassword,
+ * toPublicUser, getCategoryCount, DEFAULT_CATEGORIES) is IDENTICAL to
+ * the in-memory version, so authController and the tests did not need
+ * changes. Schema: backend/sql/schema.sql + migration 003 (google_sub).
+ * Accounts now survive backend restarts.
  *
  * Password hashing uses Node's built-in crypto.scrypt (no native
  * dependencies, so it works on Windows). Hash format:
  *   scrypt$<salt_hex>$<derived_key_hex>
  * Plain-text passwords are never stored or returned.
- *
- * The exported interface (UserModel methods, hashPassword,
- * verifyPassword, toPublicUser, getCategoryCount, DEFAULT_CATEGORIES)
- * is unchanged from the database version, so authController and the
- * tests did not need changes.
  */
 
 const SCRYPT_KEY_LENGTH = 64;
@@ -54,8 +46,6 @@ export function verifyPassword(password, storedHash) {
 }
 
 // Default JPY categories seeded for every new user.
-// (Was backend/sql/seeds.sql template; the sql folder was removed in
-// the 2026-11-06 database reset, so this list is the source now.)
 export const DEFAULT_CATEGORIES = [
   { name: 'Salary', kind: 'income' },
   { name: 'Freelance', kind: 'income' },
@@ -67,44 +57,7 @@ export const DEFAULT_CATEGORIES = [
   { name: 'Entertainment', kind: 'expense' },
 ];
 
-console.log('[auth] in-memory user store (no database; data resets on restart)');
-
-const usersById = new Map();
-const usersByEmail = new Map();
-const usersByGoogleSub = new Map();
-const categoriesByUserId = new Map();
-let nextUserId = 1;
-
-function createUser({ displayName, email, passwordHash, googleSub }) {
-  if (usersByEmail.has(email)) {
-    // Same error code the MySQL store produced, so authController
-    // keeps mapping duplicates to HTTP 409 unchanged.
-    const err = new Error(`Duplicate entry '${email}' for key 'users.email'`);
-    err.code = 'ER_DUP_ENTRY';
-    throw err;
-  }
-  const row = {
-    id: nextUserId++,
-    display_name: displayName,
-    email,
-    password_hash: passwordHash,
-    google_sub: googleSub,
-    created_at: new Date(),
-  };
-  usersById.set(row.id, row);
-  usersByEmail.set(email, row);
-  if (googleSub) usersByGoogleSub.set(googleSub, row);
-  categoriesByUserId.set(
-    row.id,
-    DEFAULT_CATEGORIES.map((category) => ({ user_id: row.id, ...category }))
-  );
-  return toPublicUser(row);
-}
-
-/** Number of seeded categories a user has (used by tests/diagnostics). */
-export async function getCategoryCount(userId) {
-  return (categoriesByUserId.get(Number(userId)) || []).length;
-}
+const pool = getDbPool();
 
 export function toPublicUser(row) {
   if (!row) return null;
@@ -115,13 +68,59 @@ export function toPublicUser(row) {
   };
 }
 
+function toFullRow(row) {
+  if (!row) return null;
+  return { ...row, id: Number(row.id) };
+}
+
+async function createUser({ displayName, email, passwordHash, googleSub }) {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    // A duplicate email throws the native MySQL ER_DUP_ENTRY error,
+    // which authController maps to HTTP 409 (same as both prior stores).
+    const [result] = await connection.execute(
+      'INSERT INTO users (display_name, email, password_hash, google_sub) VALUES (?, ?, ?, ?)',
+      [displayName, email, passwordHash, googleSub]
+    );
+    const userId = Number(result.insertId);
+    const placeholders = DEFAULT_CATEGORIES.map(() => '(?, ?, ?)').join(', ');
+    const params = DEFAULT_CATEGORIES.flatMap((c) => [userId, c.name, c.kind]);
+    await connection.execute(
+      `INSERT INTO categories (user_id, name, kind) VALUES ${placeholders}`,
+      params
+    );
+    await connection.commit();
+    return { id: userId, display_name: displayName, email };
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
+}
+
+/** Number of seeded categories a user has (used by tests/diagnostics). */
+export async function getCategoryCount(userId) {
+  const [rows] = await pool.execute(
+    'SELECT COUNT(*) AS n FROM categories WHERE user_id = ?',
+    [Number(userId)]
+  );
+  return Number(rows[0].n);
+}
+
 export const UserModel = {
   async findByEmail(email) {
-    return usersByEmail.get(email) || null;
+    const [rows] = await pool.execute('SELECT * FROM users WHERE email = ?', [email]);
+    return toFullRow(rows[0]);
   },
 
   async findById(id) {
-    return toPublicUser(usersById.get(Number(id)) || null);
+    const [rows] = await pool.execute(
+      'SELECT id, display_name, email FROM users WHERE id = ?',
+      [Number(id)]
+    );
+    return toPublicUser(rows[0] || null);
   },
 
   /** Creates a user and seeds their default categories. */
@@ -132,7 +131,11 @@ export const UserModel = {
   // --- Google Sign-In ---
 
   async findByGoogleSub(googleSub) {
-    return toPublicUser(usersByGoogleSub.get(googleSub) || null);
+    const [rows] = await pool.execute(
+      'SELECT id, display_name, email FROM users WHERE google_sub = ?',
+      [googleSub]
+    );
+    return toPublicUser(rows[0] || null);
   },
 
   /** Creates a Google account: no password (password_hash stays null). */
@@ -142,11 +145,10 @@ export const UserModel = {
 
   /** Links a Google identity to an existing (password) account. */
   async linkGoogleSub(userId, googleSub) {
-    const row = usersById.get(Number(userId));
-    if (row) {
-      row.google_sub = googleSub;
-      usersByGoogleSub.set(googleSub, row);
-    }
+    await pool.execute('UPDATE users SET google_sub = ? WHERE id = ?', [
+      googleSub,
+      Number(userId),
+    ]);
   },
 
   // --- Settings (profile & security) ---
@@ -157,22 +159,26 @@ export const UserModel = {
    * use toPublicUser for responses.
    */
   async findByIdWithCredentials(id) {
-    return usersById.get(Number(id)) || null;
+    const [rows] = await pool.execute('SELECT * FROM users WHERE id = ?', [Number(id)]);
+    return toFullRow(rows[0]);
   },
 
   /** Updates the display name; returns the public user or null. */
   async updateDisplayName(userId, displayName) {
-    const row = usersById.get(Number(userId));
-    if (!row) return null;
-    row.display_name = displayName;
-    return toPublicUser(row);
+    const [result] = await pool.execute(
+      'UPDATE users SET display_name = ? WHERE id = ?',
+      [displayName, Number(userId)]
+    );
+    if (result.affectedRows === 0) return null;
+    return UserModel.findById(userId);
   },
 
   /** Replaces the password hash (password change in Settings). */
   async updatePasswordHash(userId, passwordHash) {
-    const row = usersById.get(Number(userId));
-    if (!row) return false;
-    row.password_hash = passwordHash;
-    return true;
+    const [result] = await pool.execute(
+      'UPDATE users SET password_hash = ? WHERE id = ?',
+      [passwordHash, Number(userId)]
+    );
+    return result.affectedRows > 0;
   },
 };
