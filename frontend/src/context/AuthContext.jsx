@@ -114,9 +114,24 @@ export function AuthProvider({ children }) {
     clearSession();
   }, [clearSession]);
 
+  // Merges profile changes (e.g. a Settings display-name save) into the
+  // current session user and its stored copy.
+  const updateUser = useCallback((partial) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev, ...partial };
+      try {
+        localStorage.setItem(USER_KEY, JSON.stringify(next));
+      } catch {
+        // Ignore storage errors; state still updates.
+      }
+      return next;
+    });
+  }, []);
+
   const value = useMemo(
-    () => ({ user, isCheckingSession, login, register, loginWithGoogle, logout }),
-    [user, isCheckingSession, login, register, loginWithGoogle, logout]
+    () => ({ user, isCheckingSession, login, register, loginWithGoogle, logout, updateUser }),
+    [user, isCheckingSession, login, register, loginWithGoogle, logout, updateUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

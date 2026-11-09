@@ -150,4 +150,31 @@ export const UserModel = {
       Number(userId),
     ]);
   },
+
+  // --- Settings (profile & security) ---
+
+  /**
+   * Full row INCLUDING password_hash / google_sub. Server-side use
+   * only (settings password change) — never send this to a client;
+   * use toPublicUser for responses.
+   */
+  async findByIdWithCredentials(id) {
+    return usersById.get(Number(id)) || null;
+  },
+
+  /** Updates the display name; returns the public user or null. */
+  async updateDisplayName(userId, displayName) {
+    const row = usersById.get(Number(userId));
+    if (!row) return null;
+    row.display_name = displayName;
+    return toPublicUser(row);
+  },
+
+  /** Replaces the password hash (password change in Settings). */
+  async updatePasswordHash(userId, passwordHash) {
+    const row = usersById.get(Number(userId));
+    if (!row) return false;
+    row.password_hash = passwordHash;
+    return true;
+  },
 };

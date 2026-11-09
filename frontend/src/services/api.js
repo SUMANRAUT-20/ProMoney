@@ -57,6 +57,27 @@ export const apiClient = {
     return request('/auth/google', { method: 'POST', body: JSON.stringify(body) });
   },
 
+  // Settings & Preferences (Arpan)
+  async getSettings() {
+    return request('/settings', { method: 'GET' });
+  },
+
+  async updatePreferences(body) {
+    return request('/settings/preferences', { method: 'PUT', body: JSON.stringify(body) });
+  },
+
+  async updateProfile(body) {
+    return request('/settings/profile', { method: 'PUT', body: JSON.stringify(body) });
+  },
+
+  async changePassword(body) {
+    return request('/settings/password', { method: 'PUT', body: JSON.stringify(body) });
+  },
+
+  async updateAvatar(body) {
+    return request('/settings/avatar', { method: 'PUT', body: JSON.stringify(body) });
+  },
+
   // Phase 2: Transactions & Accounts (Rajesh + Arpan/Suman)
   async getTransactions(queryString = '') {
     return request(`/transactions${queryString ? `?${queryString}` : ''}`, { method: 'GET' });
