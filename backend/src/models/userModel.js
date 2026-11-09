@@ -159,22 +159,26 @@ export const UserModel = {
    * use toPublicUser for responses.
    */
   async findByIdWithCredentials(id) {
-    return usersById.get(Number(id)) || null;
+    const [rows] = await pool.execute('SELECT * FROM users WHERE id = ?', [Number(id)]);
+    return toFullRow(rows[0]);
   },
 
   /** Updates the display name; returns the public user or null. */
   async updateDisplayName(userId, displayName) {
-    const row = usersById.get(Number(userId));
-    if (!row) return null;
-    row.display_name = displayName;
-    return toPublicUser(row);
+    const [result] = await pool.execute(
+      'UPDATE users SET display_name = ? WHERE id = ?',
+      [displayName, Number(userId)]
+    );
+    if (result.affectedRows === 0) return null;
+    return UserModel.findById(userId);
   },
 
   /** Replaces the password hash (password change in Settings). */
   async updatePasswordHash(userId, passwordHash) {
-    const row = usersById.get(Number(userId));
-    if (!row) return false;
-    row.password_hash = passwordHash;
-    return true;
+    const [result] = await pool.execute(
+      'UPDATE users SET password_hash = ? WHERE id = ?',
+      [passwordHash, Number(userId)]
+    );
+    return result.affectedRows > 0;
   },
 };

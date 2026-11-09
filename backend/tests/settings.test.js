@@ -1,11 +1,15 @@
 // Settings tests — preferences validation/model + controller flows
-// (profile rename, password change) against the in-memory stores.
+// (profile rename, password change). Users live in the DATABASE store
+// (Step 2), so test emails/google_sub get a per-run suffix: database
+// rows persist between runs, the old in-memory store did not.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { SettingsModel, validatePreferences, DEFAULT_PREFERENCES } from '../src/models/settingsModel.js';
 import { UserModel, hashPassword, verifyPassword } from '../src/models/userModel.js';
 import { settingsController } from '../src/controllers/settingsController.js';
+
+const run = Date.now();
 
 function mockRes() {
   return {
@@ -46,7 +50,7 @@ test('settings model: defaults, partial merge, and per-user isolation', async ()
 // --- Controller flows ---
 
 test('settings controller: GET returns profile with has_password and default preferences', async () => {
-  const user = await UserModel.create({ displayName: 'Settings User', email: 'settings@example.com', passwordHash: hashPassword('testpass123') });
+  const user = await UserModel.create({ displayName: 'Settings User', email: `settings+${run}@example.com`, passwordHash: hashPassword('testpass123') });
   const res = mockRes();
   await settingsController.getSettings({ user: { id: user.id } }, res, next);
   assert.equal(res.statusCode, 200);
@@ -57,7 +61,7 @@ test('settings controller: GET returns profile with has_password and default pre
 });
 
 test('settings controller: preferences update persists; invalid value is a 400', async () => {
-  const user = await UserModel.create({ displayName: 'Prefs User', email: 'prefs@example.com', passwordHash: hashPassword('testpass123') });
+  const user = await UserModel.create({ displayName: 'Prefs User', email: `prefs+${run}@example.com`, passwordHash: hashPassword('testpass123') });
   const okRes = mockRes();
   await settingsController.updatePreferences({ user: { id: user.id }, body: { date_format: 'DD/MM/YYYY' } }, okRes, next);
   assert.equal(okRes.statusCode, 200);
@@ -69,7 +73,7 @@ test('settings controller: preferences update persists; invalid value is a 400',
 });
 
 test('settings controller: profile rename validates and updates', async () => {
-  const user = await UserModel.create({ displayName: 'Old Name', email: 'rename@example.com', passwordHash: hashPassword('testpass123') });
+  const user = await UserModel.create({ displayName: 'Old Name', email: `rename+${run}@example.com`, passwordHash: hashPassword('testpass123') });
   const res = mockRes();
   await settingsController.updateProfile({ user: { id: user.id }, body: { display_name: '  New Name  ' } }, res, next);
   assert.equal(res.statusCode, 200);
@@ -82,7 +86,7 @@ test('settings controller: profile rename validates and updates', async () => {
 });
 
 test('settings controller: password change checks current password and updates the hash', async () => {
-  const user = await UserModel.create({ displayName: 'Pass User', email: 'pass@example.com', passwordHash: hashPassword('old-password-1') });
+  const user = await UserModel.create({ displayName: 'Pass User', email: `pass+${run}@example.com`, passwordHash: hashPassword('old-password-1') });
 
   const wrongRes = mockRes();
   await settingsController.changePassword(
@@ -97,13 +101,13 @@ test('settings controller: password change checks current password and updates t
     okRes, next
   );
   assert.equal(okRes.statusCode, 200);
-  const row = await UserModel.findByEmail('pass@example.com');
+  const row = await UserModel.findByEmail(`pass+${run}@example.com`);
   assert.equal(verifyPassword('new-password-2', row.password_hash), true);
   assert.equal(verifyPassword('old-password-1', row.password_hash), false);
 });
 
 test('settings controller: Google-only account cannot change a password it does not have', async () => {
-  const user = await UserModel.createGoogleUser({ displayName: 'Google User', email: 'guser@example.com', googleSub: 'sub-settings-1' });
+  const user = await UserModel.createGoogleUser({ displayName: 'Google User', email: `guser+${run}@example.com`, googleSub: `sub-settings-${run}` });
   const res = mockRes();
   await settingsController.changePassword(
     { user: { id: user.id }, body: { current_password: 'whatever123', new_password: 'new-password-2' } },
@@ -127,7 +131,7 @@ test('validateAvatar accepts a data:image URL and null, rejects junk and oversiz
 });
 
 test('settings controller: avatar set, returned by GET settings, and cleared', async () => {
-  const user = await UserModel.create({ displayName: 'Avatar User', email: 'avatar@example.com', passwordHash: hashPassword('testpass123') });
+  const user = await UserModel.create({ displayName: 'Avatar User', email: `avatar+${run}@example.com`, passwordHash: hashPassword('testpass123') });
   const dataUrl = 'data:image/jpeg;base64,/9j/4AAQSkZJRg==';
 
   const setRes = mockRes();
