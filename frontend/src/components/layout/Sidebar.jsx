@@ -27,7 +27,6 @@ const items = [
   { to: '/goals', title: 'Savings Goals', icon: Goal },
   { to: '/reports', title: 'Reports', icon: CreditCard },
   { to: '/labo', title: 'ProMoney LA-BO', icon: FlaskConical },
-  { to: '/settings', title: 'Settings', icon: Settings2 }
 ];
 
 export default function Sidebar({ onNavigate }) {

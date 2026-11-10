@@ -268,3 +268,91 @@ p { line-height: 1.5; }
 .labo-chip:disabled { opacity: 0.5; cursor: default; }
 .labo-input-row { display: flex; gap: 8px; }
 .labo-input-row input { flex: 1; min-width: 0; }
+
+/* ============================================================
+   Responsive Hardening — 2026-11-10 (Arpan)
+   Append-only: no existing rule above is changed or removed.
+   Fills the gaps the original three breakpoints left:
+   - account grid had no tablet step (3 cols straight to 1)
+   - report stats kept desktop padding/type down to 580px
+   - banners (Budgets/Accounts) kept 28px headings on phones
+   - finance table forced a 700px scroll on small phones
+   - bill rows could not shrink their text block
+   - Settings rows squeezed label + control on narrow screens
+     (the control-width half of that fix lives in settings.css)
+   ============================================================ */
+.bill-row > div { min-width: 0; }
+
+/* Icon rail — Arpan's requirement (2026-11-10): on tablet and
+   mobile the sidebar stays visible as icons instead of hiding
+   in a drawer. At <=1150px the sidebar collapses to a 68px rail
+   (logo + nav icons + avatar, labels hidden). The hamburger
+   button is removed at every width (Arpan: waste of space —
+   the always-visible rail replaces it), so the old .show drawer
+   state is simply never triggered. In rail mode the profile
+   menu pops out over the content at full width instead of
+   squeezing into the rail. */
+@media (max-width: 1150px) {
+  .mobile-menu { display: none; }
+  .mobile-scrim { display: block; position: fixed; inset: 0; z-index: 25; background: #04100988; border: 0; width: 100%; }
+  .side-layer { position: relative; flex: 0 0 68px; width: auto; transform: none; }
+  .side-layer.show { position: fixed; top: 0; bottom: 0; left: 0; width: 245px; flex: none; transform: translateX(0); }
+  .side-layer:not(.show) .brand { justify-content: center; padding: 0; }
+  .side-layer:not(.show) .brand > span { display: none; }
+  .side-layer:not(.show) .nav { padding: 23px 8px; }
+  .side-layer:not(.show) .nav-item { justify-content: center; padding: 0; min-height: 42px; }
+  .side-layer:not(.show) .nav-item > span:last-of-type { display: none; }
+  .side-layer:not(.show) .sidebar-bottom { padding: 14px 8px 19px; }
+  .side-layer:not(.show) .sidebar-profile { justify-content: center; }
+  .side-layer:not(.show) .sidebar-profile-chevron { display: none; }
+  .side-layer:not(.show) .sidebar-profile-menu { position: absolute; bottom: calc(100% + 6px); left: 0; width: 190px; z-index: 40; background: var(--surface); box-shadow: 0 10px 30px rgba(10, 30, 20, .18); }
+  .side-layer:not(.show) .sidebar-profile-menu .nav-item { justify-content: flex-start; padding: 0 14px; min-height: 39px; }
+  .side-layer:not(.show) .sidebar-profile-menu .nav-item > span:last-of-type { display: inline; }
+}
+
+@media (max-width: 580px) {
+  .side-layer { flex-basis: 56px; }
+  .side-layer:not(.show) .nav { padding: 18px 6px; }
+  .side-layer:not(.show) .nav-item { min-height: 40px; }
+}
+
+/* The header clock (from Settings v3) is hidden at <=800px by a
+   space-saving rule in topbar.css. Arpan wants the date and time
+   visible at every width, so restore it compactly. The extra
+   .topbar in the selector gives it the specificity to beat
+   topbar.css's later-loaded hide rule; topbar.css itself is not
+   modified. */
+@media (max-width: 800px) {
+  .topbar .topbar-clock { display: flex; }
+  .topbar-clock-date { font-size: 10px; }
+  .topbar-clock-time { font-size: 12px; }
+}
+
+@media (max-width: 1150px) {
+  .account-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .report-stat { padding: 16px; }
+  .report-stat strong { font-size: 20px; }
+}
+
+@media (max-width: 800px) {
+  .budget-overview, .account-banner { padding: 18px; }
+  .budget-overview h2, .account-banner h2 { font-size: 24px; }
+}
+
+@media (max-width: 580px) {
+  .budget-overview, .account-banner { padding: 16px; gap: 10px; }
+  .budget-overview h2, .account-banner h2 { font-size: 21px; }
+  .illustration-circle { padding: 11px; }
+  .feature-watermark { display: none; }
+  .finance-table { min-width: 560px; }
+  .finance-table th, .finance-table td { padding: 10px 8px; }
+  .bill-row { gap: 10px; }
+  .setting-row { flex-direction: column; align-items: stretch; gap: 8px; }
+  .segmented { flex-wrap: wrap; }
+}
+
+@media (max-width: 400px) {
+  .budget-figures strong { font-size: 15px; }
+  .report-stat strong { font-size: 19px; }
+  .goal-feature strong { font-size: 23px; }
+}
