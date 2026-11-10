@@ -57,6 +57,11 @@ export const apiClient = {
     return request('/auth/google', { method: 'POST', body: JSON.stringify(body) });
   },
 
+  // Phase 5: ProMoney LA-BO (AI chat — answers from the app's own numbers)
+  async laboChat(body) {
+    return request('/labo/chat', { method: 'POST', body: JSON.stringify(body) });
+  },
+
   // Settings & Preferences (Arpan)
   async getSettings() {
     return request('/settings', { method: 'GET' });

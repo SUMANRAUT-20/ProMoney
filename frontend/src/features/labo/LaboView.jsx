@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Bot,
   BookOpen,
@@ -6,17 +7,23 @@ import {
   FlaskConical,
   History,
   Info,
+  Send,
   ShieldAlert,
 } from "lucide-react";
-import { EmptyState, PageHeading } from "../../components/ui";
+import { PageHeading } from "../../components/ui";
+import { useFinance } from "../../context/FinanceContext";
+import { apiClient } from "../../services/api";
+import { currentMonthISO, todayISO } from "../../utils/formatters";
+import { buildFinanceSnapshot } from "./buildSnapshot";
 
 const futureModules = [
   {
     title: "1. AI Chat Assistant",
     phase: "Phase 5",
     icon: Bot,
+    status: "Live — answers from your own data",
     description:
-      "Explainable conversational assistant powered by local Ollama models and read-only financial tool calling.",
+      "Conversational assistant that answers questions about your money using only figures calculated by ProMoney itself.",
   },
   {
     title: "2. Financial X-Ray",
@@ -55,43 +62,135 @@ const futureModules = [
   },
 ];
 
+const quickQuestions = [
+  "How much did I spend this month?",
+  "What is my biggest expense category?",
+  "How much can I safely spend per day?",
+  "Am I over budget anywhere?",
+];
+
 /**
- * ProMoney Lab View Foundation
+ * ProMoney Lab View
  * Joint Owners: Arpan Khatiwada & Suman Raut (Members 4 & 5)
  *
- * Clean landing page for future AI capabilities. Contains zero simulated AI
- * responses, zero fabricated debt balances, and clear architectural guardrails.
+ * Module 1 (AI Chat Assistant) is LIVE: it answers from a snapshot
+ * calculated by the app's own finance math — the AI invents no numbers.
+ * Modules 2–6 remain planned foundations with no fabricated content.
  */
 export default function LaboView() {
+  const finance = useFinance();
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function ask(questionText) {
+    const question = (questionText ?? input).trim();
+    if (!question || busy) return;
+    setError("");
+    setInput("");
+    setBusy(true);
+    setMessages((prev) => [...prev, { role: "user", text: question }]);
+    try {
+      const snapshot = buildFinanceSnapshot(finance, currentMonthISO(), todayISO());
+      const payload = await apiClient.laboChat({ question, snapshot });
+      const answer = payload?.data?.answer || "I don't have that in your data yet.";
+      setMessages((prev) => [...prev, { role: "ai", text: answer }]);
+    } catch (err) {
+      if (err.status === 503) {
+        setError("AI is not switched on yet — the server needs its Groq key (GROQ_API_KEY).");
+      } else if (err.status === 401) {
+        setError("Please log in again, then ask LA-BO.");
+      } else {
+        setError("LA-BO could not answer just now. Please try again.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <>
       <PageHeading
         title="ProMoney LA-BO"
-        subtitle="Explainable AI Financial Workspace — Planned for Phases 5 & 6."
+        subtitle="Explainable AI Financial Workspace — Module 1 (AI Chat) is live."
       />
 
       <div className="status-banner" role="status">
         <Info size={16} />
         <div>
-          <strong>
-            ProMoney Lab Foundation (Phases 5 &amp; 6 — Arpan &amp; Suman)
-          </strong>
+          <strong>AI Chat Assistant is LIVE (beta)</strong>
           <span>
-            Feature not implemented yet. This workspace is a clean architectural
-            foundation. No AI model is currently active and no fabricated
-            recommendations are displayed.
+            Ask about your own money below. Answers use only numbers ProMoney
+            calculated from your data — the AI never invents figures.
           </span>
         </div>
       </div>
 
       <section className="section-card card">
         <div className="section-title">
-          <h2>Planned ProMoney Lab Capabilities</h2>
+          <h2>Ask LA-BO</h2>
+          <Bot size={20} color="var(--green)" />
+        </div>
+
+        <div className="labo-chat-log">
+          {messages.length === 0 && (
+            <p className="muted small" style={{ margin: 0 }}>
+              Try one of these, or type your own question about this month.
+            </p>
+          )}
+          {messages.map((m, i) => (
+            <div key={i} className={`labo-msg ${m.role === "user" ? "labo-msg-user" : "labo-msg-ai"}`}>
+              {m.text}
+            </div>
+          ))}
+          {busy && <div className="labo-msg labo-msg-ai">Thinking…</div>}
+        </div>
+
+        <div className="labo-quick">
+          {quickQuestions.map((q) => (
+            <button key={q} type="button" className="labo-chip" onClick={() => ask(q)} disabled={busy}>
+              {q}
+            </button>
+          ))}
+        </div>
+
+        {error && (
+          <p className="small" style={{ color: "var(--red, #c0392b)" }} role="alert">
+            {error}
+          </p>
+        )}
+
+        <form
+          className="labo-input-row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            ask();
+          }}
+        >
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Ask about your money… e.g. How much did I spend on food?"
+            maxLength={500}
+            aria-label="Ask LA-BO a question"
+          />
+          <button type="submit" className="btn-primary" disabled={busy || !input.trim()}>
+            <Send size={15} style={{ verticalAlign: "middle", marginRight: 5 }} />
+            Ask
+          </button>
+        </form>
+      </section>
+
+      <section className="section-card card">
+        <div className="section-title">
+          <h2>ProMoney Lab Capabilities</h2>
           <FlaskConical size={20} color="var(--green)" />
         </div>
 
         <div className="lab-grid">
-          {futureModules.map(({ title, phase, icon: Icon, description }) => (
+          {futureModules.map(({ title, phase, icon: Icon, description, status }) => (
             <article key={title} className="lab-card card">
               <div className="lab-card-head">
                 <h3>{title}</h3>
@@ -106,7 +205,7 @@ export default function LaboView() {
                   size={14}
                   style={{ verticalAlign: "middle", marginRight: 5 }}
                 />
-                Status: Feature not implemented yet
+                Status: {status || "Feature not implemented yet"}
               </div>
             </article>
           ))}
@@ -114,27 +213,23 @@ export default function LaboView() {
       </section>
 
       <section className="section-card card">
-        <h2>Intended Integration &amp; Safety Architecture</h2>
+        <h2>Integration &amp; Safety Architecture</h2>
         <p className="muted">
-          1. <strong>Verified Data Pipeline:</strong> React → Express
-          (`/api/lab/*`) → Authenticated Financial Tools (`financeMath.js`) →
-          MySQL (`promoney`).
+          1. <strong>Verified Data Pipeline:</strong> React calculates a
+          snapshot with the app&apos;s own finance math → Express
+          (`/api/labo/chat`, login required) → Groq phrases the answer from
+          that snapshot only.
         </p>
         <p className="muted">
-          2. <strong>Local AI Runtime (Later):</strong> Express → Local Ollama
-          LLM / RAG Retrieval / Controlled Agent Workflows.
+          2. <strong>Coming next:</strong> RAG Knowledge Hub over curated
+          Japan personal finance guides, and live web answers with sources,
+          always labelled.
         </p>
         <p className="muted" style={{ marginBottom: 0 }}>
           3. <strong>Strict Human-in-the-Loop Rule:</strong> AI suggestions
-          cannot create, update, or delete any user financial record in MySQL
+          cannot create, update, or delete any user financial record
           without explicit user confirmation.
         </p>
-
-        <EmptyState
-          icon="🧪"
-          title="Feature not implemented yet."
-          description="ProMoney Lab AI modules will be enabled after core MySQL CRUD, authentication, and shared calculations are verified in Phases 1–4."
-        />
       </section>
     </>
   );
