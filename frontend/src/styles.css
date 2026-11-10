@@ -258,6 +258,17 @@ p { line-height: 1.5; }
 :root[data-theme="dark"] .status-pill.overdue { background: #3b2222; color: var(--red); }
 :root[data-theme="dark"] .status-pill.due_soon { background: #42331d; color: #f3c677; }
 
+/* ProMoney LA-BO chat (Phase 5, module 1) */
+.labo-chat-log { display: flex; flex-direction: column; gap: 8px; max-height: 340px; overflow-y: auto; padding: 4px 0 8px; }
+.labo-msg { max-width: 85%; padding: 9px 12px; border-radius: 12px; font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+.labo-msg-user { align-self: flex-end; background: var(--green, #1d9e75); color: #fff; }
+.labo-msg-ai { align-self: flex-start; background: rgba(127, 127, 127, 0.12); }
+.labo-quick { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+.labo-chip { border: 1px solid rgba(127, 127, 127, 0.35); background: transparent; color: inherit; border-radius: 999px; padding: 5px 11px; font-size: 12.5px; cursor: pointer; }
+.labo-chip:disabled { opacity: 0.5; cursor: default; }
+.labo-input-row { display: flex; gap: 8px; }
+.labo-input-row input { flex: 1; min-width: 0; }
+
 /* ============================================================
    Responsive Hardening — 2026-11-10 (Arpan)
    Append-only: no existing rule above is changed or removed.

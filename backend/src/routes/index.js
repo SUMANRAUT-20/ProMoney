@@ -4,6 +4,7 @@ import settingsRoutes from './settingsRoutes.js';
 import transactionsRoutes from './transactionsRoutes.js';
 import goalsRoutes from './goalsRoutes.js';
 import budgetsRoutes from './budgetsRoutes.js';
+import laboRoutes from './laboRoutes.js';
 
 const apiRouter = Router();
 
@@ -12,5 +13,6 @@ apiRouter.use('/settings', settingsRoutes);
 apiRouter.use('/transactions', transactionsRoutes);
 apiRouter.use('/goals', goalsRoutes);
 apiRouter.use('/budgets', budgetsRoutes);
+apiRouter.use('/labo', laboRoutes);
 
 export default apiRouter;
