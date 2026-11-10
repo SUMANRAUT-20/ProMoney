@@ -16,21 +16,23 @@ import {
   Wallet
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useFinance } from '../../context/FinanceContext';
 import './sidebar.css';
 
 const items = [
-  { to: '/dashboard', title: 'Dashboard', icon: LayoutDashboard },
-  { to: '/transactions', title: 'Transactions', icon: ArrowLeftRight },
-  { to: '/accounts', title: 'Accounts', icon: Wallet },
-  { to: '/budgets', title: 'Budgets', icon: ChartNoAxesColumn },
-  { to: '/bills', title: 'Bills & Subscriptions', icon: Receipt },
-  { to: '/goals', title: 'Savings Goals', icon: Goal },
-  { to: '/reports', title: 'Reports', icon: CreditCard },
-  { to: '/labo', title: 'ProMoney LA-BO', icon: FlaskConical },
+  { to: '/dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard },
+  { to: '/transactions', labelKey: 'nav.transactions', icon: ArrowLeftRight },
+  { to: '/accounts', labelKey: 'nav.accounts', icon: Wallet },
+  { to: '/budgets', labelKey: 'nav.budgets', icon: ChartNoAxesColumn },
+  { to: '/bills', labelKey: 'nav.bills', icon: Receipt },
+  { to: '/goals', labelKey: 'nav.goals', icon: Goal },
+  { to: '/reports', labelKey: 'nav.reports', icon: CreditCard },
+  { to: '/labo', labelKey: 'nav.labo', icon: FlaskConical },
 ];
 
 export default function Sidebar({ onNavigate }) {
   const { user, logout } = useAuth();
+  const { t } = useFinance();
   const navigate = useNavigate();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
@@ -53,13 +55,13 @@ export default function Sidebar({ onNavigate }) {
 
   return (
     <aside className="sidebar">
-      <NavLink to="/dashboard" className="brand" aria-label="ProMoney home">
+      <NavLink to="/dashboard" className="brand" aria-label={t('nav.home')}>
         <div className="brand-logo">¥</div>
         <span>ProMoney</span>
       </NavLink>
 
-      <nav className="nav" aria-label="Main navigation">
-        {items.map(({ to, title, icon: Icon }) => (
+      <nav className="nav" aria-label={t('nav.main')}>
+        {items.map(({ to, labelKey, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
@@ -67,23 +69,23 @@ export default function Sidebar({ onNavigate }) {
             className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
           >
             <Icon size={17} strokeWidth={1.9} />
-            <span>{title}</span>
+            <span>{t(labelKey)}</span>
           </NavLink>
         ))}
       </nav>
 
       <div className="sidebar-bottom">
         {user ? (
-          <div className="sidebar-auth-links sidebar-profile-wrap" aria-label="Account">
+          <div className="sidebar-auth-links sidebar-profile-wrap" aria-label={t('nav.account')}>
             {profileMenuOpen && (
-              <div className="sidebar-profile-menu" role="menu" aria-label="Profile menu">
+              <div className="sidebar-profile-menu" role="menu" aria-label={t('nav.profileMenu')}>
                 <button type="button" className="nav-item" role="menuitem" onClick={goToSettings}>
                   <Settings2 size={16} strokeWidth={1.9} />
-                  <span>Settings</span>
+                  <span>{t('nav.settings')}</span>
                 </button>
                 <button type="button" className="nav-item" role="menuitem" onClick={handleLogout}>
                   <LogOut size={16} strokeWidth={1.9} />
-                  <span>Log out</span>
+                  <span>{t('nav.logout')}</span>
                 </button>
               </div>
             )}
@@ -92,7 +94,7 @@ export default function Sidebar({ onNavigate }) {
               className="nav-item sidebar-profile"
               aria-haspopup="menu"
               aria-expanded={profileMenuOpen}
-              aria-label={`Signed in as ${user.display_name} — open profile menu`}
+              aria-label={t('nav.signedInAs', { name: user.display_name })}
               title={user.email}
               onClick={() => setProfileMenuOpen((open) => !open)}
             >
@@ -116,14 +118,14 @@ export default function Sidebar({ onNavigate }) {
             </button>
           </div>
         ) : (
-          <div className="sidebar-auth-links" aria-label="Authentication navigation">
+          <div className="sidebar-auth-links" aria-label={t('nav.authNav')}>
             <NavLink
               to="/login"
               onClick={onNavigate}
               className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
             >
               <LogIn size={16} strokeWidth={1.9} />
-              <span>Login</span>
+              <span>{t('nav.login')}</span>
             </NavLink>
             <NavLink
               to="/register"
@@ -131,7 +133,7 @@ export default function Sidebar({ onNavigate }) {
               className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
             >
               <UserPlus size={16} strokeWidth={1.9} />
-              <span>Registration</span>
+              <span>{t('nav.register')}</span>
             </NavLink>
           </div>
         )}

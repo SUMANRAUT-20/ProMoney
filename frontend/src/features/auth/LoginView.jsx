@@ -4,12 +4,14 @@ import AuthLayout from './AuthLayout';
 import { AuthNotice, PasswordField, SocialSignIn } from './AuthControls';
 import WelcomeView from './WelcomeView';
 import { useAuth } from '../../context/AuthContext';
+import { useFinance } from '../../context/FinanceContext';
 
 export default function LoginView() {
   const [params] = useSearchParams();
   const [notice, setNotice] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login } = useAuth();
+  const { t } = useFinance();
   const navigate = useNavigate();
   const location = useLocation();
   if (params.get('view') === 'welcome') return <WelcomeView />;
@@ -33,20 +35,20 @@ export default function LoginView() {
       setNotice(
         err.status
           ? err.message
-          : 'Could not reach the ProMoney server. Check that the backend is running, then try again.'
+          : t('auth.serverUnreachable')
       );
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  return <AuthLayout title="Sign in to ProMoney" subtitle="Access your personal finance workspace (JPY)." footer={<span>New to ProMoney? <Link to="/register">Create an account</Link></span>}>
+  return <AuthLayout title={t('auth.signInTitle')} subtitle={t('auth.signInSubtitle')} footer={<span>{t('auth.newTo')} <Link to="/register">{t('auth.createAccount')}</Link></span>}>
     <form className="form" onSubmit={handleSubmit}>
-      <label>Email address<input name="email" type="email" required maxLength={255} placeholder="you@example.com" autoComplete="email" /></label>
-      <PasswordField placeholder="Enter your password" />
-      <div className="pm-auth-help"><button type="button" className="pm-auth-text-button" onClick={() => setNotice('Password reset is not available yet. No reset email has been sent.')}>Forgot password?</button></div>
+      <label>{t('auth.email')}<input name="email" type="email" required maxLength={255} placeholder="you@example.com" autoComplete="email" /></label>
+      <PasswordField placeholder={t('auth.passwordPlaceholder')} />
+      <div className="pm-auth-help"><button type="button" className="pm-auth-text-button" onClick={() => setNotice(t('auth.forgotNotice'))}>{t('auth.forgot')}</button></div>
       <AuthNotice>{notice}</AuthNotice>
-      <button type="submit" className="btn primary pm-auth-submit" disabled={isSubmitting}>{isSubmitting ? 'Signing in…' : 'Log in'}</button>
+      <button type="submit" className="btn primary pm-auth-submit" disabled={isSubmitting}>{isSubmitting ? t('auth.signingIn') : t('auth.login')}</button>
     </form>
     <SocialSignIn />
   </AuthLayout>;

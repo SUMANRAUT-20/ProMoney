@@ -12,13 +12,26 @@
  */
 
 export const SUPPORTED_THEMES = ['light', 'dark'];
-export const SUPPORTED_CURRENCIES = ['JPY', 'USD', 'EUR', 'GBP', 'NPR', 'INR', 'AUD', 'CAD'];
+// 30 currencies — must match the frontend list in
+// frontend/src/utils/currencies.js (the Settings dropdown and the
+// per-transaction currency picker both use it; every code is covered
+// by the FX rate provider used for multi-currency conversion).
+export const SUPPORTED_CURRENCIES = [
+  'JPY', 'USD', 'EUR', 'GBP', 'NPR', 'INR', 'AUD', 'CAD',
+  'KRW', 'CNY', 'TWD', 'HKD', 'SGD', 'THB', 'VND', 'PHP',
+  'IDR', 'MYR', 'AED', 'SAR', 'CHF', 'NZD', 'ZAR', 'BRL',
+  'MXN', 'TRY', 'SEK', 'NOK', 'DKK', 'PLN',
+];
 export const SUPPORTED_DATE_FORMATS = ['YYYY-MM-DD', 'DD/MM/YYYY', 'MM/DD/YYYY', 'DD MMM YYYY'];
+// Bilingual UI (EN/JA): the frontend ships a built-in dictionary for
+// these language codes — no online translation service is involved.
+export const SUPPORTED_LANGUAGES = ['en', 'ja'];
 
 export const DEFAULT_PREFERENCES = {
   theme: 'light',
   currency: 'JPY',
   date_format: 'YYYY-MM-DD',
+  language: 'en',
 };
 
 const preferencesByUserId = new Map();
@@ -101,8 +114,14 @@ export function validatePreferences(body) {
     }
     preferences.date_format = body.date_format;
   }
+  if (body.language !== undefined) {
+    if (!SUPPORTED_LANGUAGES.includes(body.language)) {
+      return { error: `language must be one of: ${SUPPORTED_LANGUAGES.join(', ')}` };
+    }
+    preferences.language = body.language;
+  }
   if (Object.keys(preferences).length === 0) {
-    return { error: 'at least one of theme, currency, date_format is required' };
+    return { error: 'at least one of theme, currency, date_format, language is required' };
   }
   return { preferences };
 }

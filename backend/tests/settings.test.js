@@ -37,6 +37,18 @@ test('validatePreferences rejects bad enum values and empty bodies', () => {
   assert.match(validatePreferences(null).error, /JSON object/);
 });
 
+test('validatePreferences accepts the expanded currency list', () => {
+  for (const code of ['KRW', 'THB', 'SGD', 'AED', 'BRL', 'PLN']) {
+    assert.deepEqual(validatePreferences({ currency: code }).preferences, { currency: code });
+  }
+});
+
+test('validatePreferences accepts the bilingual UI languages and rejects others', () => {
+  assert.deepEqual(validatePreferences({ language: 'ja' }).preferences, { language: 'ja' });
+  assert.deepEqual(validatePreferences({ language: 'en' }).preferences, { language: 'en' });
+  assert.match(validatePreferences({ language: 'fr' }).error, /language must be one of/);
+});
+
 // --- SettingsModel ---
 
 test('settings model: defaults, partial merge, and per-user isolation', async () => {
@@ -45,6 +57,14 @@ test('settings model: defaults, partial merge, and per-user isolation', async ()
   assert.deepEqual(saved, { ...DEFAULT_PREFERENCES, currency: 'USD' });
   assert.deepEqual(await SettingsModel.getPreferences(101), saved);
   assert.deepEqual(await SettingsModel.getPreferences(202), DEFAULT_PREFERENCES);
+});
+
+test('settings model: language defaults to en and persists per user', async () => {
+  assert.equal((await SettingsModel.getPreferences(303)).language, 'en');
+  const saved = await SettingsModel.updatePreferences(303, { language: 'ja' });
+  assert.equal(saved.language, 'ja');
+  assert.equal((await SettingsModel.getPreferences(303)).language, 'ja');
+  assert.equal((await SettingsModel.getPreferences(404)).language, 'en');
 });
 
 // --- Controller flows ---

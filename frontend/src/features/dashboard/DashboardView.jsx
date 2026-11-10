@@ -8,12 +8,12 @@ import { Amount, EmptyState, Metric, PageHeading, ProgressBar } from '../../comp
 import { currentMonthISO, daysBetweenISO, formatDate, formatMonth, goalPercent, money, todayISO } from '../../utils/formatters';
 import {
   getAccountTotals, getBalanceProjection, getBudgetStatus, getCategoryBreakdown,
-  getHealthScore, getMonthlySummary, getSafeToSpend,
+  getHealthScore, getMonthlySummary, getSafeToSpend, txBaseAmount,
 } from '../../utils/financeMath';
 
 export default function DashboardView() {
   const navigate = useNavigate();
-  const { accounts, transactions, budgets, bills, goals, categories } = useFinance();
+  const { accounts, transactions, budgets, bills, goals, categories, t } = useFinance();
 
   const today = todayISO();
   const month = currentMonthISO();
@@ -35,7 +35,7 @@ export default function DashboardView() {
     (t) => t.kind === 'expense' && String(t.transaction_date || '').slice(0, 7) === month,
   );
   const biggestExpense = monthExpensesList.reduce(
-    (max, tx) => (!max || Number(tx.amount) > Number(max.amount) ? tx : max),
+    (max, tx) => (!max || txBaseAmount(tx) > txBaseAmount(max) ? tx : max),
     null,
   );
   const savingsRatePct = summary.income > 0 ? Math.round((summary.net / summary.income) * 100) : 0;
@@ -54,9 +54,9 @@ export default function DashboardView() {
   return (
     <>
       <PageHeading
-        title="Financial Overview"
-        subtitle={`Live JPY status, account balances, and ${formatMonth(month)} cash-flow health.`}
-        action={<button className="btn primary" type="button" onClick={() => navigate('/transactions')}><Plus size={16} /> Record Transaction</button>}
+        title={t('dash.title')}
+        subtitle={t('dash.subtitle', { month: formatMonth(month) })}
+        action={<button className="btn primary" type="button" onClick={() => navigate('/transactions')}><Plus size={16} /> {t('dash.record')}</button>}
       />
 
       <div className={`status-banner ${projection.goesNegative ? 'danger' : ''}`} role={projection.goesNegative ? 'alert' : 'status'}>
@@ -64,33 +64,33 @@ export default function DashboardView() {
         <div>
           <strong>
             {projection.goesNegative
-              ? `Balance Alert: Projected month-end balance is ${money(projection.projectedEndBalance)}`
-              : `Projected Month-End Balance: ${money(projection.projectedEndBalance)}`}
+              ? t('dash.bannerWarnTitle', { amount: money(projection.projectedEndBalance) })
+              : t('dash.bannerOkTitle', { amount: money(projection.projectedEndBalance) })}
           </strong>
           <span>
             {projection.goesNegative
-              ? `Warning before month-end: at your current spending pace (${money(projection.dailyPace)}/day), your total balance will drop below ¥0. Reduce daily spending to stay positive.`
-              : `At your current ${formatMonth(month)} spending pace (${money(projection.dailyPace)}/day), your balance stays positive through month-end.`}
+              ? t('dash.bannerWarnText', { pace: money(projection.dailyPace) })
+              : t('dash.bannerOkText', { month: formatMonth(month), pace: money(projection.dailyPace) })}
           </span>
         </div>
       </div>
 
-      <section className="dashboard-metrics" aria-label="Primary financial metrics">
-        <Metric icon={Wallet} label="Total balance (accounts)" value={money(accountTotals.net)} small={`Hold ${money(accountTotals.held)} · Owe ${money(accountTotals.owed)}`} />
-        <Metric icon={ArrowDownLeft} label={`Income (${formatMonth(month)})`} value={money(summary.income)} small="This month's inflows" />
-        <Metric icon={ArrowUpRight} label={`Expenses (${formatMonth(month)})`} value={money(summary.expense)} small={`Net ${money(summary.net)}`} />
+      <section className="dashboard-metrics" aria-label={t('dash.primaryMetrics')}>
+        <Metric icon={Wallet} label={t('dash.totalBalance')} value={money(accountTotals.net)} small={t('dash.holdOwe', { held: money(accountTotals.held), owed: money(accountTotals.owed) })} />
+        <Metric icon={ArrowDownLeft} label={t('dash.income', { month: formatMonth(month) })} value={money(summary.income)} small={t('dash.inflows')} />
+        <Metric icon={ArrowUpRight} label={t('dash.expenses', { month: formatMonth(month) })} value={money(summary.expense)} small={t('dash.net', { amount: money(summary.net) })} />
         <Metric
           icon={CalendarClock}
-          label="Today's Safe-to-Spend"
+          label={t('dash.safeToSpend')}
           value={`${money(safe.dailySafe)} / day`}
-          small={`(${money(summary.income)} − ${money(safe.billsStillDue)} bills − ${money(safe.goalSavingPlan)} goals) ÷ ${safe.daysLeft}d`}
+          small={t('dash.safeFormula', { income: money(summary.income), bills: money(safe.billsStillDue), goals: money(safe.goalSavingPlan), days: safe.daysLeft })}
         />
       </section>
 
       <section className="section-card card" style={{ marginTop: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
           <div style={{ minWidth: 180 }}>
-            <span className="eyebrow">FINANCIAL HEALTH SCORE</span>
+            <span className="eyebrow">{t('dash.healthEyebrow')}</span>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '6px 0 8px' }}>
               <ShieldCheck size={24} color="var(--green)" />
               <strong style={{ fontSize: 30, letterSpacing: '-0.8px' }}>{health.score}</strong>
@@ -99,70 +99,70 @@ export default function DashboardView() {
             <ProgressBar current={health.score} target={100} color={health.score < 50 ? 'red' : 'green'} />
           </div>
           <div style={{ flex: 1, minWidth: 260 }}>
-            <strong style={{ display: 'block', marginBottom: 4 }}>Plain-Text Score Formula</strong>
+            <strong style={{ display: 'block', marginBottom: 4 }}>{t('dash.healthFormulaTitle')}</strong>
             <p className="muted" style={{ margin: '0 0 6px', fontSize: 12 }}>
-              Score = Savings Rate (0–40 pts, full 40 at ≥20% saved) + Budget Adherence (0–30 pts, % of this month&apos;s budgets within limit) + Bills On Time (0–30 pts, % of bills not overdue).
+              {t('dash.healthFormula')}
             </p>
             <span className="neutral-badge">
-              Live breakdown: {health.savingsPts}/40 savings + {health.budgetPts}/30 budgets + {health.billPts}/30 bills = {health.score}/100
+              {t('dash.healthBreakdown', { s: health.savingsPts, b: health.budgetPts, bl: health.billPts, total: health.score })}
             </span>
           </div>
         </div>
       </section>
 
-      <section className="metrics-grid" style={{ marginTop: 16 }} aria-label="Monthly insights">
+      <section className="metrics-grid" style={{ marginTop: 16 }} aria-label={t('dash.monthlyInsights')}>
         <Metric
           icon={Flame}
-          label="Top spending category"
-          value={topCategory ? topCategory.name : 'None yet'}
-          small={topCategory ? `${money(topCategory.amount)} (${topCategory.percent}% of month expenses)` : `No ${formatMonth(month)} expenses`}
+          label={t('dash.topCategory')}
+          value={topCategory ? topCategory.name : t('dash.noneYet')}
+          small={topCategory ? t('dash.topCategorySmall', { amount: money(topCategory.amount), percent: topCategory.percent }) : t('dash.noMonthExpenses', { month: formatMonth(month) })}
         />
         <Metric
           icon={TrendingUp}
-          label="Biggest single expense"
-          value={biggestExpense ? money(biggestExpense.amount) : '¥0'}
-          small={biggestExpense ? `${biggestExpense.note || biggestExpense.title} · ${formatDate(biggestExpense.transaction_date)}` : `No ${formatMonth(month)} expenses`}
+          label={t('dash.biggestExpense')}
+          value={biggestExpense ? money(txBaseAmount(biggestExpense)) : '¥0'}
+          small={biggestExpense ? `${biggestExpense.note || biggestExpense.title} · ${formatDate(biggestExpense.transaction_date)}` : t('dash.noMonthExpenses', { month: formatMonth(month) })}
         />
         <Metric
           icon={Percent}
-          label="Monthly savings rate"
+          label={t('dash.savingsRate')}
           value={summary.income > 0 ? `${savingsRatePct}%` : '0%'}
-          small={summary.income > 0 ? `${money(summary.net)} saved ÷ ${money(summary.income)} income` : 'Record income to calculate'}
+          small={summary.income > 0 ? t('dash.savedOf', { net: money(summary.net), income: money(summary.income) }) : t('dash.recordIncome')}
         />
       </section>
 
       <div className="two-col-chart">
         <section className="section-card card" style={{ marginBottom: 0 }}>
           <div className="section-title">
-            <h2>Income vs Expenses ({formatMonth(month)})</h2>
-            <span className={summary.net >= 0 ? 'positive small' : 'negative small'} style={{ fontWeight: 700 }}>Net: {money(summary.net)}</span>
+            <h2>{t('dash.incomeVsExpenses', { month: formatMonth(month) })}</h2>
+            <span className={summary.net >= 0 ? 'positive small' : 'negative small'} style={{ fontWeight: 700 }}>{t('dash.netLabel', { amount: money(summary.net) })}</span>
           </div>
           <div style={{ display: 'grid', gap: 16 }}>
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12 }}>
-                <span>Income</span><strong className="positive">{money(summary.income)}</strong>
+                <span>{t('dash.incomeLabel')}</span><strong className="positive">{money(summary.income)}</strong>
               </div>
               <ProgressBar current={summary.income} target={barScale} color="green" />
             </div>
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12 }}>
-                <span>Expenses</span><strong className="negative">{money(summary.expense)}</strong>
+                <span>{t('dash.expensesLabel')}</span><strong className="negative">{money(summary.expense)}</strong>
               </div>
               <ProgressBar current={summary.expense} target={barScale} color="red" />
             </div>
           </div>
           <p className="support-note">
-            Safe-to-Spend formula: ({money(summary.income)} month income − {money(safe.billsStillDue)} bills still due − {money(safe.goalSavingPlan)} goal saving plan) ÷ {safe.daysLeft} days left = <strong>{money(safe.dailySafe)}/day</strong>.
+            {t('dash.safeNote', { income: money(summary.income), bills: money(safe.billsStillDue), goals: money(safe.goalSavingPlan), days: safe.daysLeft, daily: money(safe.dailySafe) })}
           </p>
         </section>
 
         <section className="section-card card" style={{ marginBottom: 0 }}>
           <div className="section-title">
-            <h2>Savings Goal Progress</h2>
-            <button className="text-action" type="button" onClick={() => navigate('/goals')}>View Goals</button>
+            <h2>{t('dash.goalProgress')}</h2>
+            <button className="text-action" type="button" onClick={() => navigate('/goals')}>{t('dash.viewGoals')}</button>
           </div>
           {goals.length === 0 ? (
-            <EmptyState icon="🎯" title="No savings goals yet" description="Set a JPY target to track progress here." action={<button className="btn secondary compact" type="button" onClick={() => navigate('/goals')}>Add Goal</button>} />
+            <EmptyState icon="🎯" title={t('dash.noGoalsTitle')} description={t('dash.noGoalsDesc')} action={<button className="btn secondary compact" type="button" onClick={() => navigate('/goals')}>{t('dash.addGoal')}</button>} />
           ) : (
             goals.slice(0, 4).map((goal) => (
               <div key={goal.id} className="mini-goal">
@@ -180,11 +180,11 @@ export default function DashboardView() {
       <div className="two-col-chart">
         <section className="section-card card" style={{ marginBottom: 0 }}>
           <div className="section-title">
-            <h2>5 Most Recent Transactions</h2>
-            <button className="text-action" type="button" onClick={() => navigate('/transactions')}>See All</button>
+            <h2>{t('dash.recentTx')}</h2>
+            <button className="text-action" type="button" onClick={() => navigate('/transactions')}>{t('dash.seeAll')}</button>
           </div>
           {recentTx.length === 0 ? (
-            <EmptyState icon="💳" title="No transactions yet" description="Recorded income and expenses appear here." action={<button className="btn primary compact" type="button" onClick={() => navigate('/transactions')}>Add Transaction</button>} />
+            <EmptyState icon="💳" title={t('dash.noTxTitle')} description={t('dash.noTxDesc')} action={<button className="btn primary compact" type="button" onClick={() => navigate('/transactions')}>{t('dash.addTx')}</button>} />
           ) : (
             <div className="recent-list">
               {recentTx.map((tx) => (
@@ -192,7 +192,7 @@ export default function DashboardView() {
                   <div className={`transaction-dot ${tx.kind}`}>{tx.kind === 'income' ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}</div>
                   <div>
                     <strong>{tx.note || tx.title}</strong>
-                    <small>{tx.category_name || 'Category'} · {formatDate(tx.transaction_date)}</small>
+                    <small>{tx.category_name || t('dash.categoryFallback')} · {formatDate(tx.transaction_date)}</small>
                   </div>
                   <div className="recent-amount"><Amount amount={tx.amount} type={tx.kind} /></div>
                 </div>
@@ -203,16 +203,16 @@ export default function DashboardView() {
 
         <section className="section-card card" style={{ marginBottom: 0 }}>
           <div className="section-title">
-            <h2>Upcoming Bills (Next 7 Days)</h2>
-            <button className="text-action" type="button" onClick={() => navigate('/bills')}>Manage Bills</button>
+            <h2>{t('dash.upcomingBills')}</h2>
+            <button className="text-action" type="button" onClick={() => navigate('/bills')}>{t('dash.manageBills')}</button>
           </div>
           {overdueBillsCount > 0 && (
             <p className="negative small" style={{ marginTop: 0, fontWeight: 700 }}>
-              ⚠️ You also have {overdueBillsCount} overdue {overdueBillsCount === 1 ? 'bill' : 'bills'}.
+              {t(overdueBillsCount === 1 ? 'dash.overdueOne' : 'dash.overdueMany', { count: overdueBillsCount })}
             </p>
           )}
           {upcoming7dBills.length === 0 ? (
-            <EmptyState icon="🧾" title="No bills due in the next 7 days" description="Schedule recurring bills to see upcoming due alerts." action={<button className="btn secondary compact" type="button" onClick={() => navigate('/bills')}>Go to Bills</button>} />
+            <EmptyState icon="🧾" title={t('dash.noBillsTitle')} description={t('dash.noBillsDesc')} action={<button className="btn secondary compact" type="button" onClick={() => navigate('/bills')}>{t('dash.goToBills')}</button>} />
           ) : (
             <div>
               {upcoming7dBills.map((bill) => {
@@ -222,11 +222,11 @@ export default function DashboardView() {
                     <div className="bill-icon"><ReceiptText size={17} /></div>
                     <div>
                       <strong>{bill.name}</strong>
-                      <p className="muted">{bill.category} · Due {formatDate(bill.due_date)}</p>
+                      <p className="muted">{bill.category} · {t('dash.dueLabel', { date: formatDate(bill.due_date) })}</p>
                     </div>
                     <div className="bill-due">
                       <strong>{money(bill.amount)}</strong>
-                      <span>{diff === 0 ? 'Due today' : `In ${diff}d`}</span>
+                      <span>{diff === 0 ? t('dash.dueToday') : t('dash.inDays', { days: diff })}</span>
                     </div>
                   </div>
                 );
