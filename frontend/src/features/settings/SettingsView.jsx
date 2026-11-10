@@ -3,6 +3,7 @@ import { useFinance } from '../../context/FinanceContext';
 import { useAuth } from '../../context/AuthContext';
 import { PageHeading } from '../../components/ui';
 import { apiClient } from '../../services/api';
+import { CURRENCIES } from '../../utils/currencies';
 import './settings.css';
 
 /**
@@ -16,16 +17,6 @@ import './settings.css';
  * amounts are NOT converted (no exchange-rate source yet).
  */
 
-const CURRENCIES = [
-  { code: 'JPY', label: 'Japanese Yen (JPY, ¥)' },
-  { code: 'USD', label: 'US Dollar (USD, $)' },
-  { code: 'EUR', label: 'Euro (EUR, €)' },
-  { code: 'GBP', label: 'British Pound (GBP, £)' },
-  { code: 'NPR', label: 'Nepalese Rupee (NPR, Rs)' },
-  { code: 'INR', label: 'Indian Rupee (INR, ₹)' },
-  { code: 'AUD', label: 'Australian Dollar (AUD, $)' },
-  { code: 'CAD', label: 'Canadian Dollar (CAD, $)' },
-];
 
 // Example labels use one fixed sample date: 6 November 2026.
 const DATE_FORMATS = [
@@ -35,8 +26,13 @@ const DATE_FORMATS = [
   { value: 'DD MMM YYYY', label: 'DD MMM YYYY — 06 Nov 2026' },
 ];
 
+const LANGUAGES = [
+  { code: 'en', label: 'English' },
+  { code: 'ja', label: '日本語' },
+];
+
 export default function SettingsView() {
-  const { theme, setTheme, preferences, setPreferences } = useFinance();
+  const { theme, setTheme, preferences, setPreferences, language, setLanguage, t } = useFinance();
   const { user, updateUser } = useAuth();
 
   const [loadError, setLoadError] = useState('');
@@ -64,6 +60,7 @@ export default function SettingsView() {
         setAvatarUrl(loadedProfile.avatar_data_url || null);
         setDisplayName(loadedProfile.display_name || '');
         if (loadedPrefs.theme && loadedPrefs.theme !== theme) setTheme(loadedPrefs.theme);
+        if (loadedPrefs.language) setLanguage(loadedPrefs.language);
         setPreferences({ currency: loadedPrefs.currency, date_format: loadedPrefs.date_format });
       })
       .catch((err) => {
@@ -71,7 +68,7 @@ export default function SettingsView() {
           setLoadError(
             err.status
               ? err.message
-              : 'Could not reach the ProMoney server. Start the backend and reload this page.'
+              : t('settings.loadError')
           );
         }
       });
@@ -88,12 +85,13 @@ export default function SettingsView() {
       const payload = await apiClient.updatePreferences(partial);
       const saved = payload.data.preferences;
       if (saved.theme) setTheme(saved.theme);
+      if (saved.language) setLanguage(saved.language);
       setPreferences({ currency: saved.currency, date_format: saved.date_format });
-      setPrefsMessage({ kind: 'success', text: 'Preferences saved.' });
+      setPrefsMessage({ kind: 'success', text: t('settings.prefsSaved') });
     } catch (err) {
       setPrefsMessage({
         kind: 'error',
-        text: err.status ? err.message : 'Could not reach the ProMoney server. Preference not saved.',
+        text: err.status ? err.message : t('settings.errPrefs'),
       });
     }
   };
@@ -127,11 +125,11 @@ export default function SettingsView() {
       const payload = await apiClient.updateAvatar({ avatar_data_url: dataUrl });
       setAvatarUrl(payload.data.avatar_data_url);
       updateUser({ avatar_data_url: payload.data.avatar_data_url });
-      setAvatarMessage({ kind: 'success', text: 'Profile photo saved.' });
+      setAvatarMessage({ kind: 'success', text: t('settings.photoSaved') });
     } catch (err) {
       setAvatarMessage({
         kind: 'error',
-        text: err.status ? err.message : 'Could not save the photo. Is the backend running?',
+        text: err.status ? err.message : t('settings.errPhoto'),
       });
     }
   };
@@ -142,11 +140,11 @@ export default function SettingsView() {
       await apiClient.updateAvatar({ avatar_data_url: null });
       setAvatarUrl(null);
       updateUser({ avatar_data_url: null });
-      setAvatarMessage({ kind: 'success', text: 'Profile photo removed — initials are shown instead.' });
+      setAvatarMessage({ kind: 'success', text: t('settings.photoRemoved') });
     } catch (err) {
       setAvatarMessage({
         kind: 'error',
-        text: err.status ? err.message : 'Could not reach the ProMoney server. Photo not removed.',
+        text: err.status ? err.message : t('settings.errPhotoRemove'),
       });
     }
   };
@@ -159,11 +157,11 @@ export default function SettingsView() {
       const payload = await apiClient.updateProfile({ display_name: displayName.trim() });
       updateUser({ display_name: payload.data.user.display_name });
       setProfile((prev) => (prev ? { ...prev, display_name: payload.data.user.display_name } : prev));
-      setProfileMessage({ kind: 'success', text: 'Profile saved.' });
+      setProfileMessage({ kind: 'success', text: t('settings.profileSaved') });
     } catch (err) {
       setProfileMessage({
         kind: 'error',
-        text: err.status ? err.message : 'Could not reach the ProMoney server. Profile not saved.',
+        text: err.status ? err.message : t('settings.errProfile'),
       });
     } finally {
       setSavingProfile(false);
@@ -174,11 +172,11 @@ export default function SettingsView() {
     event.preventDefault();
     setPasswordMessage(null);
     if (newPassword.length < 8) {
-      setPasswordMessage({ kind: 'error', text: 'New password must be at least 8 characters.' });
+      setPasswordMessage({ kind: 'error', text: t('settings.pwTooShort') });
       return;
     }
     if (newPassword !== confirmPassword) {
-      setPasswordMessage({ kind: 'error', text: 'New password and confirmation do not match.' });
+      setPasswordMessage({ kind: 'error', text: t('settings.pwMismatch') });
       return;
     }
     setSavingPassword(true);
@@ -187,11 +185,11 @@ export default function SettingsView() {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      setPasswordMessage({ kind: 'success', text: 'Password changed.' });
+      setPasswordMessage({ kind: 'success', text: t('settings.passwordChanged') });
     } catch (err) {
       setPasswordMessage({
         kind: 'error',
-        text: err.status ? err.message : 'Could not reach the ProMoney server. Password not changed.',
+        text: err.status ? err.message : t('settings.errPassword'),
       });
     } finally {
       setSavingPassword(false);
@@ -201,8 +199,8 @@ export default function SettingsView() {
   return (
     <>
       <PageHeading
-        title="Settings & Preferences"
-        subtitle="Customize appearance, regional formats, and your account profile and security."
+        title={t('settings.title')}
+        subtitle={t('settings.subtitle')}
       />
 
       {loadError && (
@@ -212,34 +210,50 @@ export default function SettingsView() {
       )}
 
       <section className="section-card card settings-card">
-        <h2>Appearance &amp; Theme</h2>
-        <p className="muted">Switch between Ultra-Clean Finance light and dark modes.</p>
+        <h2>{t('settings.appearance')}</h2>
+        <p className="muted">{t('settings.appearanceDesc')}</p>
 
         <div className="setting-row">
-          <span>Theme Mode</span>
+          <span>{t('settings.themeMode')}</span>
           <div className="segmented">
             <button
               type="button"
               className={theme === 'light' ? 'selected' : ''}
               onClick={() => { setTheme('light'); savePreferences({ theme: 'light' }); }}
             >
-              Light
+              {t('settings.light')}
             </button>
             <button
               type="button"
               className={theme === 'dark' ? 'selected' : ''}
               onClick={() => { setTheme('dark'); savePreferences({ theme: 'dark' }); }}
             >
-              Dark
+              {t('settings.dark')}
             </button>
           </div>
         </div>
 
         <div className="setting-row">
-          <span>Base Currency</span>
+          <span>{t('settings.language')}</span>
+          <div className="segmented">
+            {LANGUAGES.map((option) => (
+              <button
+                key={option.code}
+                type="button"
+                className={language === option.code ? 'selected' : ''}
+                onClick={() => { setLanguage(option.code); savePreferences({ language: option.code }); }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="setting-row">
+          <span>{t('settings.baseCurrency')}</span>
           <select
             className="settings-select"
-            aria-label="Base currency"
+            aria-label={t('settings.baseCurrency')}
             value={preferences.currency}
             onChange={(event) => {
               setPreferences({ currency: event.target.value });
@@ -255,10 +269,10 @@ export default function SettingsView() {
         </div>
 
         <div className="setting-row">
-          <span>Calendar &amp; Date Format</span>
+          <span>{t('settings.dateFormat')}</span>
           <select
             className="settings-select"
-            aria-label="Date format"
+            aria-label={t('settings.dateFormat')}
             value={preferences.date_format}
             onChange={(event) => {
               setPreferences({ date_format: event.target.value });
@@ -279,11 +293,11 @@ export default function SettingsView() {
       </section>
 
       <section className="section-card card settings-card">
-        <h2>Account Profile</h2>
-        <p className="muted">Your display name is shown in the sidebar and top bar.</p>
+        <h2>{t('settings.profile')}</h2>
+        <p className="muted">{t('settings.profileDesc')}</p>
 
         <div className="setting-row">
-          <span>Profile Photo</span>
+          <span>{t('settings.profilePhoto')}</span>
           <div className="settings-control">
             <span className="avatar settings-avatar-preview" aria-hidden="true">
               {avatarUrl ? (
@@ -298,39 +312,39 @@ export default function SettingsView() {
               )}
             </span>
             <label className="settings-button settings-upload-button">
-              Upload photo
+              {t('settings.uploadPhoto')}
               <input type="file" accept="image/*" hidden onChange={saveAvatarFile} />
             </label>
             {avatarUrl && (
               <button type="button" className="settings-button settings-button-secondary" onClick={removeAvatar}>
-                Remove
+                {t('settings.remove')}
               </button>
             )}
           </div>
         </div>
-        <p className="muted">With no photo, the sidebar shows the initials from your display name.</p>
+        <p className="muted">{t('settings.photoNote')}</p>
         {avatarMessage && (
           <p className={`settings-message ${avatarMessage.kind}`}>{avatarMessage.text}</p>
         )}
 
         <form onSubmit={saveProfile}>
           <div className="setting-row">
-            <span>Display Name</span>
+            <span>{t('settings.displayName')}</span>
             <div className="settings-control">
               <input
                 className="settings-input"
                 value={displayName}
                 onChange={(event) => setDisplayName(event.target.value)}
                 maxLength={100}
-                aria-label="Display name"
+                aria-label={t('settings.displayName')}
               />
               <button className="settings-button" type="submit" disabled={savingProfile || !displayName.trim()}>
-                Save
+                {t('settings.save')}
               </button>
             </div>
           </div>
           <div className="setting-row">
-            <span>Email</span>
+            <span>{t('settings.email')}</span>
             <span className="settings-readonly">{profile?.email || user?.email || '—'}</span>
           </div>
         </form>
@@ -341,23 +355,23 @@ export default function SettingsView() {
       </section>
 
       <section className="section-card card settings-card">
-        <h2>Security</h2>
-        <p className="muted">Change the password you use to sign in with email.</p>
+        <h2>{t('settings.security')}</h2>
+        <p className="muted">{t('settings.securityDesc')}</p>
 
         {profile && !profile.has_password ? (
           <div className="setting-row">
-            <span>Password</span>
+            <span>{t('settings.password')}</span>
             <span className="settings-readonly">
-              This account uses Google sign-in — there is no password to change.
+              {t('settings.googleNoPassword')}
             </span>
           </div>
         ) : (
           <form onSubmit={savePassword}>
             <div className="setting-row">
-              <span>Change Password</span>
+              <span>{t('settings.changePassword')}</span>
               <div className="settings-stack">
                 <div className="settings-field">
-                  <label htmlFor="settings-current-password">Current password</label>
+                  <label htmlFor="settings-current-password">{t('settings.currentPassword')}</label>
                   <input
                     id="settings-current-password"
                     className="settings-input"
@@ -368,7 +382,7 @@ export default function SettingsView() {
                   />
                 </div>
                 <div className="settings-field">
-                  <label htmlFor="settings-new-password">New password</label>
+                  <label htmlFor="settings-new-password">{t('settings.newPassword')}</label>
                   <input
                     id="settings-new-password"
                     className="settings-input"
@@ -379,7 +393,7 @@ export default function SettingsView() {
                   />
                 </div>
                 <div className="settings-field">
-                  <label htmlFor="settings-confirm-password">Confirm new password</label>
+                  <label htmlFor="settings-confirm-password">{t('settings.confirmNewPassword')}</label>
                   <input
                     id="settings-confirm-password"
                     className="settings-input"
@@ -394,7 +408,7 @@ export default function SettingsView() {
                   type="submit"
                   disabled={savingPassword || !currentPassword || !newPassword || !confirmPassword}
                 >
-                  Change password
+                  {t('settings.changePassword')}
                 </button>
               </div>
             </div>

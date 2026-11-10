@@ -1,12 +1,25 @@
 import { addMonthsISO, daysBetweenISO } from './formatters.js';
 
+// Multi-currency (Arpan, 2026-11-10): a transaction may be ENTERED in
+// a foreign currency (tx.currency + tx.amount as entered) with its
+// base-currency value snapshotted at entry time in tx.base_amount
+// (converted at the live rate then — see services/fxRates.js). Every
+// aggregation below uses the BASE value, so dashboard totals are
+// always in the base currency and history never shifts when exchange
+// rates move later. Legacy transactions have no base_amount and are
+// already in base currency, so they fall back to tx.amount.
+export function txBaseAmount(tx) {
+  const num = Number(tx?.base_amount ?? tx?.amount ?? 0);
+  return Number.isFinite(num) ? num : 0;
+}
+
 export function getAccountBalance(account, transactions) {
   const base = Number(account?.manual_balance || 0);
   let income = 0;
   let expense = 0;
   for (const tx of transactions) {
     if (String(tx.account_id) !== String(account.id)) continue;
-    const amt = Number(tx.amount || 0);
+    const amt = txBaseAmount(tx);
     if (tx.kind === 'income') income += amt;
     else if (tx.kind === 'expense') expense += amt;
   }
@@ -29,7 +42,7 @@ export function getMonthlySummary(transactions, month) {
   let expense = 0;
   for (const tx of transactions) {
     if (String(tx.transaction_date || '').slice(0, 7) !== month) continue;
-    const amt = Number(tx.amount || 0);
+    const amt = txBaseAmount(tx);
     if (tx.kind === 'income') income += amt;
     else if (tx.kind === 'expense') expense += amt;
   }
@@ -45,7 +58,7 @@ export function getBudgetStatus(budget, transactions) {
     if (String(tx.transaction_date || '').slice(0, 7) !== month) continue;
     const sameId = String(tx.category_id) === String(budget.category_id);
     const sameName = budget.category_name && tx.category_name === budget.category_name;
-    if (sameId || sameName) spent += Number(tx.amount || 0);
+    if (sameId || sameName) spent += txBaseAmount(tx);
   }
   const remaining = limit - spent;
   const pct = limit > 0 ? Math.round((spent / limit) * 100) : 0;
@@ -72,7 +85,7 @@ export function getMonthlySavingPace(transactions) {
     const m = String(tx.transaction_date || '').slice(0, 7);
     if (!m) continue;
     const prev = byMonth.get(m) || 0;
-    const delta = tx.kind === 'income' ? Number(tx.amount || 0) : -Number(tx.amount || 0);
+    const delta = tx.kind === 'income' ? txBaseAmount(tx) : -txBaseAmount(tx);
     byMonth.set(m, prev + delta);
   }
   if (byMonth.size === 0) return 0;
@@ -148,7 +161,7 @@ export function getCategoryBreakdown(transactions, month, categories) {
     const cat = categories.find((c) => String(c.id) === String(tx.category_id));
     const key = cat?.id || tx.category_id || tx.category_name || 'other-expense';
     const name = cat?.name || tx.category_name || 'Other Expense';
-    const amt = Number(tx.amount || 0);
+    const amt = txBaseAmount(tx);
     totalExpense += amt;
     totals.set(key, { id: key, name, amount: (totals.get(key)?.amount || 0) + amt });
   }
@@ -169,8 +182,8 @@ export function getMonthlySavingsSeries(transactions) {
     const month = String(tx.transaction_date || '').slice(0, 7);
     if (!month) continue;
     const entry = map.get(month) || { month, income: 0, expense: 0 };
-    if (tx.kind === 'income') entry.income += Number(tx.amount || 0);
-    else if (tx.kind === 'expense') entry.expense += Number(tx.amount || 0);
+    if (tx.kind === 'income') entry.income += txBaseAmount(tx);
+    else if (tx.kind === 'expense') entry.expense += txBaseAmount(tx);
     map.set(month, entry);
   }
   const months = [...map.keys()].sort();

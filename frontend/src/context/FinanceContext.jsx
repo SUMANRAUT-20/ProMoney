@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { categories as defaultCategories } from "../data/initialData";
+import { SUPPORTED_UI_LANGUAGES, translations } from "../i18n/translations";
 
 const FinanceContext = createContext(null);
 
@@ -42,6 +43,20 @@ function loadTheme() {
   }
 }
 
+// UI language (bilingual EN/JA — built-in dictionary, no online
+// translation). Same pattern as the theme: the backend settings are
+// the per-user source of truth; this state is the applied copy,
+// cached locally so the UI is right on reload.
+function loadLanguage() {
+  try {
+    const stored = localStorage.getItem("pm_language_v1");
+    const parsed = stored ? JSON.parse(stored) : "en";
+    return SUPPORTED_UI_LANGUAGES.includes(parsed) ? parsed : "en";
+  } catch {
+    return "en";
+  }
+}
+
 export const DEFAULT_PREFERENCES = { currency: "JPY", date_format: "YYYY-MM-DD" };
 
 function loadPreferences() {
@@ -76,6 +91,26 @@ export function FinanceProvider({ children }) {
   // backend (/api/settings) is the per-user source of truth; this state
   // is the applied copy, cached locally so the UI is right on reload.
   const [preferences, setPreferencesState] = useState(loadPreferences);
+  const [language, setLanguageState] = useState(loadLanguage);
+
+  const setLanguage = useCallback((next) => {
+    if (SUPPORTED_UI_LANGUAGES.includes(next)) setLanguageState(next);
+  }, []);
+
+  // t('dash.title') / t('nav.signedInAs', { name }) — dictionary lookup
+  // in the active language, English fallback, {var} interpolation.
+  const t = useCallback(
+    (key, vars) => {
+      let text = translations[language]?.[key] ?? translations.en[key] ?? key;
+      if (vars) {
+        for (const [name, value] of Object.entries(vars)) {
+          text = text.replaceAll(`{${name}}`, String(value));
+        }
+      }
+      return text;
+    },
+    [language],
+  );
 
   const setPreferences = (partial) => {
     setPreferencesState((prev) => {
@@ -101,6 +136,15 @@ export function FinanceProvider({ children }) {
     }
   }, [theme]);
 
+  useEffect(() => {
+    document.documentElement.lang = language;
+    try {
+      localStorage.setItem("pm_language_v1", JSON.stringify(language));
+    } catch {
+      // Ignore storage quota errors
+    }
+  }, [language]);
+
   const value = useMemo(
     () => ({
       goals,
@@ -118,8 +162,11 @@ export function FinanceProvider({ children }) {
       setTheme,
       preferences,
       setPreferences,
+      language,
+      setLanguage,
+      t,
     }),
-    [goals, transactions, budgets, accounts, bills, categories, theme, preferences],
+    [goals, transactions, budgets, accounts, bills, categories, theme, preferences, language, setLanguage, t],
   );
 
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>;

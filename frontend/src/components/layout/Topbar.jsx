@@ -13,10 +13,13 @@ import './topbar.css';
  * preference and the time updates every second (browser local time).
  */
 
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const WEEKDAYS = {
+  en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+  ja: ['日', '月', '火', '水', '木', '金', '土'],
+};
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-function formatDateByPreference(date, format) {
+function formatDateByPreference(date, format, language) {
   const yyyy = date.getFullYear();
   const mm = String(date.getMonth() + 1).padStart(2, '0');
   const dd = String(date.getDate()).padStart(2, '0');
@@ -26,14 +29,16 @@ function formatDateByPreference(date, format) {
     case 'MM/DD/YYYY':
       return `${mm}/${dd}/${yyyy}`;
     case 'DD MMM YYYY':
-      return `${dd} ${MONTHS_SHORT[date.getMonth()]} ${yyyy}`;
+      return language === 'ja'
+        ? `${dd} ${date.getMonth() + 1}月 ${yyyy}`
+        : `${dd} ${MONTHS_SHORT[date.getMonth()]} ${yyyy}`;
     case 'YYYY-MM-DD':
     default:
       return `${yyyy}-${mm}-${dd}`;
   }
 }
 
-function HeaderClock({ dateFormat }) {
+function HeaderClock({ dateFormat, language }) {
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -43,11 +48,12 @@ function HeaderClock({ dateFormat }) {
 
   const pad = (n) => String(n).padStart(2, '0');
   const time = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  const weekdays = WEEKDAYS[language] || WEEKDAYS.en;
 
   return (
     <div className="topbar-clock" aria-label="Current date and time">
       <span className="topbar-clock-date">
-        {WEEKDAYS[now.getDay()]}, {formatDateByPreference(now, dateFormat)}
+        {weekdays[now.getDay()]}, {formatDateByPreference(now, dateFormat, language)}
       </span>
       <span className="topbar-clock-time">{time}</span>
     </div>
@@ -57,7 +63,7 @@ function HeaderClock({ dateFormat }) {
 export default function Topbar({ toggleMenu }) {
   const [search, setSearch] = useState('');
   const navigate = useNavigate();
-  const { theme, setTheme, preferences, setPreferences } = useFinance();
+  const { theme, setTheme, preferences, setPreferences, language, setLanguage, t } = useFinance();
   const { user, updateUser } = useAuth();
 
   // Account settings integration: right after sign-in (and on session
@@ -73,6 +79,7 @@ export default function Topbar({ toggleMenu }) {
       .then((payload) => {
         const { profile, preferences: saved } = payload.data;
         if (saved.theme) setTheme(saved.theme);
+        if (saved.language) setLanguage(saved.language);
         setPreferences({ currency: saved.currency, date_format: saved.date_format });
         updateUser({ avatar_data_url: profile.avatar_data_url || null });
       })
@@ -80,7 +87,7 @@ export default function Topbar({ toggleMenu }) {
         // Backend unreachable or session expired — keep the local
         // theme/preferences; AuthContext handles an expired session.
       });
-  }, [user?.id, setTheme, setPreferences, updateUser]);
+  }, [user?.id, setTheme, setLanguage, setPreferences, updateUser]);
 
   const toggleTheme = () => {
     const next = theme === 'light' ? 'dark' : 'light';
@@ -109,7 +116,7 @@ export default function Topbar({ toggleMenu }) {
         >
           <Menu size={20} />
         </button>
-        <span className="topbar-title">Financial Workspace ({preferences.currency})</span>
+        <span className="topbar-title">{t('topbar.workspace', { currency: preferences.currency })}</span>
       </div>
 
       <div className="topbar-right">
@@ -118,16 +125,16 @@ export default function Topbar({ toggleMenu }) {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search transactions..."
-            aria-label="Search transactions"
+            placeholder={t('topbar.searchPlaceholder')}
+            aria-label={t('topbar.searchLabel')}
           />
           <kbd>↵</kbd>
         </form>
-        <HeaderClock dateFormat={preferences.date_format} />
+        <HeaderClock dateFormat={preferences.date_format} language={language} />
         <button
           type="button"
           className="icon-button"
-          aria-label="Toggle theme mode"
+          aria-label={t('topbar.toggleTheme')}
           onClick={toggleTheme}
         >
           {theme === 'light' ? <Sun size={19} /> : <Moon size={19} />}

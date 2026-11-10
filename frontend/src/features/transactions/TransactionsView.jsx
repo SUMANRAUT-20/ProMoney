@@ -3,10 +3,14 @@ import { useSearchParams } from 'react-router-dom';
 import { ArrowDownLeft, ArrowUpRight, Download, Pencil, Plus, Scale, Trash2 } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { Amount, EmptyState, Metric, Modal, PageHeading } from '../../components/ui';
-import { exportTransactionsCsv, formatDate, isValidISODate, makeId, money, parseWholeYen, sum, todayISO } from '../../utils/formatters';
+import { exportTransactionsCsv, formatDate, isValidISODate, makeId, money, parseWholeYen, todayISO } from '../../utils/formatters';
+import { CURRENCIES, formatEntered } from '../../utils/currencies';
+import { txBaseAmount } from '../../utils/financeMath';
+import { convertToBase } from '../../services/fxRates';
 
 export default function TransactionsView() {
-  const { transactions, setTransactions, accounts, categories } = useFinance();
+  const { transactions, setTransactions, accounts, categories, preferences } = useFinance();
+  const baseCurrency = preferences.currency || 'JPY';
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [search, setSearch] = useState(() => searchParams.get('search') || '');
@@ -25,8 +29,25 @@ export default function TransactionsView() {
   const defaultAccountId = accounts[0]?.id ? String(accounts[0].id) : '';
 
   const [form, setForm] = useState({
-    kind: 'expense', amount: '', category_id: firstCatForKind('expense'), account_id: defaultAccountId, transaction_date: todayISO(), note: '',
+    kind: 'expense', amount: '', currency: baseCurrency, category_id: firstCatForKind('expense'), account_id: defaultAccountId, transaction_date: todayISO(), note: '',
   });
+  // Live-rate preview for a foreign-currency entry: idle | loading | ok | unavailable
+  const [fxState, setFxState] = useState({ status: 'idle' });
+
+  useEffect(() => {
+    let cancelled = false;
+    const value = Number(form.amount);
+    if (!modalOpen || !form.currency || form.currency === baseCurrency || !(value > 0)) {
+      setFxState({ status: 'idle' });
+      return;
+    }
+    setFxState({ status: 'loading' });
+    convertToBase(value, form.currency, baseCurrency).then((conv) => {
+      if (cancelled) return;
+      setFxState(conv ? { status: 'ok', ...conv } : { status: 'unavailable' });
+    });
+    return () => { cancelled = true; };
+  }, [modalOpen, form.currency, form.amount, baseCurrency]);
 
   const getCatName = (tx) =>
     categories.find((c) => String(c.id) === String(tx.category_id))?.name || tx.category_name || 'Uncategorized';
@@ -45,13 +66,13 @@ export default function TransactionsView() {
     })
     .sort((a, b) => String(b.transaction_date).localeCompare(String(a.transaction_date)));
 
-  const periodIncome = sum(filtered.filter((t) => t.kind === 'income'), 'amount');
-  const periodExpense = sum(filtered.filter((t) => t.kind === 'expense'), 'amount');
+  const periodIncome = filtered.filter((t) => t.kind === 'income').reduce((acc, t) => acc + txBaseAmount(t), 0);
+  const periodExpense = filtered.filter((t) => t.kind === 'expense').reduce((acc, t) => acc + txBaseAmount(t), 0);
 
   const openAdd = () => {
     setEditingTx(null);
     setForm({
-      kind: 'expense', amount: '', category_id: firstCatForKind('expense'),
+      kind: 'expense', amount: '', currency: baseCurrency, category_id: firstCatForKind('expense'),
       account_id: accounts[0]?.id ? String(accounts[0].id) : '', transaction_date: todayISO(), note: '',
     });
     setError('');
@@ -63,6 +84,7 @@ export default function TransactionsView() {
     setForm({
       kind: tx.kind,
       amount: String(tx.amount),
+      currency: tx.currency || baseCurrency,
       category_id: String(tx.category_id || firstCatForKind(tx.kind)),
       account_id: tx.account_id ? String(tx.account_id) : defaultAccountId,
       transaction_date: tx.transaction_date,
@@ -72,11 +94,19 @@ export default function TransactionsView() {
     setModalOpen(true);
   };
 
-  const handleSave = (event) => {
+  const handleSave = async (event) => {
     event.preventDefault();
     if (!['income', 'expense'].includes(form.kind)) return setError('Choose income or expense.');
-    const amount = parseWholeYen(form.amount);
-    if (amount === null) return setError('Amount must be a whole number greater than ¥0.');
+    const enteredCurrency = form.currency || baseCurrency;
+    let amount;
+    if (enteredCurrency === baseCurrency) {
+      amount = parseWholeYen(form.amount);
+      if (amount === null) return setError('Amount must be a whole number greater than 0.');
+    } else {
+      if (!/^\d+(\.\d{1,2})?$/.test(String(form.amount).trim())) return setError(`Enter the amount in ${enteredCurrency} (up to 2 decimal places).`);
+      amount = Number(form.amount);
+      if (!(amount > 0)) return setError('Amount must be greater than 0.');
+    }
     const cat = categories.find((c) => String(c.id) === String(form.category_id) && c.kind === form.kind);
     if (!cat) return setError('Please select a valid category.');
     if (accounts.length > 0 && !accounts.some((a) => String(a.id) === String(form.account_id))) {
@@ -86,9 +116,22 @@ export default function TransactionsView() {
     const note = form.note.trim();
     if (!note || note.length > 120) return setError('Enter a short note (1–120 characters).');
 
+    // Foreign currency: convert at the live rate NOW and snapshot the
+    // base value on the transaction. Dashboard totals then stay in the
+    // base currency and never drift when rates move later.
+    let baseAmount = amount;
+    let fxRate = 1;
+    if (enteredCurrency !== baseCurrency) {
+      const conv = await convertToBase(amount, enteredCurrency, baseCurrency);
+      if (!conv) return setError(`Live exchange rate unavailable — check your connection, or enter this transaction in ${baseCurrency}.`);
+      baseAmount = conv.baseAmount;
+      fxRate = conv.rate;
+    }
+
     const next = {
       id: editingTx?.id ?? makeId('tx'),
-      kind: form.kind, amount, category_id: cat.id, category_name: cat.name,
+      kind: form.kind, amount, currency: enteredCurrency, base_amount: baseAmount, fx_rate: fxRate,
+      category_id: cat.id, category_name: cat.name,
       account_id: accounts.length > 0 ? form.account_id : '', transaction_date: form.transaction_date, note, title: note,
     };
     setTransactions((prev) => (editingTx ? prev.map((t) => (t.id === editingTx.id ? next : t)) : [next, ...prev]));
@@ -107,7 +150,7 @@ export default function TransactionsView() {
     <>
       <PageHeading
         title="Transactions"
-        subtitle="Record, search, filter, and export your JPY income and expenses."
+        subtitle={`Record, search, filter, and export your income and expenses. Foreign-currency entries are converted to ${baseCurrency} at the live exchange rate.`}
         action={
           <div style={{ display: 'flex', gap: 8 }}>
             <button
@@ -179,7 +222,12 @@ export default function TransactionsView() {
                     <td><span className="neutral-badge">{getCatName(tx)}</span></td>
                     <td>{getAccName(tx.account_id)}</td>
                     <td><span className={`type-badge ${tx.kind}`}>{tx.kind}</span></td>
-                    <td className="align-right table-strong"><Amount amount={tx.amount} type={tx.kind} /></td>
+                    <td className="align-right table-strong">
+                      <Amount amount={txBaseAmount(tx)} type={tx.kind} />
+                      {tx.currency && tx.currency !== baseCurrency && (
+                        <div className="muted" style={{ fontSize: 11, fontWeight: 400 }}>{formatEntered(tx.amount, tx.currency)}</div>
+                      )}
+                    </td>
                     <td className="align-right">
                       <button className="icon-button" type="button" onClick={() => openEdit(tx)} aria-label={`Edit ${tx.note || tx.title}`}><Pencil size={15} /></button>
                       <button className="icon-button" type="button" onClick={() => setDeleteTarget(tx)} aria-label={`Delete ${tx.note || tx.title}`}><Trash2 size={15} /></button>
@@ -202,14 +250,28 @@ export default function TransactionsView() {
             </div>
             <div className="form-row">
               <label>
-                Amount (JPY)
-                <input type="number" min="1" step="1" value={form.amount} placeholder="e.g. 3200" onChange={(e) => { setForm({ ...form, amount: e.target.value }); setError(''); }} required />
+                Amount
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input type="number" min="0" step={form.currency === baseCurrency ? '1' : '0.01'} value={form.amount} placeholder="e.g. 3200" style={{ flex: 1, minWidth: 0 }} onChange={(e) => { setForm({ ...form, amount: e.target.value }); setError(''); }} required />
+                  <select value={form.currency} aria-label="Transaction currency" onChange={(e) => { setForm({ ...form, currency: e.target.value }); setError(''); }}>
+                    {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code}</option>)}
+                  </select>
+                </div>
               </label>
               <label>
                 Date
                 <input type="date" value={form.transaction_date} onChange={(e) => { setForm({ ...form, transaction_date: e.target.value }); setError(''); }} required />
               </label>
             </div>
+            {form.currency !== baseCurrency && (
+              <p className="muted" style={{ margin: 0, fontSize: 12 }} role="status">
+                {fxState.status === 'ok'
+                  ? `≈ ${money(fxState.baseAmount)} at 1 ${form.currency} = ${fxState.rate} ${baseCurrency} (live rate${fxState.stale ? ', cached' : ''}${fxState.date ? ` · rates ${new Date(fxState.date).toLocaleDateString('en-GB')}` : ''})`
+                  : fxState.status === 'unavailable'
+                    ? 'Live exchange rate unavailable right now.'
+                    : 'Fetching live exchange rate…'}
+              </p>
+            )}
             <div className="form-row">
               <label>
                 Category
@@ -239,7 +301,7 @@ export default function TransactionsView() {
 
       {deleteTarget && (
         <Modal title="Delete Transaction" onClose={() => setDeleteTarget(null)}>
-          <p>Delete <strong>{deleteTarget.note || deleteTarget.title}</strong> ({money(deleteTarget.amount)})?</p>
+          <p>Delete <strong>{deleteTarget.note || deleteTarget.title}</strong> ({money(txBaseAmount(deleteTarget))})?</p>
           <div className="form-actions">
             <button className="btn secondary" type="button" onClick={() => setDeleteTarget(null)}>Cancel</button>
             <button className="btn primary" type="button" onClick={() => { setTransactions((prev) => prev.filter((t) => t.id !== deleteTarget.id)); setDeleteTarget(null); }}>Delete</button>
