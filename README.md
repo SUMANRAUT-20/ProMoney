@@ -11,63 +11,20 @@ This repository is configured as a **Clean Project Foundation** for 5-member par
 | Member | Full Name | Assigned Responsibilities | Primary Owned Paths |
 | :--- | :--- | :--- | :--- |
 | **Member 1** | **Rajesh Mishra** | **Transactions & Accounts** (recording, forms, transaction list, UI categories, account management, filters, validation, API integration) | `frontend/src/features/transactions/`<br>`frontend/src/features/accounts/` |
-| **Member 2** | **Renuka Karmacharya** | **Login, Registration & Authentication Frontend** (shared `AuthLayout`, form validation, auth state, route protection, error handling) | `frontend/src/features/auth/`<br>`frontend/src/context/AuthContext.jsx` *(planned)* |
+| **Member 2** | **Renuka Karmacharya** | **Login, Registration & Authentication Frontend** (shared `AuthLayout`, form validation, auth state, route protection, error handling) | `frontend/src/features/auth/`<br>`frontend/src/context/AuthContext.jsx` |
 | **Member 3** | **Roshan Khanal** | **Budgets, Bills & Subscriptions, Savings Goals** (budget creation & progress, upcoming bills, subscriptions, savings targets & goal progress) | `frontend/src/features/budgets/`<br>`frontend/src/features/bills/`<br>`frontend/src/features/goals/` |
 | **Member 4** | **Arpan Khatiwada** | **Joint Backend, APIs, Database Integration, Dashboard, Reports, ProMoney Lab, Shared Architecture, QA & Deployment** | `backend/`<br>`frontend/src/features/dashboard/`<br>`frontend/src/features/analytics/`<br>`frontend/src/features/labo/`<br>`frontend/src/services/` |
 | **Member 5** | **Suman Raut** | **Joint Backend, APIs, Database Integration, Dashboard, Reports, ProMoney Lab, Shared Architecture, GitHub & Deployment** | `backend/`<br>`frontend/src/features/dashboard/`<br>`frontend/src/features/analytics/`<br>`frontend/src/features/labo/`<br>`frontend/src/services/` |
 
 ---
 
-## 2. Essential Documentation & Handbooks
-
-Before writing any code or prompting an AI assistant, read the project governance and your personal handbook:
-
-### Core Contracts & AI Rules
-- [`AGENTS.md`](./AGENTS.md) — Mandatory rules for all AI coding assistants (ChatGPT, Cursor, Claude, Copilot).
-- [`docs/INTEGRATION_CONTRACT.md`](./docs/INTEGRATION_CONTRACT.md) — Approved MySQL schema (`promoney`), `snake_case` REST API contracts, and shared JPY calculation formulas.
-- [`docs/TEAM_OWNERSHIP_ADDENDUM.md`](./docs/TEAM_OWNERSHIP_ADDENDUM.md) — Complete 5-member responsibility matrix and Arpan/Suman lead-reviewer coordination plan.
-
-### Team & Individual Handbooks (`docs/handbooks/`)
-- [`docs/handbooks/COMMON_TEAM_HANDBOOK.md`](./docs/handbooks/COMMON_TEAM_HANDBOOK.md) — Beginner-friendly guide from installing Node.js/Git to GitHub Pull Requests, Vibe Coding, Testing, and Deployment.
-- [`docs/handbooks/RAJESH_GUIDE.md`](./docs/handbooks/RAJESH_GUIDE.md) — Member 1 Guide (Transactions & Accounts).
-- [`docs/handbooks/RENUKA_GUIDE.md`](./docs/handbooks/RENUKA_GUIDE.md) — Member 2 Guide (Login, Registration & Auth Frontend).
-- [`docs/handbooks/ROSHAN_GUIDE.md`](./docs/handbooks/ROSHAN_GUIDE.md) — Member 3 Guide (Budgets, Bills & Subscriptions, Savings Goals).
-- [`docs/handbooks/ARPAN_GUIDE.md`](./docs/handbooks/ARPAN_GUIDE.md) — Member 4 Guide (Joint Backend, APIs, DB, Dashboard, Reports, ProMoney Lab).
-- [`docs/handbooks/SUMAN_GUIDE.md`](./docs/handbooks/SUMAN_GUIDE.md) — Member 5 Guide (Joint Backend, Math Engine, Dashboard, Reports, ProMoney Lab, DevOps).
-
-### Prompts & Project Management (`docs/`)
-- [`docs/prompts/MASTER_VIBE_CODING_PROMPT.md`](./docs/prompts/MASTER_VIBE_CODING_PROMPT.md) — Reusable AI session prompt template and member-specific starter prompts.
-- [`docs/PROJECT_ROADMAP.md`](./docs/PROJECT_ROADMAP.md) — Phases 0 through 7 development roadmap.
-- [`docs/TASK_ASSIGNMENTS.md`](./docs/TASK_ASSIGNMENTS.md) — Detailed task breakdown and GitHub Issue templates.
-- [`docs/INTEGRATION_CHECKLIST.md`](./docs/INTEGRATION_CHECKLIST.md) — Pre-merge verification checklist.
-- [`docs/DEFINITION_OF_DONE.md`](./docs/DEFINITION_OF_DONE.md) — Quality and completion standards.
-
----
-
-## 3. Repository Structure
+## 2. Repository Structure
 
 ```text
-promoney-starter/
+ProMoney/
 ├── AGENTS.md                           # AI assistant coding rules & boundaries
 ├── README.md                           # Project overview & quickstart
 ├── .gitignore                          # Prevents committing .env, node_modules, dist
-├── .github/                            # Pull Request & Issue templates
-├── docs/
-│   ├── INTEGRATION_CONTRACT.md         # MySQL schema, REST API & calculation rules
-│   ├── TEAM_OWNERSHIP_ADDENDUM.md      # 5-member responsibility matrix
-│   ├── PROJECT_ROADMAP.md              # Phase 0–7 execution plan
-│   ├── TASK_ASSIGNMENTS.md             # Member tasks & GitHub Issue format
-│   ├── INTEGRATION_CHECKLIST.md        # PR & integration verification steps
-│   ├── DEFINITION_OF_DONE.md           # Feature & release completion criteria
-│   ├── handbooks/
-│   │   ├── COMMON_TEAM_HANDBOOK.md     # Complete beginner guide (Setup, Git, Vibe Coding)
-│   │   ├── RAJESH_GUIDE.md             # Member 1: Transactions & Accounts
-│   │   ├── RENUKA_GUIDE.md             # Member 2: Login, Registration & Auth Frontend
-│   │   ├── ROSHAN_GUIDE.md             # Member 3: Budgets, Bills & Goals
-│   │   ├── ARPAN_GUIDE.md              # Member 4: Joint Backend, Dashboard, Reports, Lab
-│   │   └── SUMAN_GUIDE.md              # Member 5: Joint Backend, Dashboard, Reports, Lab
-│   └── prompts/
-│       └── MASTER_VIBE_CODING_PROMPT.md
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
@@ -82,9 +39,10 @@ promoney-starter/
 │   │   │   ├── goals/                  # Roshan: GoalsView.jsx
 │   │   │   ├── dashboard/              # Arpan & Suman: DashboardView.jsx
 │   │   │   ├── analytics/              # Arpan & Suman: ReportsView.jsx
-│   │   │   ├── labo/                   # Arpan & Suman: LaboView.jsx & simulationMath.js
+│   │   │   ├── labo/                   # Arpan & Suman: LaboView.jsx
 │   │   │   └── settings/               # Shared: SettingsView.jsx
 │   │   ├── context/
+│   │   │   ├── AuthContext.jsx         # Session & auth state provider
 │   │   │   └── FinanceContext.jsx      # Clean state & theme provider
 │   │   ├── data/
 │   │   │   └── initialData.js          # Clean empty defaults & JPY categories
@@ -109,8 +67,7 @@ promoney-starter/
 │   │   └── server.js                   # Express server entry point
 │   ├── sql/
 │   │   ├── schema.sql                  # Core 6 MySQL tables (promoney)
-│   │   ├── seeds.sql                   # Clean reference category seed template
-│   │   └── migrations/                 # Planned migrations (bills, ProMoney Lab)
+│   │   └── migrations/                 # Database migrations
 │   ├── tests/
 │   │   └── financeMath.test.js         # Automated unit tests for financial math
 │   ├── package.json
@@ -120,7 +77,7 @@ promoney-starter/
 
 ---
 
-## 4. Quickstart Commands
+## 3. Quickstart Commands
 
 ### Start the Frontend (Port 5173)
 ```powershell

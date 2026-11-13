@@ -55,11 +55,6 @@ function loadPreferences() {
 }
 
 export function FinanceProvider({ children }) {
-  // No demo seeding (removed 2026-11-06 at Arpan's request): a fresh
-  // workspace starts EMPTY — ¥0 everywhere — instead of createDemoData's
-  // invented balances/transactions. Collections still persist in
-  // localStorage exactly as before. NOTE for reviewers: this is a
-  // deliberate behavior change vs. main's demo seed.
   const [goals, setGoals] = useState(() => loadCollection(STORAGE_KEYS.goals, []));
   const [transactions, setTransactions] = useState(() =>
     loadCollection(STORAGE_KEYS.transactions, []),

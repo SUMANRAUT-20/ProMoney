@@ -2,13 +2,8 @@
  * User Settings / Preferences Model — IN-MEMORY STORE (no database)
  * Owner: Arpan Khatiwada (Settings)
  *
- * Added 2026-11-06 so Settings & Preferences are actually customizable
- * (before this, currency / date format were static text and profile &
- * security was a placeholder). Lives alongside the other in-memory
- * models from the 2026-11-06 database reset: preferences are stored
- * per user id in a process-memory Map and are lost on backend restart,
- * exactly like accounts. When a real database is integrated later,
- * this becomes a user_preferences table keyed by user_id.
+ * Preferences and profile avatars are stored per user id in a
+ * process-memory Map.
  */
 
 const SUPPORTED_THEMES = ['light', 'dark'];

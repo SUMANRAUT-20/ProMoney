@@ -27,10 +27,6 @@ export function decideGoogleAccountAction({ byGoogleSub, byEmail }) {
  * - GET  /api/auth/me        (Bearer token, requireAuth)       -> 200 { status, data: { user } }
  *
  * All JSON keys are snake_case. password_hash is never returned.
- * NOTE: The contract currently accepts display_name only. The newer
- * frontend fields (username, first_name, last_name, date_of_birth)
- * are NOT accepted here until the contract is amended and approved
- * by Arpan + Suman — see frontend/src/features/auth/README.md.
  */
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

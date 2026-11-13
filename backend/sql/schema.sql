@@ -1,4 +1,3 @@
--- FUTURE DATABASE SCHEMA (not required for the initial demo UI)
 -- Requires MySQL 8+. Use a dedicated database user; never commit passwords.
 CREATE DATABASE IF NOT EXISTS promoney CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE promoney;

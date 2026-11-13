@@ -24,7 +24,7 @@ The auth header contains Log in, Sign up, and a live Japan Standard Time clock.
   alone is never treated as a logged-in session.
 - `ProtectedRoute.jsx` wraps the whole workspace in `App.jsx`: unauthenticated
   visitors are redirected to `/login`, and login returns them to the page they
-  originally requested. Logout is available in the Topbar and the Sidebar; it clears
+  originally requested. Logout is available in the Sidebar; it clears
   both storage keys (the JWT is stateless, so there is no server logout call).
 - Backend error messages are shown as returned (400 validation, 401 invalid
   email/password, 409 duplicate email). A network failure shows a distinct
@@ -68,19 +68,8 @@ Confirm password stays client-side only.
 - Password reset — the link still explains no reset email is sent; there is no
   reset endpoint in the contract.
 
-## Files changed in this wiring
-
-- Added: `frontend/src/context/AuthContext.jsx`, `frontend/src/features/auth/ProtectedRoute.jsx`
-- Updated: `LoginView.jsx`, `RegisterView.jsx`, `WelcomeView.jsx` (hint text),
-  `frontend/src/services/api.js` (`getMe()`), `frontend/src/App.jsx` (AuthProvider +
-  ProtectedRoute — shared file, Arpan-approved, needs Suman's review),
-  `frontend/src/components/layout/Topbar.jsx` + `Sidebar.jsx` (user initials,
-  display name, logout)
-
 ## Validation
 
 See the delivery handoff for the exact commands run (frontend production build and
 backend test suite). End-to-end register/login in a browser requires the backend
-running with a `.env` that sets `JWT_SECRET`. Since the 2026-11-06 database reset
-the backend has no database: accounts live in backend process memory and are lost
-when the backend restarts.
+running with a `.env` that sets `JWT_SECRET`.

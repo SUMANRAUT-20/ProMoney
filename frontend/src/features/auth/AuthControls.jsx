@@ -16,9 +16,6 @@ export function AuthNotice({ children }) {
   return children ? <div className="status-banner pm-auth-notice" role="status"><Info size={17} aria-hidden="true" /><div>{children}</div></div> : null;
 }
 export function SocialSignIn() {
-  // Google is the only social sign-in offered (decision by Arpan,
-  // 2026-10-30: Apple / Microsoft / GitHub buttons removed, not just
-  // disabled — see GoogleSignInButton for the connected Google flow).
   return <section aria-label="Social sign-in options">
     <div className="pm-auth-divider"><span>or continue with</span></div>
     <GoogleSignInButton />
