@@ -8,11 +8,9 @@ import {
   FlaskConical,
   Goal,
   LayoutDashboard,
-  LogIn,
   LogOut,
   Receipt,
   Settings2,
-  UserPlus,
   Wallet
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -73,7 +71,7 @@ export default function Sidebar({ onNavigate }) {
       </nav>
 
       <div className="sidebar-bottom">
-        {user ? (
+        {user && (
           <div className="sidebar-auth-links sidebar-profile-wrap" aria-label="Account">
             {profileMenuOpen && (
               <div className="sidebar-profile-menu" role="menu" aria-label="Profile menu">
@@ -114,25 +112,6 @@ export default function Sidebar({ onNavigate }) {
                 aria-hidden="true"
               />
             </button>
-          </div>
-        ) : (
-          <div className="sidebar-auth-links" aria-label="Authentication navigation">
-            <NavLink
-              to="/login"
-              onClick={onNavigate}
-              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-            >
-              <LogIn size={16} strokeWidth={1.9} />
-              <span>Login</span>
-            </NavLink>
-            <NavLink
-              to="/register"
-              onClick={onNavigate}
-              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-            >
-              <UserPlus size={16} strokeWidth={1.9} />
-              <span>Registration</span>
-            </NavLink>
           </div>
         )}
       </div>

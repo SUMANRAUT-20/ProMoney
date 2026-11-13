@@ -26,10 +26,7 @@
 .pm-auth .pm-auth-submit { min-height: 42px; width: 100%; }
 .pm-auth-divider { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 11px; margin: 23px 0 16px; }
 .pm-auth-divider::before, .pm-auth-divider::after { content: ''; height: 1px; flex: 1; background: var(--border); }
-.pm-auth-social { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.pm-auth-social .btn { min-height: 40px; }
 .pm-auth-hint { font-size: 11px; line-height: 1.6; color: var(--muted); margin: 12px 0 0; }
-.pm-auth .pm-auth-field-hint { margin: -9px 0 0; }
 .pm-auth-notice { margin: 12px 0 0; }
 .pm-auth-notice svg { flex-shrink: 0; }
 .pm-auth-bottom { display: flex; justify-content: space-between; gap: 12px; width: min(1180px, 100%); padding: 20px 28px; margin: 0 auto; font-size: 11px; color: var(--muted); }
