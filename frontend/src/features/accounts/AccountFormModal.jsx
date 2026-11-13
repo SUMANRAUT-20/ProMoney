@@ -18,7 +18,7 @@ export function accountGroup(account) {
   );
 }
 
-export function validateAccount(values) {
+function validateAccount(values) {
   const errors = {};
   const name = values.name.trim();
   const balText = String(values.manual_balance ?? "").trim();

@@ -11,9 +11,9 @@
  * this becomes a user_preferences table keyed by user_id.
  */
 
-export const SUPPORTED_THEMES = ['light', 'dark'];
-export const SUPPORTED_CURRENCIES = ['JPY', 'USD', 'EUR', 'GBP', 'NPR', 'INR', 'AUD', 'CAD'];
-export const SUPPORTED_DATE_FORMATS = ['YYYY-MM-DD', 'DD/MM/YYYY', 'MM/DD/YYYY', 'DD MMM YYYY'];
+const SUPPORTED_THEMES = ['light', 'dark'];
+const SUPPORTED_CURRENCIES = ['JPY', 'USD', 'EUR', 'GBP', 'NPR', 'INR', 'AUD', 'CAD'];
+const SUPPORTED_DATE_FORMATS = ['YYYY-MM-DD', 'DD/MM/YYYY', 'MM/DD/YYYY', 'DD MMM YYYY'];
 
 export const DEFAULT_PREFERENCES = {
   theme: 'light',

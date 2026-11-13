@@ -42,7 +42,7 @@ function loadTheme() {
   }
 }
 
-export const DEFAULT_PREFERENCES = { currency: "JPY", date_format: "YYYY-MM-DD" };
+const DEFAULT_PREFERENCES = { currency: "JPY", date_format: "YYYY-MM-DD" };
 
 function loadPreferences() {
   try {

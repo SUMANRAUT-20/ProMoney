@@ -3,7 +3,7 @@ import mysql from 'mysql2/promise';
 
 // Cloud databases (TiDB Cloud, Aiven) require TLS: set DB_SSL=true in .env.
 // Local MySQL/MariaDB does not need it, so it stays off by default.
-export function createDbPool() {
+function createDbPool() {
   return mysql.createPool({
     host: process.env.DB_HOST || 'localhost',
     port: Number(process.env.DB_PORT) || 3306,

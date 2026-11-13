@@ -1,12 +1,5 @@
 import { addDaysISO, addMonthsISO, prevMonthISO, todayISO } from "../utils/formatters.js";
 
-export const initialGoals = [];
-export const initialTransactions = [];
-export const initialBudgets = [];
-export const initialAccounts = [];
-export const initialBills = [];
-export const monthlyHistory = [];
-
 export const categories = [
   { id: "part-time-salary", name: "Part-time Salary", kind: "income" },
   { id: "salary", name: "Salary", kind: "income" },
@@ -25,14 +18,6 @@ export const categories = [
   { id: "entertainment", name: "Entertainment", kind: "expense" },
   { id: "other-expense", name: "Other Expense", kind: "expense" },
 ];
-
-export const expenseCategories = categories
-  .filter((category) => category.kind === "expense")
-  .map((category) => category.name);
-
-export const incomeCategories = categories
-  .filter((category) => category.kind === "income")
-  .map((category) => category.name);
 
 const padDay = (month, day) => `${month}-${String(day).padStart(2, "0")}`;
 

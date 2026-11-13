@@ -17,7 +17,7 @@ export const goalPercent = (goal) => {
 export const sum = (items, key) =>
   items.reduce((total, item) => total + Number(item[key] || 0), 0);
 
-export const dateToISO = (date) => {
+const dateToISO = (date) => {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');

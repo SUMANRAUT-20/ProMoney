@@ -23,7 +23,7 @@ const JWKS_CACHE_MS = 60 * 60 * 1000;
 
 let jwksCache = { fetchedAt: 0, jwks: null };
 
-export async function fetchGoogleJwks() {
+async function fetchGoogleJwks() {
   const now = Date.now();
   if (jwksCache.jwks && now - jwksCache.fetchedAt < JWKS_CACHE_MS) {
     return jwksCache.jwks;
