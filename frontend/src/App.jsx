@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { FinanceProvider } from './context/FinanceContext';
+import { FinanceProvider, useFinance } from './context/FinanceContext';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './features/auth/ProtectedRoute';
 import Sidebar from './components/layout/Sidebar';
@@ -21,6 +21,7 @@ import RegisterView from './features/auth/RegisterView';
 
 function WorkspaceLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { isDemo, resetDemoData } = useFinance();
 
   return (
     <div className="app-shell">
@@ -40,6 +41,28 @@ function WorkspaceLayout() {
       <div className="app-main">
         <Topbar toggleMenu={() => setMenuOpen((open) => !open)} />
         <main className="content" onClick={() => menuOpen && setMenuOpen(false)}>
+          {isDemo && (
+            <div
+              className="status-banner"
+              role="status"
+              aria-label="Sample data demo account notice"
+              style={{ marginBottom: 16, justifyContent: 'space-between', flexWrap: 'wrap' }}
+            >
+              <div>
+                <strong>Sample data</strong>
+                <span>
+                  You are viewing the Demo Account — all figures on this screen are sample data only and kept separate from real user accounts.
+                </span>
+              </div>
+              <button
+                type="button"
+                className="btn secondary compact"
+                onClick={resetDemoData}
+              >
+                Reset sample data
+              </button>
+            </div>
+          )}
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<DashboardView />} />
@@ -61,9 +84,9 @@ function WorkspaceLayout() {
 
 export default function App() {
   return (
-    <FinanceProvider>
-      <BrowserRouter>
-        <AuthProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <FinanceProvider>
           <Routes>
             <Route path="/login" element={<LoginView />} />
             <Route path="/register" element={<RegisterView />} />
@@ -76,8 +99,8 @@ export default function App() {
               }
             />
           </Routes>
-        </AuthProvider>
-      </BrowserRouter>
-    </FinanceProvider>
+        </FinanceProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }

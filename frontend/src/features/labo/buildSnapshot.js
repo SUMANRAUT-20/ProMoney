@@ -1,4 +1,5 @@
 import {
+  calculateGoalProgress,
   getAccountTotals,
   getBudgetStatus,
   getCategoryBreakdown,
@@ -6,30 +7,40 @@ import {
   getMonthlySummary,
   getSafeToSpend,
 } from "../../utils/financeMath";
-import { goalPercent } from "../../utils/formatters";
 
 /**
  * Builds the finance snapshot the LA-BO chat sends to the backend.
- * Every number here is calculated by the app's own finance math —
+ * Every number here is calculated by the app's own financeMath engine —
  * the AI only phrases answers from these figures, it never invents any.
  */
 export function buildFinanceSnapshot(finance, month, today) {
-  const { transactions, budgets, bills, goals, accounts, categories } = finance;
+  const { transactions, budgets, bills, goals, accounts, categories, preferences } = finance;
 
   const summary = getMonthlySummary(transactions, month);
   const breakdown = getCategoryBreakdown(transactions, month, categories);
   const monthlyBudgets = budgets
     .filter((b) => String(b.budget_month || "").slice(0, 7) === month)
-    .map((b) => getBudgetStatus(b, transactions));
+    .map((b) => getBudgetStatus(b, transactions, today));
   const health = getHealthScore({
     monthIncome: summary.income,
     monthExpense: summary.expense,
     monthlyBudgets,
     bills,
+    accounts,
+    transactions,
     today,
   });
-  const safe = getSafeToSpend({ monthIncome: summary.income, bills, goals, today });
-  const totals = getAccountTotals(accounts, transactions);
+  const safe = getSafeToSpend({
+    accounts,
+    transactions,
+    monthIncome: summary.income,
+    expectedMonthlyIncome: preferences?.expected_monthly_income,
+    bills,
+    goals,
+    buffer: preferences?.minimum_buffer || 0,
+    today,
+  });
+  const totals = getAccountTotals(accounts, transactions, today);
 
   return {
     month,
@@ -54,12 +65,17 @@ export function buildFinanceSnapshot(finance, month, today) {
       spent_jpy: b.spent_amount,
       percent_used: b.progress_percent,
       over_budget: b.over_budget,
+      over_pace: b.over_pace,
     })),
-    goals: goals.slice(0, 5).map((g) => ({
-      name: g.name,
-      saved_jpy: Number(g.saved_amount || 0),
-      target_jpy: Number(g.target_amount || 0),
-      percent: goalPercent(g),
-    })),
+    goals: goals.slice(0, 5).map((g) => {
+      const prog = calculateGoalProgress(g);
+      return {
+        name: g.title || g.name,
+        saved_jpy: Number(g.saved_amount || 0),
+        target_jpy: Number(g.target_amount || 0),
+        percent: prog.progress_percent,
+        status_label: prog.label || `${prog.progress_percent}%`,
+      };
+    }),
   };
 }

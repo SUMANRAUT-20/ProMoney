@@ -1,3 +1,5 @@
+import { calculateGoalProgress } from './financeMath.js';
+
 /**
  * Shared JPY currency, consistent YYYY-MM-DD date, and validation helpers.
  */
@@ -7,11 +9,26 @@ export const money = (value) => {
   return num < 0 ? `-¥${abs}` : `¥${abs}`;
 };
 
+/**
+ * Constitution H3:
+ * Progress = saved ÷ target × 100.
+ * If target is ¥0, returns null (not a percentage) so the UI shows "Set a target".
+ */
 export const goalPercent = (goal) => {
-  const saved = Number(goal?.saved_amount ?? goal?.saved ?? 0);
   const target = Number(goal?.target_amount ?? goal?.target ?? 0);
-  if (target <= 0) return 0;
-  return Math.min(100, Math.round((saved / target) * 100));
+  const saved = Number(goal?.saved_amount ?? goal?.saved ?? 0);
+  if (target <= 0) return null;
+  const prog = calculateGoalProgress({
+    target_amount: Math.max(0, Math.round(target)),
+    saved_amount: Math.max(0, Math.round(saved)),
+    monthly_plan: Math.max(0, Math.round(Number(goal?.monthly_plan ?? 0))),
+  });
+  return prog.progress_percent;
+};
+
+export const formatGoalProgress = (goal) => {
+  const pct = goalPercent(goal);
+  return pct === null ? 'Set a target' : `${pct}%`;
 };
 
 export const sum = (items, key) =>

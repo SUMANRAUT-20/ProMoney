@@ -5,25 +5,26 @@ import { EmptyState, Metric, Modal, PageHeading, ProgressBar } from '../../compo
 import {
   addMonthsISO,
   formatDate,
+  formatGoalProgress,
   goalPercent,
   isValidISODate,
-  makeId,
   money,
   parseWholeYen,
   sum,
   todayISO,
 } from '../../utils/formatters';
-import { getGoalForecast, getMonthlySavingPace } from '../../utils/financeMath';
+import { calculateGoalProgress, getGoalForecast, getMonthlySavingPace } from '../../utils/financeMath';
 
 function GoalForecastBlock({ goal, monthlyPace, today }) {
   const forecast = getGoalForecast(goal, monthlyPace, today);
-  const startY = 30 - Math.round((goalPercent(goal) / 100) * 22);
+  const pct = goalPercent(goal);
+  const startY = 30 - Math.round(((pct ?? 0) / 100) * 22);
 
   return (
     <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
       <svg viewBox="0 0 220 36" width="100%" height="36" role="img" aria-label="Goal growth forecast line">
         <line x1="8" y1="8" x2="212" y2="8" stroke="var(--border)" strokeDasharray="4 3" />
-        {monthlyPace > 0 || forecast.completed ? (
+        {forecast.expectedDate || forecast.completed ? (
           <>
             <polyline
               fill="none"
@@ -39,18 +40,20 @@ function GoalForecastBlock({ goal, monthlyPace, today }) {
         )}
       </svg>
       <p className="small" style={{ margin: '4px 0 0', color: forecast.completed || forecast.onTrack ? 'var(--green-dark)' : 'var(--red)' }}>
-        {forecast.completed
-          ? 'Completed! Savings target reached.'
-          : monthlyPace > 0
-            ? `Growth forecast: At ${money(monthlyPace)}/mo saving pace → est. ${formatDate(forecast.expectedDate)} (${forecast.monthsNeeded} mo · ${forecast.onTrack ? 'On track' : 'After deadline'})`
-            : `Growth forecast: Net saving pace is ${money(monthlyPace)}/mo — increase monthly savings to project completion.`}
+        {forecast.label === 'Set a target'
+          ? 'Set a target to calculate progress and completion date.'
+          : forecast.completed
+            ? 'Completed! Savings target reached.'
+            : forecast.expectedDate
+              ? `Growth forecast: est. ${formatDate(forecast.expectedDate)} (${forecast.monthsNeeded} mo · ${forecast.onTrack ? 'On track' : 'After deadline'})`
+              : `Growth forecast: ${forecast.label} — increase monthly savings to project completion.`}
       </p>
     </div>
   );
 }
 
 export default function GoalsView() {
-  const { goals, setGoals, transactions } = useFinance();
+  const { goals, addGoal, editGoal, contributeGoal, removeGoal, transactions } = useFinance();
   const today = todayISO();
   const defaultDeadline = addMonthsISO(today, 6);
 
@@ -68,10 +71,10 @@ export default function GoalsView() {
   const totalTarget = sum(goals, 'target_amount');
   const totalSaved = sum(goals, 'saved_amount');
   const monthlyPace = getMonthlySavingPace(transactions);
-  const completedCount = goals.filter((g) => g.saved_amount >= g.target_amount).length;
+  const completedCount = goals.filter((g) => calculateGoalProgress(g).completed).length;
 
   const filteredGoals = goals.filter((g) => {
-    const done = g.saved_amount >= g.target_amount;
+    const done = calculateGoalProgress(g).completed;
     if (filter === 'active') return !done;
     if (filter === 'completed') return done;
     return true;
@@ -97,7 +100,7 @@ export default function GoalsView() {
     setModalOpen(true);
   };
 
-  const saveGoal = (event) => {
+  const saveGoal = async (event) => {
     event.preventDefault();
     const title = form.title.trim();
     const target = parseWholeYen(form.target_amount);
@@ -110,26 +113,45 @@ export default function GoalsView() {
     if (!isValidISODate(form.target_date)) return setError('Select a valid deadline date (YYYY-MM-DD).');
     if (plan === null) return setError('Monthly saving plan must be ¥0 or a positive whole number.');
 
-    const next = { id: editingGoal?.id ?? makeId('goal'), title, target_amount: target, saved_amount: saved, target_date: form.target_date, monthly_plan: plan };
-    setGoals((prev) => (editingGoal ? prev.map((g) => (g.id === editingGoal.id ? next : g)) : [...prev, next]));
-    setModalOpen(false);
+    const payload = {
+      title,
+      target_amount: target,
+      saved_amount: saved,
+      target_date: form.target_date,
+      monthly_plan: plan,
+    };
+    try {
+      if (editingGoal) await editGoal(editingGoal.id, payload);
+      else await addGoal(payload);
+      setModalOpen(false);
+    } catch (err) {
+      setError(err.message || 'Could not save goal.');
+    }
   };
 
-  const saveContribution = (event) => {
+  const saveContribution = async (event) => {
     event.preventDefault();
     if (!contribGoal) return;
     const amt = parseWholeYen(contribAmount);
     const remaining = Math.max(0, contribGoal.target_amount - contribGoal.saved_amount);
     if (amt === null) return setContribError('Enter a whole-yen amount greater than ¥0.');
     if (amt > remaining) return setContribError(`Maximum remaining amount is ${money(remaining)}.`);
-    setGoals((prev) => prev.map((g) => (g.id === contribGoal.id ? { ...g, saved_amount: g.saved_amount + amt } : g)));
-    setContribGoal(null);
+    try {
+      await contributeGoal(contribGoal.id, amt);
+      setContribGoal(null);
+    } catch (err) {
+      setContribError(err.message || 'Could not add savings.');
+    }
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deleteTarget) return;
-    setGoals((prev) => prev.filter((g) => g.id !== deleteTarget.id));
-    setDeleteTarget(null);
+    try {
+      await removeGoal(deleteTarget.id);
+      setDeleteTarget(null);
+    } catch (err) {
+      setError(err.message || 'Could not delete goal.');
+    }
   };
 
   return (
@@ -187,8 +209,9 @@ export default function GoalsView() {
         ) : (
           <div className="budget-grid" style={{ marginTop: 8 }}>
             {filteredGoals.map((goal) => {
-              const completed = goal.saved_amount >= goal.target_amount;
-              const remaining = Math.max(0, goal.target_amount - goal.saved_amount);
+              const prog = calculateGoalProgress(goal);
+              const completed = prog.completed;
+              const remaining = prog.remaining_amount;
               return (
                 <article key={goal.id} className="budget-card card">
                   <div className="budget-top">
@@ -202,13 +225,13 @@ export default function GoalsView() {
                   </div>
                   <div className="budget-figures">
                     <strong>{money(goal.saved_amount)}</strong>
-                    <span>of {money(goal.target_amount)} ({goalPercent(goal)}%)</span>
+                    <span>of {money(goal.target_amount)} ({formatGoalProgress(goal)})</span>
                   </div>
                   <ProgressBar current={goal.saved_amount} target={goal.target_amount} color={completed ? 'complete' : 'green'} />
                   <p className="muted">Remaining: {money(remaining)}</p>
                   <GoalForecastBlock goal={goal} monthlyPace={monthlyPace} today={today} />
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
-                    {!completed && (
+                    {!completed && goal.target_amount > 0 && (
                       <button className="btn primary compact" type="button" onClick={() => { setContribGoal(goal); setContribAmount(''); setContribError(''); }}>
                         <Plus size={14} /> Add Savings
                       </button>

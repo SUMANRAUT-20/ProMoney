@@ -37,14 +37,16 @@ test('validatePreferences rejects bad enum values and empty bodies', () => {
   assert.match(validatePreferences(null).error, /JSON object/);
 });
 
-// --- SettingsModel ---
+// --- SettingsModel (SQL store) ---
 
-test('settings model: defaults, partial merge, and per-user isolation', async () => {
-  assert.deepEqual(await SettingsModel.getPreferences(101), DEFAULT_PREFERENCES);
-  const saved = await SettingsModel.updatePreferences(101, { currency: 'USD' });
-  assert.deepEqual(saved, { ...DEFAULT_PREFERENCES, currency: 'USD' });
-  assert.deepEqual(await SettingsModel.getPreferences(101), saved);
-  assert.deepEqual(await SettingsModel.getPreferences(202), DEFAULT_PREFERENCES);
+test('settings model: defaults, partial merge, and per-user isolation in SQL', async () => {
+  const u1 = 100000 + (run % 100000000);
+  const u2 = u1 + 1;
+  assert.deepEqual(await SettingsModel.getPreferences(u1), DEFAULT_PREFERENCES);
+  const saved = await SettingsModel.updatePreferences(u1, { currency: 'USD', budget_warning_percent: 15, minimum_buffer: 10000 });
+  assert.deepEqual(saved, { ...DEFAULT_PREFERENCES, currency: 'USD', budget_warning_percent: 15, minimum_buffer: 10000 });
+  assert.deepEqual(await SettingsModel.getPreferences(u1), saved);
+  assert.deepEqual(await SettingsModel.getPreferences(u2), DEFAULT_PREFERENCES);
 });
 
 // --- Controller flows ---

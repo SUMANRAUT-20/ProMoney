@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { Amount, EmptyState, Metric, PageHeading, ProgressBar } from '../../components/ui';
-import { currentMonthISO, daysBetweenISO, formatDate, formatMonth, goalPercent, money, todayISO } from '../../utils/formatters';
+import { currentMonthISO, daysBetweenISO, formatDate, formatGoalProgress, formatMonth, money, todayISO } from '../../utils/formatters';
 import {
   getAccountTotals, getBalanceProjection, getBudgetStatus, getCategoryBreakdown,
   getHealthScore, getMonthlySummary, getSafeToSpend,
@@ -13,19 +13,36 @@ import {
 
 export default function DashboardView() {
   const navigate = useNavigate();
-  const { accounts, transactions, budgets, bills, goals, categories } = useFinance();
+  const { accounts, transactions, budgets, bills, goals, categories, preferences } = useFinance();
 
   const today = todayISO();
   const month = currentMonthISO();
-  const accountTotals = getAccountTotals(accounts, transactions);
+  const accountTotals = getAccountTotals(accounts, transactions, today);
   const summary = getMonthlySummary(transactions, month);
 
   const monthlyBudgets = budgets
     .filter((b) => String(b.budget_month || '').slice(0, 7) === month)
-    .map((b) => getBudgetStatus(b, transactions));
+    .map((b) => getBudgetStatus(b, transactions, today));
 
-  const health = getHealthScore({ monthIncome: summary.income, monthExpense: summary.expense, monthlyBudgets, bills, today });
-  const safe = getSafeToSpend({ monthIncome: summary.income, bills, goals, today });
+  const health = getHealthScore({
+    monthIncome: summary.income,
+    monthExpense: summary.expense,
+    monthlyBudgets,
+    bills,
+    accounts,
+    transactions,
+    today,
+  });
+  const safe = getSafeToSpend({
+    accounts,
+    transactions,
+    monthIncome: summary.income,
+    expectedMonthlyIncome: preferences?.expected_monthly_income,
+    bills,
+    goals,
+    buffer: preferences?.minimum_buffer || 0,
+    today,
+  });
   const projection = getBalanceProjection({ netBalance: accountTotals.net, monthExpense: summary.expense, today });
 
   const breakdown = getCategoryBreakdown(transactions, month, categories);
@@ -83,7 +100,7 @@ export default function DashboardView() {
           icon={CalendarClock}
           label="Today's Safe-to-Spend"
           value={`${money(safe.dailySafe)} / day`}
-          small={`(${money(summary.income)} − ${money(safe.billsStillDue)} bills − ${money(safe.goalSavingPlan)} goals) ÷ ${safe.daysLeft}d`}
+          small={`(${money(safe.spendable)} − ${money(safe.billsStillDue)} bills − ${money(safe.goalSavingPlan)} goals) ÷ ${safe.daysLeft}d`}
         />
       </section>
 
@@ -101,10 +118,10 @@ export default function DashboardView() {
           <div style={{ flex: 1, minWidth: 260 }}>
             <strong style={{ display: 'block', marginBottom: 4 }}>Plain-Text Score Formula</strong>
             <p className="muted" style={{ margin: '0 0 6px', fontSize: 12 }}>
-              Score = Savings Rate (0–40 pts, full 40 at ≥20% saved) + Budget Adherence (0–30 pts, % of this month&apos;s budgets within limit) + Bills On Time (0–30 pts, % of bills not overdue).
+              Score = Savings Rate (0–30 pts, full 30 at ≥20% saved) + Budget Control (0–30 pts, 15 if no budgets set) + Debt Pressure (0–20 pts) + Bills Safety (0–20 pts). Focus area: <strong>{health.weakestPart}</strong>.
             </p>
             <span className="neutral-badge">
-              Live breakdown: {health.savingsPts}/40 savings + {health.budgetPts}/30 budgets + {health.billPts}/30 bills = {health.score}/100
+              Live breakdown: {health.savingsPts}/30 savings + {health.budgetPts}/30 budgets + {health.debtPts}/20 debt + {health.billPts}/20 bills = {health.score}/100
             </span>
           </div>
         </div>
@@ -152,7 +169,7 @@ export default function DashboardView() {
             </div>
           </div>
           <p className="support-note">
-            Safe-to-Spend formula: ({money(summary.income)} month income − {money(safe.billsStillDue)} bills still due − {money(safe.goalSavingPlan)} goal saving plan) ÷ {safe.daysLeft} days left = <strong>{money(safe.dailySafe)}/day</strong>.
+            Safe-to-Spend formula: ({money(safe.spendable)} spendable − {money(safe.billsStillDue)} bills still due − {money(safe.goalSavingPlan)} goal saving plan) ÷ {safe.daysLeft} days left = <strong>{money(safe.dailySafe)}/day</strong>.
           </p>
         </section>
 
@@ -168,7 +185,7 @@ export default function DashboardView() {
               <div key={goal.id} className="mini-goal">
                 <div>
                   <strong>{goal.title}</strong>
-                  <span>{money(goal.saved_amount)} / {money(goal.target_amount)} ({goalPercent(goal)}%)</span>
+                  <span>{money(goal.saved_amount)} / {money(goal.target_amount)} ({formatGoalProgress(goal)})</span>
                 </div>
                 <ProgressBar current={goal.saved_amount} target={goal.target_amount} color="green" />
               </div>

@@ -2,21 +2,25 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { apiClient } from '../services/api';
 
 /**
- * Auth State Provider — Phase 1 (Arpan Khatiwada, Auth Frontend + Backend)
+ * Auth State Provider — Phase 1 & Phase 2 Demo Account Honesty (O1/O2)
  *
- * Owns the login session for the whole app:
- * - token is stored in localStorage under `pm_auth_token`
- *   (the exact key frontend/src/services/api.js already sends as
- *   `Authorization: Bearer <token>` on every request)
- * - the public user object ({ id, display_name, email }) is stored
- *   under `pm_auth_user` so the UI can show who is signed in
- * - on first load, a stored token is verified against the backend
- *   (GET /api/auth/me). An invalid/expired token is cleared — the app
- *   never treats a stored string as proof of a session on its own.
+ * - Real accounts verify their JWT against GET /api/auth/me and read/write
+ *   exclusively through the TiDB backend API.
+ * - The Demo Account (`loginDemo`) is explicitly flagged `is_demo: true`
+ *   so every screen displays the "Sample data" banner (Constitution O1)
+ *   and demo data stays completely isolated from real user data (O2).
  */
 
 const TOKEN_KEY = 'pm_auth_token';
 const USER_KEY = 'pm_auth_user';
+const DEMO_TOKEN = 'demo-session';
+
+export const DEMO_USER = {
+  id: 'demo',
+  display_name: 'Sample Demo Account',
+  email: 'demo@promoney.local',
+  is_demo: true,
+};
 
 const AuthContext = createContext(null);
 
@@ -31,9 +35,10 @@ function loadStoredUser() {
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(loadStoredUser);
-  const [isCheckingSession, setIsCheckingSession] = useState(
-    () => Boolean(localStorage.getItem(TOKEN_KEY))
-  );
+  const [isCheckingSession, setIsCheckingSession] = useState(() => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    return Boolean(token && token !== DEMO_TOKEN);
+  });
   const sessionCheckStarted = useRef(false);
 
   const clearSession = useCallback(() => {
@@ -41,7 +46,7 @@ export function AuthProvider({ children }) {
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(USER_KEY);
     } catch {
-      // Storage may be unavailable (private mode); state is still cleared.
+      // Storage may be unavailable; state is still cleared.
     }
     setUser(null);
   }, []);
@@ -56,12 +61,16 @@ export function AuthProvider({ children }) {
     setUser(nextUser);
   }, []);
 
-  // Verify a stored token once on load (StrictMode-safe).
   useEffect(() => {
     if (sessionCheckStarted.current) return;
     sessionCheckStarted.current = true;
     const token = localStorage.getItem(TOKEN_KEY);
     if (!token) {
+      setIsCheckingSession(false);
+      return;
+    }
+    if (token === DEMO_TOKEN) {
+      setUser(DEMO_USER);
       setIsCheckingSession(false);
       return;
     }
@@ -76,8 +85,6 @@ export function AuthProvider({ children }) {
         }
       })
       .catch(() => {
-        // Token rejected (401), expired, or backend unreachable:
-        // do not keep a session we could not verify.
         clearSession();
       })
       .finally(() => setIsCheckingSession(false));
@@ -110,12 +117,15 @@ export function AuthProvider({ children }) {
     [saveSession]
   );
 
+  const loginDemo = useCallback(() => {
+    saveSession({ token: DEMO_TOKEN, user: DEMO_USER });
+    return DEMO_USER;
+  }, [saveSession]);
+
   const logout = useCallback(() => {
     clearSession();
   }, [clearSession]);
 
-  // Merges profile changes (e.g. a Settings display-name save) into the
-  // current session user and its stored copy.
   const updateUser = useCallback((partial) => {
     setUser((prev) => {
       if (!prev) return prev;
@@ -123,15 +133,24 @@ export function AuthProvider({ children }) {
       try {
         localStorage.setItem(USER_KEY, JSON.stringify(next));
       } catch {
-        // Ignore storage errors; state still updates.
+        // Ignore storage errors.
       }
       return next;
     });
   }, []);
 
   const value = useMemo(
-    () => ({ user, isCheckingSession, login, register, loginWithGoogle, logout, updateUser }),
-    [user, isCheckingSession, login, register, loginWithGoogle, logout, updateUser]
+    () => ({
+      user,
+      isCheckingSession,
+      login,
+      register,
+      loginWithGoogle,
+      loginDemo,
+      logout,
+      updateUser,
+    }),
+    [user, isCheckingSession, login, register, loginWithGoogle, loginDemo, logout, updateUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

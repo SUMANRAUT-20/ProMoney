@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { AlertTriangle, CheckCircle2, Clock3, Pencil, Plus, ReceiptText, RotateCcw, Trash2, Wallet } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { EmptyState, Metric, Modal, PageHeading } from '../../components/ui';
-import { addMonthsISO, daysBetweenISO, formatDate, isValidISODate, makeId, money, parseWholeYen, sum, todayISO } from '../../utils/formatters';
+import { daysBetweenISO, formatDate, isValidISODate, money, parseWholeYen, sum, todayISO } from '../../utils/formatters';
 import { getBillStatus } from '../../utils/financeMath';
 
 const STATUS_LABELS = { overdue: 'Overdue', due_soon: 'Due Soon', upcoming: 'Upcoming', paid: 'Paid' };
@@ -16,7 +16,7 @@ function describeDue(bill, status, today) {
 }
 
 export default function BillsView() {
-  const { bills, setBills, categories } = useFinance();
+  const { bills, addBill, editBill, toggleBillPaid, advanceBillCycle, removeBill, categories } = useFinance();
   const expenseCategories = categories.filter((c) => c.kind === 'expense');
   const defaultCategory = expenseCategories[0]?.name || 'Utilities';
 
@@ -61,7 +61,7 @@ export default function BillsView() {
     setModalOpen(true);
   };
 
-  const handleSave = (event) => {
+  const handleSave = async (event) => {
     event.preventDefault();
     const name = form.name.trim();
     const notes = form.notes.trim();
@@ -72,19 +72,22 @@ export default function BillsView() {
     if (!form.category) return setError('Select a category.');
     if (notes.length > 200) return setError('Notes must be 200 characters or fewer.');
 
-    const next = {
-      id: editingBill?.id ?? makeId('bill'),
-      name, amount, due_date: form.due_date, category: form.category, frequency: form.frequency, is_paid: Boolean(form.is_paid), notes,
+    const payload = {
+      name,
+      amount,
+      due_date: form.due_date,
+      category: form.category,
+      frequency: form.frequency,
+      is_paid: Boolean(form.is_paid),
+      notes,
     };
-    setBills((prev) => (editingBill ? prev.map((b) => (b.id === editingBill.id ? next : b)) : [...prev, next]));
-    setModalOpen(false);
-  };
-
-  const togglePaid = (id) => setBills((prev) => prev.map((b) => (b.id === id ? { ...b, is_paid: !b.is_paid } : b)));
-
-  const advanceCycle = (bill) => {
-    const months = bill.frequency === 'yearly' ? 12 : 1;
-    setBills((prev) => prev.map((b) => (b.id === bill.id ? { ...b, due_date: addMonthsISO(b.due_date, months), is_paid: false } : b)));
+    try {
+      if (editingBill) await editBill(editingBill.id, payload);
+      else await addBill(payload);
+      setModalOpen(false);
+    } catch (err) {
+      setError(err.message || 'Could not save bill.');
+    }
   };
 
   return (
@@ -142,11 +145,11 @@ export default function BillsView() {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginLeft: 'auto' }}>
                     <strong style={{ fontSize: 16, marginRight: 6 }}>{money(bill.amount)}</strong>
-                    <button className={`btn compact ${bill.is_paid ? 'secondary' : 'primary'}`} type="button" onClick={() => togglePaid(bill.id)}>
+                    <button className={`btn compact ${bill.is_paid ? 'secondary' : 'primary'}`} type="button" onClick={() => toggleBillPaid(bill.id)}>
                       <CheckCircle2 size={14} /> {bill.is_paid ? 'Mark Unpaid' : 'Mark as Paid'}
                     </button>
                     {bill.is_paid && bill.frequency !== 'one_time' && (
-                      <button className="btn secondary compact" type="button" onClick={() => advanceCycle(bill)}>
+                      <button className="btn secondary compact" type="button" onClick={() => advanceBillCycle(bill)}>
                         <RotateCcw size={14} /> Next Cycle
                       </button>
                     )}
@@ -225,7 +228,16 @@ export default function BillsView() {
           <p>Delete <strong>{deleteTarget.name}</strong> ({money(deleteTarget.amount)})?</p>
           <div className="form-actions">
             <button className="btn secondary" type="button" onClick={() => setDeleteTarget(null)}>Cancel</button>
-            <button className="btn primary" type="button" onClick={() => { setBills((prev) => prev.filter((b) => b.id !== deleteTarget.id)); setDeleteTarget(null); }}>Delete Bill</button>
+            <button
+              className="btn primary"
+              type="button"
+              onClick={async () => {
+                await removeBill(deleteTarget.id);
+                setDeleteTarget(null);
+              }}
+            >
+              Delete Bill
+            </button>
           </div>
         </Modal>
       )}

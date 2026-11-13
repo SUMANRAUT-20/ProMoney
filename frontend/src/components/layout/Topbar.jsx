@@ -8,9 +8,7 @@ import './topbar.css';
 
 /**
  * Topbar — search, workspace currency label, live date & time, theme.
- * Profile and Log out live in the Sidebar only (moved 2026-11-06 at
- * Arpan's request); the clock's date follows the Settings date-format
- * preference and the time updates every second (browser local time).
+ * Displays a "Sample data" badge when the Demo Account is active (Constitution O1).
  */
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -57,36 +55,30 @@ function HeaderClock({ dateFormat }) {
 export default function Topbar({ toggleMenu }) {
   const [search, setSearch] = useState('');
   const navigate = useNavigate();
-  const { theme, setTheme, preferences, setPreferences } = useFinance();
+  const { isDemo, theme, setTheme, preferences, setPreferences } = useFinance();
   const { user, updateUser } = useAuth();
 
-  // Account settings integration: right after sign-in (and on session
-  // restore), load the settings saved on the account and apply them —
-  // theme, currency/date format, and the profile photo — so they are
-  // still there at the next login, on any browser. Runs once per user.
   const loadedForUserRef = useRef(null);
   useEffect(() => {
-    if (!user?.id || loadedForUserRef.current === user.id) return;
+    if (!user?.id || isDemo || loadedForUserRef.current === user.id) return;
     loadedForUserRef.current = user.id;
     apiClient
       .getSettings()
       .then((payload) => {
         const { profile, preferences: saved } = payload.data;
         if (saved.theme) setTheme(saved.theme);
-        setPreferences({ currency: saved.currency, date_format: saved.date_format });
+        setPreferences(saved);
         updateUser({ avatar_data_url: profile.avatar_data_url || null });
       })
       .catch(() => {
-        // Backend unreachable or session expired — keep the local
-        // theme/preferences; AuthContext handles an expired session.
+        // Backend unreachable or session expired — keep local theme/preferences.
       });
-  }, [user?.id, setTheme, setPreferences, updateUser]);
+  }, [user?.id, isDemo, setTheme, setPreferences, updateUser]);
 
   const toggleTheme = () => {
     const next = theme === 'light' ? 'dark' : 'light';
     setTheme(next);
-    if (user) {
-      // Save to the account too, so the choice survives the next login.
+    if (user && !isDemo) {
       apiClient.updatePreferences({ theme: next }).catch(() => {});
     }
   };
@@ -109,7 +101,14 @@ export default function Topbar({ toggleMenu }) {
         >
           <Menu size={20} />
         </button>
-        <span className="topbar-title">Financial Workspace ({preferences.currency})</span>
+        <span className="topbar-title">
+          Financial Workspace ({preferences.currency})
+          {isDemo && (
+            <span className="neutral-badge" style={{ marginLeft: 8 }}>
+              Sample data
+            </span>
+          )}
+        </span>
       </div>
 
       <div className="topbar-right">

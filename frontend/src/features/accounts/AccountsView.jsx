@@ -2,19 +2,21 @@ import { useState } from "react";
 import { CreditCard, Pencil, Plus, Scale, Trash2, Wallet } from "lucide-react";
 import { EmptyState, Metric, Modal, PageHeading } from "../../components/ui";
 import { useFinance } from "../../context/FinanceContext";
-import { makeId, money } from "../../utils/formatters";
-import { getAccountBalance, getAccountTotals } from "../../utils/financeMath";
+import { money, todayISO } from "../../utils/formatters";
+import { getAccountBalance, getAccountTotals, isLiabilityAccount } from "../../utils/financeMath";
 import AccountFormModal, { accountGroup, accountGroups } from "./AccountFormModal";
 
 export default function AccountsView() {
-  const { accounts, setAccounts, transactions, setTransactions } = useFinance();
+  const { accounts, addAccount, editAccount, removeAccount, transactions } = useFinance();
   const [formOpen, setFormOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
   const [initialGroup, setInitialGroup] = useState("bank");
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteError, setDeleteError] = useState("");
 
-  const { held, owed, net } = getAccountTotals(accounts, transactions);
+  const today = todayISO();
+  const { held, owed, net } = getAccountTotals(accounts, transactions, today);
   const selectedAccounts = accounts.filter((a) => accountGroup(a).id === selectedGroup?.id);
 
   function openAccount(group = "bank", account = null) {
@@ -23,32 +25,29 @@ export default function AccountsView() {
     setFormOpen(true);
   }
 
-  function saveAccount(values, uiDetails) {
+  async function saveAccount(values, uiDetails) {
     if (editingAccount) {
-      setAccounts((cur) =>
-        cur.map((acc) => (acc.id === editingAccount.id ? { ...acc, ...values, ui_details: uiDetails } : acc)),
-      );
+      await editAccount(editingAccount.id, values, uiDetails);
     } else {
-      setAccounts((cur) => [
-        ...cur,
-        { ...values, id: makeId("acc"), currency: "JPY", ui_details: uiDetails },
-      ]);
+      await addAccount(values, uiDetails);
     }
     setFormOpen(false);
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (!deleteTarget) return;
-    setAccounts((cur) => cur.filter((a) => a.id !== deleteTarget.id));
-    setTransactions((cur) =>
-      cur.map((tx) => (String(tx.account_id) === String(deleteTarget.id) ? { ...tx, account_id: "" } : tx)),
-    );
-    setDeleteTarget(null);
+    setDeleteError("");
+    try {
+      await removeAccount(deleteTarget.id);
+      setDeleteTarget(null);
+    } catch (err) {
+      setDeleteError(err.message || "Could not delete account.");
+    }
   }
 
   function renderAccountCard(account) {
     const group = accountGroup(account);
-    const liveBalance = getAccountBalance(account, transactions);
+    const liveBalance = getAccountBalance(account, transactions, today);
     const txDelta = liveBalance - Number(account.manual_balance || 0);
     return (
       <article className="account-card card" key={account.id}>
@@ -62,7 +61,7 @@ export default function AccountsView() {
         <div style={{ margin: "14px 0 8px" }}>
           <strong>{money(liveBalance)}</strong>
           <p style={{ margin: "4px 0 0" }}>
-            {account.kind === "credit_card" ? "Current amount owed" : "Live balance"} · Opening {money(account.manual_balance)}
+            {isLiabilityAccount(account) ? "Current amount owed" : "Live balance"} · Opening {money(account.manual_balance)}
             {txDelta !== 0 ? ` (${txDelta > 0 ? "+" : ""}${money(txDelta)} from tx)` : ""}
           </p>
         </div>
@@ -71,7 +70,15 @@ export default function AccountsView() {
           <button className="btn secondary compact" type="button" onClick={() => openAccount(group.id, account)}>
             <Pencil size={14} /> Edit
           </button>
-          <button className="btn secondary compact" type="button" onClick={() => setDeleteTarget(account)} aria-label={`Delete ${account.name}`}>
+          <button
+            className="btn secondary compact"
+            type="button"
+            onClick={() => {
+              setDeleteError("");
+              setDeleteTarget(account);
+            }}
+            aria-label={`Delete ${account.name}`}
+          >
             <Trash2 size={14} /> Delete
           </button>
         </div>
@@ -133,7 +140,7 @@ export default function AccountsView() {
       )}
 
       <p className="support-note">
-        Live balances automatically include income and expenses linked to each account and persist in this browser.
+        Live balances automatically include income, expenses, and transfers linked to each account.
       </p>
 
       {selectedGroup && !formOpen && (
@@ -174,7 +181,8 @@ export default function AccountsView() {
 
       {deleteTarget && (
         <Modal title="Delete Account" onClose={() => setDeleteTarget(null)}>
-          <p>Delete <strong>{deleteTarget.name}</strong>? Linked transactions will be kept as unassigned.</p>
+          <p>Delete <strong>{deleteTarget.name}</strong>?</p>
+          {deleteError && <p className="negative" role="alert">{deleteError}</p>}
           <div className="form-actions">
             <button className="btn secondary" type="button" onClick={() => setDeleteTarget(null)}>Cancel</button>
             <button className="btn primary" type="button" onClick={confirmDelete}>Delete Account</button>

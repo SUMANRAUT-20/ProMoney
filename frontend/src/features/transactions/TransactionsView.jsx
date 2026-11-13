@@ -3,10 +3,18 @@ import { useSearchParams } from 'react-router-dom';
 import { ArrowDownLeft, ArrowUpRight, Download, Pencil, Plus, Scale, Trash2 } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { Amount, EmptyState, Metric, Modal, PageHeading } from '../../components/ui';
-import { exportTransactionsCsv, formatDate, isValidISODate, makeId, money, parseWholeYen, sum, todayISO } from '../../utils/formatters';
+import { exportTransactionsCsv, formatDate, isValidISODate, money, parseWholeYen, todayISO } from '../../utils/formatters';
+import { REFUND_KINDS } from '../../utils/financeMath';
 
 export default function TransactionsView() {
-  const { transactions, setTransactions, accounts, categories } = useFinance();
+  const {
+    transactions,
+    addTransaction,
+    editTransaction,
+    removeTransaction,
+    accounts,
+    categories,
+  } = useFinance();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [search, setSearch] = useState(() => searchParams.get('search') || '');
@@ -25,11 +33,18 @@ export default function TransactionsView() {
   const defaultAccountId = accounts[0]?.id ? String(accounts[0].id) : '';
 
   const [form, setForm] = useState({
-    kind: 'expense', amount: '', category_id: firstCatForKind('expense'), account_id: defaultAccountId, transaction_date: todayISO(), note: '',
+    kind: 'expense',
+    amount: '',
+    category_id: firstCatForKind('expense'),
+    account_id: defaultAccountId,
+    transaction_date: todayISO(),
+    note: '',
   });
 
   const getCatName = (tx) =>
-    categories.find((c) => String(c.id) === String(tx.category_id))?.name || tx.category_name || 'Uncategorized';
+    categories.find((c) => String(c.id) === String(tx.category_id))?.name ||
+    tx.category_name ||
+    'Uncategorized';
   const getAccName = (accountId) =>
     accounts.find((a) => String(a.id) === String(accountId))?.name || 'Unassigned';
 
@@ -45,14 +60,25 @@ export default function TransactionsView() {
     })
     .sort((a, b) => String(b.transaction_date).localeCompare(String(a.transaction_date)));
 
-  const periodIncome = sum(filtered.filter((t) => t.kind === 'income'), 'amount');
-  const periodExpense = sum(filtered.filter((t) => t.kind === 'expense'), 'amount');
+  let periodIncome = 0;
+  let periodExpense = 0;
+  for (const tx of filtered) {
+    const amt = Number(tx.amount || 0);
+    if (tx.kind === 'income') periodIncome += amt;
+    else if (tx.kind === 'expense') periodExpense += amt;
+    else if (REFUND_KINDS.includes(tx.kind)) periodExpense -= amt;
+  }
+  periodExpense = Math.max(0, periodExpense);
 
   const openAdd = () => {
     setEditingTx(null);
     setForm({
-      kind: 'expense', amount: '', category_id: firstCatForKind('expense'),
-      account_id: accounts[0]?.id ? String(accounts[0].id) : '', transaction_date: todayISO(), note: '',
+      kind: 'expense',
+      amount: '',
+      category_id: firstCatForKind('expense'),
+      account_id: accounts[0]?.id ? String(accounts[0].id) : '',
+      transaction_date: todayISO(),
+      note: '',
     });
     setError('');
     setModalOpen(true);
@@ -72,7 +98,7 @@ export default function TransactionsView() {
     setModalOpen(true);
   };
 
-  const handleSave = (event) => {
+  const handleSave = async (event) => {
     event.preventDefault();
     if (!['income', 'expense'].includes(form.kind)) return setError('Choose income or expense.');
     const amount = parseWholeYen(form.amount);
@@ -86,13 +112,23 @@ export default function TransactionsView() {
     const note = form.note.trim();
     if (!note || note.length > 120) return setError('Enter a short note (1–120 characters).');
 
-    const next = {
-      id: editingTx?.id ?? makeId('tx'),
-      kind: form.kind, amount, category_id: cat.id, category_name: cat.name,
-      account_id: accounts.length > 0 ? form.account_id : '', transaction_date: form.transaction_date, note, title: note,
+    const payload = {
+      kind: form.kind,
+      amount,
+      category_id: cat.id,
+      category_name: cat.name,
+      account_id: accounts.length > 0 ? form.account_id : null,
+      transaction_date: form.transaction_date,
+      note,
+      title: note,
     };
-    setTransactions((prev) => (editingTx ? prev.map((t) => (t.id === editingTx.id ? next : t)) : [next, ...prev]));
-    setModalOpen(false);
+    try {
+      if (editingTx) await editTransaction(editingTx.id, payload);
+      else await addTransaction(payload);
+      setModalOpen(false);
+    } catch (err) {
+      setError(err.message || 'Could not save transaction.');
+    }
   };
 
   const resetFilters = () => {
@@ -242,7 +278,16 @@ export default function TransactionsView() {
           <p>Delete <strong>{deleteTarget.note || deleteTarget.title}</strong> ({money(deleteTarget.amount)})?</p>
           <div className="form-actions">
             <button className="btn secondary" type="button" onClick={() => setDeleteTarget(null)}>Cancel</button>
-            <button className="btn primary" type="button" onClick={() => { setTransactions((prev) => prev.filter((t) => t.id !== deleteTarget.id)); setDeleteTarget(null); }}>Delete</button>
+            <button
+              className="btn primary"
+              type="button"
+              onClick={async () => {
+                await removeTransaction(deleteTarget.id);
+                setDeleteTarget(null);
+              }}
+            >
+              Delete
+            </button>
           </div>
         </Modal>
       )}

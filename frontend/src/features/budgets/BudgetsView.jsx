@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { AlertTriangle, CalendarDays, Pencil, Plus, Trash2, Wallet } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { EmptyState, Modal, PageHeading, ProgressBar } from '../../components/ui';
-import { currentMonthISO, formatMonth, makeId, money, parseWholeYen, sum } from '../../utils/formatters';
+import { currentMonthISO, formatMonth, money, parseWholeYen, sum, todayISO } from '../../utils/formatters';
 import { getBudgetStatus } from '../../utils/financeMath';
 
 export default function BudgetsView() {
-  const { budgets, setBudgets, transactions, categories } = useFinance();
+  const { budgets, saveBudget, removeBudget, transactions, categories } = useFinance();
   const expenseCategories = categories.filter((c) => c.kind === 'expense');
 
   const [selectedMonth, setSelectedMonth] = useState(currentMonthISO);
@@ -17,9 +17,10 @@ export default function BudgetsView() {
   const [amountLimit, setAmountLimit] = useState('');
   const [error, setError] = useState('');
 
+  const today = todayISO();
   const monthlyBudgets = budgets
     .filter((b) => String(b.budget_month || '').slice(0, 7) === selectedMonth)
-    .map((b) => getBudgetStatus(b, transactions));
+    .map((b) => getBudgetStatus(b, transactions, today));
 
   const totalLimit = sum(monthlyBudgets, 'amount_limit');
   const totalSpent = sum(monthlyBudgets, 'spent_amount');
@@ -44,7 +45,7 @@ export default function BudgetsView() {
     setModalOpen(true);
   };
 
-  const handleSave = (event) => {
+  const handleSave = async (event) => {
     event.preventDefault();
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(selectedMonth)) {
       return setError('Select a valid budget month (YYYY-MM).');
@@ -62,20 +63,23 @@ export default function BudgetsView() {
     );
     if (duplicate) return setError(`${category.name} already has a budget for ${formatMonth(selectedMonth)}.`);
 
-    const next = {
-      id: editingBudget?.id ?? makeId('budget'),
+    const payload = {
       category_id: category.id,
       category_name: category.name,
       budget_month: selectedMonth,
       amount_limit: limit,
     };
-    setBudgets((prev) => (editingBudget ? prev.map((b) => (b.id === editingBudget.id ? next : b)) : [...prev, next]));
-    setModalOpen(false);
+    try {
+      await saveBudget(payload, editingBudget?.id ?? null);
+      setModalOpen(false);
+    } catch (err) {
+      setError(err.message || 'Could not save budget.');
+    }
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deleteTarget) return;
-    setBudgets((prev) => prev.filter((b) => b.id !== deleteTarget.id));
+    await removeBudget(deleteTarget.id);
     setDeleteTarget(null);
   };
 
@@ -180,7 +184,7 @@ export default function BudgetsView() {
               <p className={budget.over_budget ? 'negative' : 'muted'} style={{ fontWeight: budget.over_budget ? 700 : 400 }}>
                 {budget.over_budget
                   ? `⚠️ Over budget by ${money(Math.abs(budget.remaining_amount))} (${budget.progress_percent}% used)`
-                  : `${money(budget.remaining_amount)} remaining · ${budget.progress_percent}% used`}
+                  : `${money(budget.remaining_amount)} remaining · ${budget.progress_percent}% used · ${budget.pace_label}`}
               </p>
             </article>
           ))}
