@@ -1,23 +1,23 @@
 /**
  * ProMoney Frontend API Service Layer
- * Joint Owners: Arpan Khatiwada & Suman Raut
+ * Joint Owners: Arpan Khatiwada & Suman Raut (Phase 3 Security Hardening)
  *
  * Centralized HTTP client for communicating with the Express backend (/api/*).
- * All request and response JSON bodies use snake_case field names.
+ * Session authentication uses the `pm_session` httpOnly cookie via
+ * `credentials: 'include'` — the frontend never stores a token in localStorage.
  */
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 
 async function request(path, options = {}) {
-  const token = localStorage.getItem('pm_auth_token');
   const headers = {
     'Content-Type': 'application/json',
-    ...(token && token !== 'demo-session' ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers || {}),
   };
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
+    credentials: 'include',
     headers,
   });
 
@@ -39,13 +39,21 @@ export const apiClient = {
     }
   },
 
-  // Authentication
+  // Authentication (httpOnly cookie session + revocation)
   async register(body) {
     return request('/auth/register', { method: 'POST', body: JSON.stringify(body) });
   },
 
   async login(body) {
     return request('/auth/login', { method: 'POST', body: JSON.stringify(body) });
+  },
+
+  async logout() {
+    return request('/auth/logout', { method: 'POST' });
+  },
+
+  async logoutAll() {
+    return request('/auth/logout-all', { method: 'POST' });
   },
 
   async getMe() {

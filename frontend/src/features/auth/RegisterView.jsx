@@ -67,8 +67,8 @@ export default function RegisterView() {
         <label>Last name<input name="last_name" required maxLength={100} autoComplete="family-name" placeholder="Last name" /></label>
       </div>
       <label>Email address<input name="email" type="email" required maxLength={255} autoComplete="email" placeholder="you@example.com" /></label>
-      <PasswordField minLength={8} autoComplete="new-password" placeholder="At least 8 characters" />
-      <PasswordField name="confirm_password" label="Confirm password" minLength={8} autoComplete="new-password" placeholder="Re-enter your password" />
+      <PasswordField minLength={10} autoComplete="new-password" placeholder="At least 10 characters (letter + number)" />
+      <PasswordField name="confirm_password" label="Confirm password" minLength={10} autoComplete="new-password" placeholder="Re-enter your password" />
       <AuthNotice>{notice}</AuthNotice>
       <button className="btn primary pm-auth-submit" type="submit" disabled={isSubmitting}>{isSubmitting ? 'Creating account…' : 'Create account'}</button>
     </form>

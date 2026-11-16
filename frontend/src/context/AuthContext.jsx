@@ -2,18 +2,18 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { apiClient } from '../services/api';
 
 /**
- * Auth State Provider — Phase 1 & Phase 2 Demo Account Honesty (O1/O2)
+ * Auth State Provider — Phase 3 Security Hardening
  *
- * - Real accounts verify their JWT against GET /api/auth/me and read/write
- *   exclusively through the TiDB backend API.
- * - The Demo Account (`loginDemo`) is explicitly flagged `is_demo: true`
- *   so every screen displays the "Sample data" banner (Constitution O1)
- *   and demo data stays completely isolated from real user data (O2).
+ * - Real session tokens live in the `pm_session` httpOnly cookie only;
+ *   the frontend NEVER stores a JWT token in localStorage.
+ * - Any legacy `pm_auth_token` key in localStorage is purged on startup.
+ * - Demo mode uses a non-secret boolean flag (`pm_demo_mode`) to display
+ *   the "Sample data" workspace (Constitution O1/O2).
  */
 
-const TOKEN_KEY = 'pm_auth_token';
+const LEGACY_TOKEN_KEY = 'pm_auth_token';
 const USER_KEY = 'pm_auth_user';
-const DEMO_TOKEN = 'demo-session';
+const DEMO_MODE_KEY = 'pm_demo_mode';
 
 export const DEMO_USER = {
   id: 'demo',
@@ -26,6 +26,10 @@ const AuthContext = createContext(null);
 
 function loadStoredUser() {
   try {
+    localStorage.removeItem(LEGACY_TOKEN_KEY);
+    if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
+      return DEMO_USER;
+    }
     const raw = localStorage.getItem(USER_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch {
@@ -36,24 +40,29 @@ function loadStoredUser() {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(loadStoredUser);
   const [isCheckingSession, setIsCheckingSession] = useState(() => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    return Boolean(token && token !== DEMO_TOKEN);
+    try {
+      return localStorage.getItem(DEMO_MODE_KEY) !== 'true';
+    } catch {
+      return true;
+    }
   });
   const sessionCheckStarted = useRef(false);
 
   const clearSession = useCallback(() => {
     try {
-      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(LEGACY_TOKEN_KEY);
       localStorage.removeItem(USER_KEY);
+      localStorage.removeItem(DEMO_MODE_KEY);
     } catch {
       // Storage may be unavailable; state is still cleared.
     }
     setUser(null);
   }, []);
 
-  const saveSession = useCallback(({ token, user: nextUser }) => {
+  const saveSession = useCallback(({ user: nextUser }) => {
     try {
-      localStorage.setItem(TOKEN_KEY, token);
+      localStorage.removeItem(LEGACY_TOKEN_KEY);
+      localStorage.removeItem(DEMO_MODE_KEY);
       localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
     } catch {
       // If storage fails the in-memory session still works for this tab.
@@ -64,16 +73,17 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (sessionCheckStarted.current) return;
     sessionCheckStarted.current = true;
-    const token = localStorage.getItem(TOKEN_KEY);
-    if (!token) {
-      setIsCheckingSession(false);
-      return;
+    try {
+      localStorage.removeItem(LEGACY_TOKEN_KEY);
+      if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
+        setUser(DEMO_USER);
+        setIsCheckingSession(false);
+        return;
+      }
+    } catch {
+      // Ignore storage errors
     }
-    if (token === DEMO_TOKEN) {
-      setUser(DEMO_USER);
-      setIsCheckingSession(false);
-      return;
-    }
+
     apiClient
       .getMe()
       .then((payload) => {
@@ -81,7 +91,7 @@ export function AuthProvider({ children }) {
         try {
           localStorage.setItem(USER_KEY, JSON.stringify(payload.data.user));
         } catch {
-          // Ignore storage errors; the verified user is in state.
+          // Ignore storage errors; verified user is in state.
         }
       })
       .catch(() => {
@@ -118,12 +128,32 @@ export function AuthProvider({ children }) {
   );
 
   const loginDemo = useCallback(() => {
-    saveSession({ token: DEMO_TOKEN, user: DEMO_USER });
+    try {
+      localStorage.removeItem(LEGACY_TOKEN_KEY);
+      localStorage.setItem(DEMO_MODE_KEY, 'true');
+      localStorage.setItem(USER_KEY, JSON.stringify(DEMO_USER));
+    } catch {
+      // Ignore storage errors
+    }
+    setUser(DEMO_USER);
     return DEMO_USER;
-  }, [saveSession]);
+  }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    try {
+      await apiClient.logout();
+    } catch {
+      // Clear local user state even if server is unreachable.
+    }
     clearSession();
+  }, [clearSession]);
+
+  const logoutAll = useCallback(async () => {
+    try {
+      await apiClient.logoutAll();
+    } finally {
+      clearSession();
+    }
   }, [clearSession]);
 
   const updateUser = useCallback((partial) => {
@@ -148,9 +178,10 @@ export function AuthProvider({ children }) {
       loginWithGoogle,
       loginDemo,
       logout,
+      logoutAll,
       updateUser,
     }),
-    [user, isCheckingSession, login, register, loginWithGoogle, loginDemo, logout, updateUser]
+    [user, isCheckingSession, login, register, loginWithGoogle, loginDemo, logout, logoutAll, updateUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

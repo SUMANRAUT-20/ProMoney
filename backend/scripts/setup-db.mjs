@@ -63,6 +63,14 @@ if (!(await hasColumn('users', 'google_sub'))) {
   console.log('Migration 003 applied: google_sub column added.');
 }
 
+// Migration 004 (Phase 3 Security Hardening): users.token_version column.
+if (!(await hasColumn('users', 'token_version'))) {
+  await connection.query(
+    `ALTER TABLE \`${dbName}\`.users ADD COLUMN token_version INT UNSIGNED NOT NULL DEFAULT 0`
+  );
+  console.log('Migration 004 applied: users.token_version column added.');
+}
+
 // Migration 005 (Phase 2 Layer 1 Engine): accounts.kind/ui_details, transactions.kind/to_account_id/note.
 await connection.query(
   `ALTER TABLE \`${dbName}\`.accounts MODIFY COLUMN kind VARCHAR(30) NOT NULL DEFAULT 'cash'`

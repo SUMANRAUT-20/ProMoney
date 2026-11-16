@@ -173,8 +173,11 @@ export default function SettingsView() {
   const savePassword = async (event) => {
     event.preventDefault();
     setPasswordMessage(null);
-    if (newPassword.length < 8) {
-      setPasswordMessage({ kind: 'error', text: 'New password must be at least 8 characters.' });
+    if (newPassword.length < 10 || !/[A-Za-z]/.test(newPassword) || !/\d/.test(newPassword)) {
+      setPasswordMessage({
+        kind: 'error',
+        text: 'New password must be at least 10 characters and include a letter and a number.',
+      });
       return;
     }
     if (newPassword !== confirmPassword) {

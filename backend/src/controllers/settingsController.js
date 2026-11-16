@@ -1,25 +1,22 @@
-import { UserModel, hashPassword, verifyPassword, toPublicUser } from '../models/userModel.js';
+import {
+  UserModel,
+  hashPassword,
+  verifyPassword,
+  toPublicUser,
+  validatePasswordPolicy,
+} from '../models/userModel.js';
 import { SettingsModel, validatePreferences, validateAvatar } from '../models/settingsModel.js';
 
 /**
  * Settings Controller — Arpan Khatiwada (Settings)
  *
- * New endpoints (not yet in docs/INTEGRATION_CONTRACT.md — amendment
- * proposed to Arpan + Suman with this change). All require auth and
- * use snake_case JSON like the rest of the API:
- * - GET /api/settings                -> { profile, preferences }
- * - PUT /api/settings/preferences    { theme?, currency?, date_format? }
- * - PUT /api/settings/profile        { display_name }
- * - PUT /api/settings/avatar         { avatar_data_url } (data:image URL, or null to clear)
- * - PUT /api/settings/password       { current_password, new_password }
- *
- * profile.has_password tells the UI whether a password can be changed
- * at all (Google-only accounts have none). password_hash and
- * google_sub are never returned.
+ * Phase 3 Security Hardening:
+ * - Enforces password policy on password change (minimum 10 characters,
+ *   at least one letter and one digit).
+ * - Password change increments `users.token_version` in SQL so all
+ *   existing tokens across devices are revoked immediately.
  */
 
-const MIN_PASSWORD_LENGTH = 8;
-const MAX_PASSWORD_LENGTH = 128;
 const MAX_DISPLAY_NAME_LENGTH = 100;
 
 function profileOf(row) {
@@ -88,8 +85,9 @@ export const settingsController = {
       if (typeof currentPassword !== 'string' || typeof newPassword !== 'string' || !currentPassword || !newPassword) {
         return res.status(400).json({ error: 'current_password and new_password are required', status: 400 });
       }
-      if (newPassword.length < MIN_PASSWORD_LENGTH || newPassword.length > MAX_PASSWORD_LENGTH) {
-        return res.status(400).json({ error: `new_password must be between ${MIN_PASSWORD_LENGTH} and ${MAX_PASSWORD_LENGTH} characters`, status: 400 });
+      const policyError = validatePasswordPolicy(newPassword, 'new_password');
+      if (policyError) {
+        return res.status(400).json({ error: policyError, status: 400 });
       }
       const row = await UserModel.findByIdWithCredentials(req.user.id);
       if (!row) return res.status(404).json({ error: 'User not found', status: 404 });

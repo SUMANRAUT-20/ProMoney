@@ -1,15 +1,18 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { getCachedTokenVersion } from '../models/userModel.js';
 
 /**
- * Authentication Middleware + JWT (HS256) helpers
- * Joint Owners: Arpan Khatiwada & Suman Raut
+ * Authentication Middleware + JWT (HS256) + httpOnly Cookie (`pm_session`)
+ * Joint Owners: Arpan Khatiwada & Suman Raut (Phase 3 Security Hardening)
  *
- * JWTs are signed/verified with Node's built-in crypto HMAC-SHA256
- * and process.env.JWT_SECRET — no external JWT dependency, and no
- * fallback secret. If JWT_SECRET is missing, signing/verifying
- * throws instead of silently issuing insecure tokens.
+ * - Session tokens are issued in an httpOnly cookie (`pm_session`).
+ * - JWTs carry `tv` (token_version); bumping `users.token_version` on
+ *   password change or logout-all immediately revokes older tokens.
+ * - `requireAuth` reads `pm_session` from `Cookie` (or `Authorization: Bearer`
+ *   for API/test callers) and verifies signature, expiry, and `token_version`.
  */
 
+export const SESSION_COOKIE_NAME = 'pm_session';
 const DEFAULT_EXPIRES_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
 function getSecret(secretOverride) {
@@ -28,16 +31,73 @@ function sign(data, secret) {
   return createHmac('sha256', secret).update(data).digest('base64url');
 }
 
+export function parseCookies(cookieHeader) {
+  const out = {};
+  if (!cookieHeader || typeof cookieHeader !== 'string') return out;
+  for (const part of cookieHeader.split(';')) {
+    const idx = part.indexOf('=');
+    if (idx <= 0) continue;
+    const key = part.slice(0, idx).trim();
+    const val = part.slice(idx + 1).trim();
+    try {
+      out[key] = decodeURIComponent(val);
+    } catch {
+      out[key] = val;
+    }
+  }
+  return out;
+}
+
+export function setSessionCookie(res, token, options = {}) {
+  if (!res || typeof res.setHeader !== 'function') return;
+  const maxAge =
+    Number(options.expiresInSeconds ?? process.env.JWT_EXPIRES_SECONDS) ||
+    DEFAULT_EXPIRES_SECONDS;
+  const parts = [
+    `${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}`,
+    'HttpOnly',
+    'SameSite=Lax',
+    'Path=/',
+    `Max-Age=${maxAge}`,
+  ];
+  if (process.env.NODE_ENV === 'production') {
+    parts.push('Secure');
+  }
+  res.setHeader('Set-Cookie', parts.join('; '));
+}
+
+export function clearSessionCookie(res) {
+  if (!res || typeof res.setHeader !== 'function') return;
+  const parts = [
+    `${SESSION_COOKIE_NAME}=`,
+    'HttpOnly',
+    'SameSite=Lax',
+    'Path=/',
+    'Max-Age=0',
+  ];
+  if (process.env.NODE_ENV === 'production') {
+    parts.push('Secure');
+  }
+  res.setHeader('Set-Cookie', parts.join('; '));
+}
+
 export function signToken(user, options = {}) {
   const secret = getSecret(options.secret);
   const expiresInSeconds =
     Number(options.expiresInSeconds ?? process.env.JWT_EXPIRES_SECONDS) ||
     DEFAULT_EXPIRES_SECONDS;
   const nowSeconds = Math.floor(Date.now() / 1000);
+  const tokenVersion = Number(
+    options.tokenVersion ??
+      user.token_version ??
+      getCachedTokenVersion(user.id) ??
+      0
+  );
   const header = { alg: 'HS256', typ: 'JWT' };
   const payload = {
     sub: String(user.id),
     email: user.email,
+    tv: tokenVersion,
     iat: nowSeconds,
     exp: nowSeconds + expiresInSeconds,
   };
@@ -76,24 +136,41 @@ export function verifyToken(token, options = {}) {
   return payload;
 }
 
+export function extractRequestToken(req) {
+  const cookies = parseCookies(req?.headers?.cookie);
+  if (cookies[SESSION_COOKIE_NAME]) {
+    return cookies[SESSION_COOKIE_NAME];
+  }
+  const authHeader = req?.headers?.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const bearer = authHeader.slice('Bearer '.length).trim();
+    if (bearer) return bearer;
+  }
+  return null;
+}
+
 export function requireAuth(req, res, next) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const token = extractRequestToken(req);
+  if (!token) {
     return res.status(401).json({
-      error: 'Authentication required. Please provide a valid Bearer token.',
+      error: 'Authentication required. Please log in.',
       status: 401,
     });
   }
-  const token = authHeader.slice('Bearer '.length).trim();
-  if (!token) {
-    return res.status(401).json({ error: 'Authentication required.', status: 401 });
-  }
   try {
     const payload = verifyToken(token);
-    req.user = { id: Number(payload.sub), email: payload.email };
-    if (!Number.isSafeInteger(req.user.id) || req.user.id <= 0) {
+    const userId = Number(payload.sub);
+    if (!Number.isSafeInteger(userId) || userId <= 0) {
       return res.status(401).json({ error: 'Invalid token.', status: 401 });
     }
+    const currentTv = getCachedTokenVersion(userId);
+    if (currentTv !== undefined && Number(payload.tv ?? 0) !== currentTv) {
+      return res.status(401).json({
+        error: 'Session has been revoked. Please log in again.',
+        status: 401,
+      });
+    }
+    req.user = { id: userId, email: payload.email };
     return next();
   } catch {
     return res.status(401).json({

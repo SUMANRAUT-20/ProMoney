@@ -3,12 +3,14 @@ import cors from 'cors';
 import 'dotenv/config';
 import apiRouter from './routes/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { buildCorsOptions, securityHeaders } from './middleware/securityHeaders.js';
 
 const app = express();
 const port = Number(process.env.PORT) || 4000;
 
 app.disable('x-powered-by');
-app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173' }));
+app.use(securityHeaders);
+app.use(cors(buildCorsOptions()));
 app.use(express.json({ limit: '100kb' }));
 
 // Health Check Endpoint

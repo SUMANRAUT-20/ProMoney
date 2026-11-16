@@ -5,21 +5,15 @@ import { getDbPool } from '../db.js';
  * User Model + password hashing — DATABASE STORE (MySQL / TiDB Cloud)
  * Joint Owners: Arpan Khatiwada & Suman Raut (Member 4 & 5)
  *
- * Step 2 (2026-11-06, Suman + Munna): the in-memory baseline from the
- * database reset is replaced with real SQL storage. The exported
- * interface (UserModel methods, hashPassword, verifyPassword,
- * toPublicUser, getCategoryCount, DEFAULT_CATEGORIES) is IDENTICAL to
- * the in-memory version, so authController and the tests did not need
- * changes. Schema: backend/sql/schema.sql + migration 003 (google_sub).
- * Accounts now survive backend restarts.
- *
- * Password hashing uses Node's built-in crypto.scrypt (no native
- * dependencies, so it works on Windows). Hash format:
- *   scrypt$<salt_hex>$<derived_key_hex>
- * Plain-text passwords are never stored or returned.
+ * Password hashing stays Node's built-in crypto.scrypt (Phase 3 Rule 7).
+ * Includes token_version management for session revocation (Phase 3 Rule 2)
+ * and password policy validation (Phase 3 Rule 4).
  */
 
 const SCRYPT_KEY_LENGTH = 64;
+
+export const MIN_PASSWORD_LENGTH = 10;
+export const MAX_PASSWORD_LENGTH = 128;
 
 export function hashPassword(password) {
   if (typeof password !== 'string' || password.length === 0) {
@@ -45,6 +39,26 @@ export function verifyPassword(password, storedHash) {
   }
 }
 
+/**
+ * Phase 3 Rule 4 — Password policy:
+ * Minimum 10 characters, at least one letter and one digit.
+ */
+export function validatePasswordPolicy(password, fieldName = 'password') {
+  if (typeof password !== 'string' || !password) {
+    return `${fieldName} is required`;
+  }
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return `${fieldName} must be at least ${MIN_PASSWORD_LENGTH} characters`;
+  }
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    return `${fieldName} must be ${MAX_PASSWORD_LENGTH} characters or fewer`;
+  }
+  if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+    return `${fieldName} must contain at least one letter and one digit`;
+  }
+  return null;
+}
+
 // Default JPY categories seeded for every new user.
 export const DEFAULT_CATEGORIES = [
   { name: 'Salary', kind: 'income' },
@@ -59,8 +73,23 @@ export const DEFAULT_CATEGORIES = [
 
 const pool = getDbPool();
 
+// Synchronized token_version cache so requireAuth can check revocations
+// synchronously while staying backed by SQL users.token_version.
+const tokenVersionCache = new Map();
+
+export function getCachedTokenVersion(userId) {
+  return tokenVersionCache.get(Number(userId));
+}
+
+export function setCachedTokenVersion(userId, version) {
+  tokenVersionCache.set(Number(userId), Number(version ?? 0));
+}
+
 export function toPublicUser(row) {
   if (!row) return null;
+  if (row.token_version !== undefined) {
+    setCachedTokenVersion(row.id, row.token_version);
+  }
   return {
     id: Number(row.id),
     display_name: row.display_name,
@@ -70,17 +99,17 @@ export function toPublicUser(row) {
 
 function toFullRow(row) {
   if (!row) return null;
-  return { ...row, id: Number(row.id) };
+  const tv = Number(row.token_version ?? 0);
+  setCachedTokenVersion(row.id, tv);
+  return { ...row, id: Number(row.id), token_version: tv };
 }
 
 async function createUser({ displayName, email, passwordHash, googleSub }) {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
-    // A duplicate email throws the native MySQL ER_DUP_ENTRY error,
-    // which authController maps to HTTP 409 (same as both prior stores).
     const [result] = await connection.execute(
-      'INSERT INTO users (display_name, email, password_hash, google_sub) VALUES (?, ?, ?, ?)',
+      'INSERT INTO users (display_name, email, password_hash, google_sub, token_version) VALUES (?, ?, ?, ?, 0)',
       [displayName, email, passwordHash, googleSub]
     );
     const userId = Number(result.insertId);
@@ -91,6 +120,7 @@ async function createUser({ displayName, email, passwordHash, googleSub }) {
       params
     );
     await connection.commit();
+    setCachedTokenVersion(userId, 0);
     return { id: userId, display_name: displayName, email };
   } catch (err) {
     await connection.rollback();
@@ -117,7 +147,7 @@ export const UserModel = {
 
   async findById(id) {
     const [rows] = await pool.execute(
-      'SELECT id, display_name, email FROM users WHERE id = ?',
+      'SELECT id, display_name, email, token_version FROM users WHERE id = ?',
       [Number(id)]
     );
     return toPublicUser(rows[0] || null);
@@ -132,7 +162,7 @@ export const UserModel = {
 
   async findByGoogleSub(googleSub) {
     const [rows] = await pool.execute(
-      'SELECT id, display_name, email FROM users WHERE google_sub = ?',
+      'SELECT id, display_name, email, token_version FROM users WHERE google_sub = ?',
       [googleSub]
     );
     return toPublicUser(rows[0] || null);
@@ -151,19 +181,13 @@ export const UserModel = {
     ]);
   },
 
-  // --- Settings (profile & security) ---
+  // --- Settings & Session Revocation (Phase 3) ---
 
-  /**
-   * Full row INCLUDING password_hash / google_sub. Server-side use
-   * only (settings password change) — never send this to a client;
-   * use toPublicUser for responses.
-   */
   async findByIdWithCredentials(id) {
     const [rows] = await pool.execute('SELECT * FROM users WHERE id = ?', [Number(id)]);
     return toFullRow(rows[0]);
   },
 
-  /** Updates the display name; returns the public user or null. */
   async updateDisplayName(userId, displayName) {
     const [result] = await pool.execute(
       'UPDATE users SET display_name = ? WHERE id = ?',
@@ -173,12 +197,40 @@ export const UserModel = {
     return UserModel.findById(userId);
   },
 
-  /** Replaces the password hash (password change in Settings). */
+  /**
+   * Replaces the password hash AND increments token_version so all
+   * existing sessions/devices are signed out immediately (Phase 3 Rule 2).
+   */
   async updatePasswordHash(userId, passwordHash) {
+    const uid = Number(userId);
     const [result] = await pool.execute(
-      'UPDATE users SET password_hash = ? WHERE id = ?',
-      [passwordHash, Number(userId)]
+      'UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE id = ?',
+      [passwordHash, uid]
     );
-    return result.affectedRows > 0;
+    if (result.affectedRows === 0) return false;
+    await UserModel.getTokenVersion(uid);
+    return true;
+  },
+
+  async getTokenVersion(userId) {
+    const uid = Number(userId);
+    const [rows] = await pool.execute(
+      'SELECT token_version FROM users WHERE id = ?',
+      [uid]
+    );
+    if (!rows[0]) return null;
+    const tv = Number(rows[0].token_version ?? 0);
+    setCachedTokenVersion(uid, tv);
+    return tv;
+  },
+
+  async incrementTokenVersion(userId) {
+    const uid = Number(userId);
+    const [result] = await pool.execute(
+      'UPDATE users SET token_version = token_version + 1 WHERE id = ?',
+      [uid]
+    );
+    if (result.affectedRows === 0) return null;
+    return UserModel.getTokenVersion(uid);
   },
 };
