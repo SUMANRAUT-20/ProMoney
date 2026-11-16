@@ -1,257 +1,423 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  AlertTriangle, ArrowDownLeft, ArrowUpRight, CalendarClock, CheckCircle2,
-  Flame, Percent, Plus, ReceiptText, ShieldCheck, TrendingUp, Wallet,
+  AlertTriangle,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Bot,
+  CalendarClock,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Plus,
+  ReceiptText,
+  Send,
+  Wallet,
 } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
-import { Amount, EmptyState, Metric, PageHeading, ProgressBar } from '../../components/ui';
-import { currentMonthISO, daysBetweenISO, formatDate, formatGoalProgress, formatMonth, money, todayISO } from '../../utils/formatters';
-import {
-  getAccountTotals, getBalanceProjection, getBudgetStatus, getCategoryBreakdown,
-  getHealthScore, getMonthlySummary, getSafeToSpend,
-} from '../../utils/financeMath';
+import { Amount, EmptyState, PageHeading } from '../../components/ui';
+import { currentMonthISO, formatDate, formatMonth, money, todayISO } from '../../utils/formatters';
+import { buildHomeSummary } from '../../utils/financeMath';
+import './home.css';
 
+function GoalProgressRing({ goal }) {
+  const size = 84;
+  const strokeWidth = 7;
+  const radius = 34;
+  const circumference = 213.6;
+  const dashOffset = goal.isZeroTarget
+    ? circumference
+    : circumference - (goal.bar_percent / 100) * circumference;
+
+  return (
+    <div className="home-goal-ring-card">
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`${goal.title}: ${goal.ringLabel}`}>
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="var(--border)"
+          strokeWidth={strokeWidth}
+        />
+        {!goal.isZeroTarget && (
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke="var(--green)"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={dashOffset}
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+          />
+        )}
+        <text
+          x="50%"
+          y="50%"
+          dominantBaseline="central"
+          textAnchor="middle"
+          fontSize={goal.isZeroTarget ? '9.5' : '13'}
+          fontWeight="700"
+          fill="var(--text)"
+        >
+          {goal.ringLabel}
+        </text>
+      </svg>
+      <strong style={{ fontSize: 13 }}>{goal.title}</strong>
+      <span className="muted small">
+        {money(goal.saved_amount)} / {money(goal.target_amount)}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Home Screen (Layer 2) — Built to Feature Spec "Home Screen Specification"
+ * Every figure is computed by `buildHomeSummary` in `financeMath` (Constitution A3).
+ * Tapping headline cards reveals their engine breakdown (Constitution P2).
+ */
 export default function DashboardView() {
   const navigate = useNavigate();
   const { accounts, transactions, budgets, bills, goals, categories, preferences } = useFinance();
 
+  const [showMoneyProof, setShowMoneyProof] = useState(false);
+  const [showSafeProof, setShowSafeProof] = useState(false);
+  const [quickQuestion, setQuickQuestion] = useState('');
+
   const today = todayISO();
   const month = currentMonthISO();
-  const accountTotals = getAccountTotals(accounts, transactions, today);
-  const summary = getMonthlySummary(transactions, month);
-
-  const monthlyBudgets = budgets
-    .filter((b) => String(b.budget_month || '').slice(0, 7) === month)
-    .map((b) => getBudgetStatus(b, transactions, today));
-
-  const health = getHealthScore({
-    monthIncome: summary.income,
-    monthExpense: summary.expense,
-    monthlyBudgets,
-    bills,
+  const home = buildHomeSummary({
     accounts,
     transactions,
-    today,
-  });
-  const safe = getSafeToSpend({
-    accounts,
-    transactions,
-    monthIncome: summary.income,
-    expectedMonthlyIncome: preferences?.expected_monthly_income,
+    budgets,
     bills,
     goals,
-    buffer: preferences?.minimum_buffer || 0,
+    categories,
+    preferences,
     today,
+    month,
   });
-  const projection = getBalanceProjection({ netBalance: accountTotals.net, monthExpense: summary.expense, today });
 
-  const breakdown = getCategoryBreakdown(transactions, month, categories);
-  const topCategory = breakdown.items[0] || null;
-
-  const monthExpensesList = transactions.filter(
-    (t) => t.kind === 'expense' && String(t.transaction_date || '').slice(0, 7) === month,
-  );
-  const biggestExpense = monthExpensesList.reduce(
-    (max, tx) => (!max || Number(tx.amount) > Number(max.amount) ? tx : max),
-    null,
-  );
-  const savingsRatePct = summary.income > 0 ? Math.round((summary.net / summary.income) * 100) : 0;
-
-  const upcoming7dBills = bills
-    .filter((b) => !b.is_paid && daysBetweenISO(today, b.due_date) >= 0 && daysBetweenISO(today, b.due_date) <= 7)
-    .sort((a, b) => a.due_date.localeCompare(b.due_date));
-
-  const overdueBillsCount = bills.filter((b) => !b.is_paid && b.due_date < today).length;
-  const recentTx = [...transactions]
-    .sort((a, b) => String(b.transaction_date).localeCompare(String(a.transaction_date)))
-    .slice(0, 5);
-
-  const barScale = Math.max(summary.income, summary.expense, 1);
+  const handleQuickAsk = (event) => {
+    event.preventDefault();
+    const q = quickQuestion.trim();
+    if (!q) {
+      navigate('/labo');
+      return;
+    }
+    navigate(`/labo?q=${encodeURIComponent(q)}`);
+  };
 
   return (
-    <>
+    <div className="home-stack">
       <PageHeading
-        title="Financial Overview"
-        subtitle={`Live JPY status, account balances, and ${formatMonth(month)} cash-flow health.`}
-        action={<button className="btn primary" type="button" onClick={() => navigate('/transactions')}><Plus size={16} /> Record Transaction</button>}
+        title="Home"
+        subtitle={`Your daily JPY snapshot for ${formatMonth(month)} — tap any headline card to see its breakdown.`}
+        action={
+          <button className="btn primary" type="button" onClick={() => navigate('/transactions')}>
+            <Plus size={16} /> Record Transaction
+          </button>
+        }
       />
 
-      <div className={`status-banner ${projection.goesNegative ? 'danger' : ''}`} role={projection.goesNegative ? 'alert' : 'status'}>
-        {projection.goesNegative ? <AlertTriangle size={18} color="var(--red)" /> : <CheckCircle2 size={18} color="var(--green)" />}
-        <div>
-          <strong>
-            {projection.goesNegative
-              ? `Balance Alert: Projected month-end balance is ${money(projection.projectedEndBalance)}`
-              : `Projected Month-End Balance: ${money(projection.projectedEndBalance)}`}
-          </strong>
-          <span>
-            {projection.goesNegative
-              ? `Warning before month-end: at your current spending pace (${money(projection.dailyPace)}/day), your total balance will drop below ¥0. Reduce daily spending to stay positive.`
-              : `At your current ${formatMonth(month)} spending pace (${money(projection.dailyPace)}/day), your balance stays positive through month-end.`}
-          </span>
-        </div>
-      </div>
-
-      <section className="dashboard-metrics" aria-label="Primary financial metrics">
-        <Metric icon={Wallet} label="Total balance (accounts)" value={money(accountTotals.net)} small={`Hold ${money(accountTotals.held)} · Owe ${money(accountTotals.owed)}`} />
-        <Metric icon={ArrowDownLeft} label={`Income (${formatMonth(month)})`} value={money(summary.income)} small="This month's inflows" />
-        <Metric icon={ArrowUpRight} label={`Expenses (${formatMonth(month)})`} value={money(summary.expense)} small={`Net ${money(summary.net)}`} />
-        <Metric
-          icon={CalendarClock}
-          label="Today's Safe-to-Spend"
-          value={`${money(safe.dailySafe)} / day`}
-          small={`(${money(safe.spendable)} − ${money(safe.billsStillDue)} bills − ${money(safe.goalSavingPlan)} goals) ÷ ${safe.daysLeft}d`}
-        />
-      </section>
-
-      <section className="section-card card" style={{ marginTop: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
-          <div style={{ minWidth: 180 }}>
-            <span className="eyebrow">FINANCIAL HEALTH SCORE</span>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '6px 0 8px' }}>
-              <ShieldCheck size={24} color="var(--green)" />
-              <strong style={{ fontSize: 30, letterSpacing: '-0.8px' }}>{health.score}</strong>
-              <span className="muted">/ 100</span>
-            </div>
-            <ProgressBar current={health.score} target={100} color={health.score < 50 ? 'red' : 'green'} />
+      {/* 1. Money you hold & 2. Safe to spend today */}
+      <div className="home-top-grid">
+        <section
+          className="section-card card home-tap-card"
+          style={{ marginBottom: 0 }}
+          aria-label="Money you hold"
+          onClick={() => setShowMoneyProof((v) => !v)}
+        >
+          <div className="home-card-head">
+            <span className="eyebrow" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <Wallet size={15} color="var(--green)" /> MONEY YOU HOLD (SPENDABLE)
+            </span>
+            <button
+              type="button"
+              className="icon-button"
+              aria-expanded={showMoneyProof}
+              aria-label="Toggle Money you hold breakdown"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowMoneyProof((v) => !v);
+              }}
+            >
+              {showMoneyProof ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
           </div>
-          <div style={{ flex: 1, minWidth: 260 }}>
-            <strong style={{ display: 'block', marginBottom: 4 }}>Plain-Text Score Formula</strong>
-            <p className="muted" style={{ margin: '0 0 6px', fontSize: 12 }}>
-              Score = Savings Rate (0–30 pts, full 30 at ≥20% saved) + Budget Control (0–30 pts, 15 if no budgets set) + Debt Pressure (0–20 pts) + Bills Safety (0–20 pts). Focus area: <strong>{health.weakestPart}</strong>.
-            </p>
-            <span className="neutral-badge">
-              Live breakdown: {health.savingsPts}/30 savings + {health.budgetPts}/30 budgets + {health.debtPts}/20 debt + {health.billPts}/20 bills = {health.score}/100
+
+          <div className="home-big-amount">{money(home.moneyYouHold.spendable)}</div>
+
+          <div className="home-sublines">
+            <span>
+              Your real money: <strong>{money(home.moneyYouHold.realMoney)}</strong>
+            </span>
+            <span>
+              To pay back: <strong>{money(home.moneyYouHold.toPayBack)}</strong>
             </span>
           </div>
+
+          {showMoneyProof && (
+            <div className="home-proof-panel" onClick={(e) => e.stopPropagation()}>
+              <strong>Engine Breakdown (Cash + Bank + Digital)</strong>
+              {home.moneyYouHold.accountBreakdown.length === 0 ? (
+                <span className="muted">No accounts added yet — add one on My Accounts.</span>
+              ) : (
+                home.moneyYouHold.accountBreakdown.map((acc) => (
+                  <div key={acc.id} className="home-proof-row">
+                    <span>
+                      {acc.name} <small className="muted">({acc.kind})</small>
+                    </span>
+                    <strong>{money(acc.liveBalance)}</strong>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </section>
+
+        <section
+          className="section-card card home-tap-card"
+          style={{ marginBottom: 0 }}
+          aria-label="Safe to spend today"
+          onClick={() => setShowSafeProof((v) => !v)}
+        >
+          <div className="home-card-head">
+            <span className="eyebrow" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <CalendarClock size={15} color="var(--green)" /> SAFE TO SPEND TODAY
+            </span>
+            <button
+              type="button"
+              className="icon-button"
+              aria-expanded={showSafeProof}
+              aria-label="Toggle Safe to spend formula breakdown"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowSafeProof((v) => !v);
+              }}
+            >
+              {showSafeProof ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+          </div>
+
+          <div className="home-big-amount" style={{ color: home.safeToSpend.overPlan ? 'var(--red)' : 'var(--text)' }}>
+            {money(home.safeToSpend.dailySafe)} <span className="muted" style={{ fontSize: 15, fontWeight: 500 }}>/ day</span>
+          </div>
+
+          <div className="home-sublines">
+            <span>
+              Safe this month: <strong>{money(home.safeToSpend.availablePool)}</strong>
+            </span>
+            <span>
+              Days left: <strong>{home.safeToSpend.daysLeft}d</strong>
+            </span>
+          </div>
+
+          {showSafeProof && (
+            <div className="home-proof-panel" onClick={(e) => e.stopPropagation()}>
+              <strong>Formula: (Money + Expected Income − Bills − Goal Plan − Buffer) ÷ Days Left</strong>
+              <div className="home-proof-row">
+                <span>Spendable balance</span>
+                <strong>{money(home.safeToSpend.spendable)}</strong>
+              </div>
+              <div className="home-proof-row">
+                <span>+ Income still expected</span>
+                <strong>{money(home.safeToSpend.incomeStillExpected)}</strong>
+              </div>
+              <div className="home-proof-row">
+                <span>− Bills still due this month</span>
+                <strong>{money(home.safeToSpend.billsStillDue)}</strong>
+              </div>
+              <div className="home-proof-row">
+                <span>− Goal saving plan</span>
+                <strong>{money(home.safeToSpend.goalSavingPlan)}</strong>
+              </div>
+              <div className="home-proof-row">
+                <span>− Minimum buffer</span>
+                <strong>{money(home.safeToSpend.buffer)}</strong>
+              </div>
+              <div className="home-proof-row">
+                <span>÷ {home.safeToSpend.daysLeft} days left in month</span>
+                <strong>{money(home.safeToSpend.dailySafe)} / day</strong>
+              </div>
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* 3. Bills to pay (overdue pinned on top in red + month footer) */}
+      <section className="section-card card" style={{ marginBottom: 0 }} aria-label="Bills to pay">
+        <div className="section-title">
+          <h2>Bills to Pay</h2>
+          <button className="text-action" type="button" onClick={() => navigate('/bills')}>
+            Manage Bills
+          </button>
+        </div>
+
+        {home.billsToPay.items.length === 0 ? (
+          <EmptyState
+            icon="🧾"
+            title="No unpaid bills"
+            description="Scheduled rent, utilities, and subscriptions appear here."
+            action={
+              <button className="btn secondary compact" type="button" onClick={() => navigate('/bills')}>
+                Go to Bills
+              </button>
+            }
+          />
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {home.billsToPay.items.slice(0, 5).map((bill) => (
+              <div key={bill.id} className={`home-bill-item ${bill.isOverdue ? 'overdue' : ''}`}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <ReceiptText size={17} color={bill.isOverdue ? 'var(--red)' : 'var(--green)'} />
+                  <div>
+                    <strong>{bill.name}</strong>
+                    <div className="muted small">
+                      {bill.category} · {formatDate(bill.due_date)}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <strong style={{ display: 'block' }}>{money(bill.amount)}</strong>
+                  <span className="home-bill-due-tag">{bill.dueLabel}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="home-bills-footer">
+          <span className="muted">Total still due this month</span>
+          <strong>{money(home.billsToPay.totalStillDueThisMonth)}</strong>
         </div>
       </section>
 
-      <section className="metrics-grid" style={{ marginTop: 16 }} aria-label="Monthly insights">
-        <Metric
-          icon={Flame}
-          label="Top spending category"
-          value={topCategory ? topCategory.name : 'None yet'}
-          small={topCategory ? `${money(topCategory.amount)} (${topCategory.percent}% of month expenses)` : `No ${formatMonth(month)} expenses`}
-        />
-        <Metric
-          icon={TrendingUp}
-          label="Biggest single expense"
-          value={biggestExpense ? money(biggestExpense.amount) : '¥0'}
-          small={biggestExpense ? `${biggestExpense.note || biggestExpense.title} · ${formatDate(biggestExpense.transaction_date)}` : `No ${formatMonth(month)} expenses`}
-        />
-        <Metric
-          icon={Percent}
-          label="Monthly savings rate"
-          value={summary.income > 0 ? `${savingsRatePct}%` : '0%'}
-          small={summary.income > 0 ? `${money(summary.net)} saved ÷ ${money(summary.income)} income` : 'Record income to calculate'}
-        />
-      </section>
+      {/* 4. Warnings strip (ranked engine alerts) */}
+      <section className="section-card card" style={{ marginBottom: 0 }} aria-label="Warnings strip">
+        <div className="section-title">
+          <h2>Warnings &amp; Pace Signals</h2>
+          <button className="text-action" type="button" onClick={() => navigate('/settings')}>
+            Thresholds ({preferences.budget_warning_percent ?? 20}% · {preferences.bill_reminder_days ?? 3}d)
+          </button>
+        </div>
 
-      <div className="two-col-chart">
-        <section className="section-card card" style={{ marginBottom: 0 }}>
-          <div className="section-title">
-            <h2>Income vs Expenses ({formatMonth(month)})</h2>
-            <span className={summary.net >= 0 ? 'positive small' : 'negative small'} style={{ fontWeight: 700 }}>Net: {money(summary.net)}</span>
-          </div>
-          <div style={{ display: 'grid', gap: 16 }}>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12 }}>
-                <span>Income</span><strong className="positive">{money(summary.income)}</strong>
-              </div>
-              <ProgressBar current={summary.income} target={barScale} color="green" />
+        <div className="home-warnings-strip">
+          {home.warnings.length === 0 ? (
+            <div className="home-warning-item">
+              <CheckCircle2 size={17} color="var(--green)" />
+              <span>All clear — budgets, spending pace, and upcoming bills are on track.</span>
             </div>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 12 }}>
-                <span>Expenses</span><strong className="negative">{money(summary.expense)}</strong>
-              </div>
-              <ProgressBar current={summary.expense} target={barScale} color="red" />
-            </div>
-          </div>
-          <p className="support-note">
-            Safe-to-Spend formula: ({money(safe.spendable)} spendable − {money(safe.billsStillDue)} bills still due − {money(safe.goalSavingPlan)} goal saving plan) ÷ {safe.daysLeft} days left = <strong>{money(safe.dailySafe)}/day</strong>.
-          </p>
-        </section>
-
-        <section className="section-card card" style={{ marginBottom: 0 }}>
-          <div className="section-title">
-            <h2>Savings Goal Progress</h2>
-            <button className="text-action" type="button" onClick={() => navigate('/goals')}>View Goals</button>
-          </div>
-          {goals.length === 0 ? (
-            <EmptyState icon="🎯" title="No savings goals yet" description="Set a JPY target to track progress here." action={<button className="btn secondary compact" type="button" onClick={() => navigate('/goals')}>Add Goal</button>} />
           ) : (
-            goals.slice(0, 4).map((goal) => (
-              <div key={goal.id} className="mini-goal">
-                <div>
-                  <strong>{goal.title}</strong>
-                  <span>{money(goal.saved_amount)} / {money(goal.target_amount)} ({formatGoalProgress(goal)})</span>
-                </div>
-                <ProgressBar current={goal.saved_amount} target={goal.target_amount} color="green" />
+            home.warnings.map((w, idx) => (
+              <div key={`${w.kind}-${idx}`} className={`home-warning-item ${w.severity || 'warning'}`} role="alert">
+                <AlertTriangle size={17} />
+                <span>{w.title}</span>
               </div>
             ))
           )}
-        </section>
-      </div>
+        </div>
+      </section>
 
-      <div className="two-col-chart">
-        <section className="section-card card" style={{ marginBottom: 0 }}>
-          <div className="section-title">
-            <h2>5 Most Recent Transactions</h2>
-            <button className="text-action" type="button" onClick={() => navigate('/transactions')}>See All</button>
+      {/* 5. Goals row (Progress rings with H3 ¥0-target guard) */}
+      <section className="section-card card" style={{ marginBottom: 0 }} aria-label="Savings goals progress rings">
+        <div className="section-title">
+          <h2>Savings Goals</h2>
+          <button className="text-action" type="button" onClick={() => navigate('/goals')}>
+            View Goals
+          </button>
+        </div>
+
+        {home.goalRings.length === 0 ? (
+          <EmptyState
+            icon="🎯"
+            title="No savings goals yet"
+            description="Set a JPY target to track progress rings here."
+            action={
+              <button className="btn secondary compact" type="button" onClick={() => navigate('/goals')}>
+                Add Goal
+              </button>
+            }
+          />
+        ) : (
+          <div className="home-goals-rings-grid">
+            {home.goalRings.slice(0, 4).map((goal) => (
+              <GoalProgressRing key={goal.id} goal={goal} />
+            ))}
           </div>
-          {recentTx.length === 0 ? (
-            <EmptyState icon="💳" title="No transactions yet" description="Recorded income and expenses appear here." action={<button className="btn primary compact" type="button" onClick={() => navigate('/transactions')}>Add Transaction</button>} />
-          ) : (
-            <div className="recent-list">
-              {recentTx.map((tx) => (
-                <div key={tx.id} className="recent-row">
-                  <div className={`transaction-dot ${tx.kind}`}>{tx.kind === 'income' ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}</div>
-                  <div>
-                    <strong>{tx.note || tx.title}</strong>
-                    <small>{tx.category_name || 'Category'} · {formatDate(tx.transaction_date)}</small>
-                  </div>
-                  <div className="recent-amount"><Amount amount={tx.amount} type={tx.kind} /></div>
+        )}
+      </section>
+
+      {/* 6. Recent 5 transactions WITH TITLES shown */}
+      <section className="section-card card" style={{ marginBottom: 0 }} aria-label="Recent transactions">
+        <div className="section-title">
+          <h2>Recent Transactions</h2>
+          <button className="text-action" type="button" onClick={() => navigate('/transactions')}>
+            See All
+          </button>
+        </div>
+
+        {home.recentTransactions.length === 0 ? (
+          <EmptyState
+            icon="💳"
+            title="No transactions yet"
+            description="Recorded income and expenses appear here with their titles."
+            action={
+              <button className="btn primary compact" type="button" onClick={() => navigate('/transactions')}>
+                Add Transaction
+              </button>
+            }
+          />
+        ) : (
+          <div className="recent-list">
+            {home.recentTransactions.map((tx) => (
+              <div key={tx.id} className="recent-row">
+                <div className={`transaction-dot ${tx.kind}`}>
+                  {tx.kind === 'income' ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
                 </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="section-card card" style={{ marginBottom: 0 }}>
-          <div className="section-title">
-            <h2>Upcoming Bills (Next 7 Days)</h2>
-            <button className="text-action" type="button" onClick={() => navigate('/bills')}>Manage Bills</button>
+                <div>
+                  <strong>{tx.displayTitle}</strong>
+                  <small>
+                    {tx.categoryName} · {formatDate(tx.transaction_date)}
+                  </small>
+                </div>
+                <div className="recent-amount">
+                  <Amount amount={tx.amount} type={tx.kind} />
+                </div>
+              </div>
+            ))}
           </div>
-          {overdueBillsCount > 0 && (
-            <p className="negative small" style={{ marginTop: 0, fontWeight: 700 }}>
-              ⚠️ You also have {overdueBillsCount} overdue {overdueBillsCount === 1 ? 'bill' : 'bills'}.
-            </p>
-          )}
-          {upcoming7dBills.length === 0 ? (
-            <EmptyState icon="🧾" title="No bills due in the next 7 days" description="Schedule recurring bills to see upcoming due alerts." action={<button className="btn secondary compact" type="button" onClick={() => navigate('/bills')}>Go to Bills</button>} />
-          ) : (
+        )}
+      </section>
+
+      {/* 7. LA-BO one-line alert card + quick-ask box */}
+      <section className="section-card card" style={{ marginBottom: 0 }} aria-label="ProMoney LA-BO alert and quick ask">
+        <div className="home-labo-bar">
+          <div className="home-labo-alert-line">
+            <Bot size={20} color="var(--green)" style={{ flexShrink: 0 }} />
             <div>
-              {upcoming7dBills.map((bill) => {
-                const diff = daysBetweenISO(today, bill.due_date);
-                return (
-                  <div key={bill.id} className="bill-row">
-                    <div className="bill-icon"><ReceiptText size={17} /></div>
-                    <div>
-                      <strong>{bill.name}</strong>
-                      <p className="muted">{bill.category} · Due {formatDate(bill.due_date)}</p>
-                    </div>
-                    <div className="bill-due">
-                      <strong>{money(bill.amount)}</strong>
-                      <span>{diff === 0 ? 'Due today' : `In ${diff}d`}</span>
-                    </div>
-                  </div>
-                );
-              })}
+              <strong>ProMoney LA-BO:</strong> <span>{home.laboAlertText}</span>
             </div>
-          )}
-        </section>
-      </div>
-    </>
+          </div>
+
+          <form className="labo-input-row" onSubmit={handleQuickAsk}>
+            <input
+              type="text"
+              value={quickQuestion}
+              onChange={(e) => setQuickQuestion(e.target.value)}
+              placeholder="Quick ask LA-BO… e.g. How much can I safely spend per day?"
+              maxLength={500}
+              aria-label="Quick ask ProMoney LA-BO"
+            />
+            <button type="submit" className="btn primary compact">
+              <Send size={14} /> Ask LA-BO
+            </button>
+          </form>
+        </div>
+      </section>
+    </div>
   );
 }

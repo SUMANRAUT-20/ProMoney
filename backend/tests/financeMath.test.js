@@ -18,6 +18,7 @@ import {
   getMonthlySummary,
   getSafeToSpend,
   buildQuickAddTransaction,
+  buildHomeSummary,
   normalizeSalaryAmount,
   reconcilePeriodNetWorth,
   resolvePaymentAccountId,
@@ -423,4 +424,49 @@ test('J2 & M1: Account view filters linked records only, and salary gross/deduct
   const bankOnly = getAccountTransactions('bank', records);
   assert.deepEqual(bankOnly.map((r) => r.id), [1, 3]);
   assert.equal(getMonthlySavingPace(records), 235000 - 1200);
+});
+
+test('Phase 5 Home summary: pins overdue bills, enforces ¥0-target goal guard, and includes recent tx titles', () => {
+  const home = buildHomeSummary({
+    accounts: [
+      { id: 'bank', name: 'Main Bank', kind: 'bank', manual_balance: 180000 },
+      { id: 'card', name: 'Credit Card', kind: 'credit_card', manual_balance: 10000 },
+    ],
+    transactions: [
+      { id: 't1', kind: 'income', amount: 120000, account_id: 'bank', category_name: 'Salary', transaction_date: '2026-11-05', note: 'Monthly salary' },
+      { id: 't2', kind: 'expense', amount: 45000, account_id: 'bank', category_name: 'Housing', transaction_date: '2026-11-06', title: 'November rent' },
+    ],
+    budgets: [],
+    bills: [
+      { id: 'b-upcoming', name: 'Fiber Internet', amount: 4200, due_date: '2026-11-25', category: 'Utilities', is_paid: false },
+      { id: 'b-overdue', name: 'Gas Bill', amount: 3500, due_date: '2026-11-10', category: 'Utilities', is_paid: false },
+    ],
+    goals: [
+      { id: 'g-zero', title: 'Unset Target Goal', target_amount: 0, saved_amount: 0, monthly_plan: 0 },
+      { id: 'g-laptop', title: 'Laptop', target_amount: 100000, saved_amount: 40000, monthly_plan: 10000 },
+    ],
+    categories: [],
+    preferences: {},
+    today: '2026-11-16',
+    month: '2026-11',
+  });
+
+  // 1. Money you hold: spendable = 180000 + 120000 - 45000 = 255000; owed = 10000; realMoney = 245000
+  assert.equal(home.moneyYouHold.spendable, 255000);
+  assert.equal(home.moneyYouHold.toPayBack, 10000);
+  assert.equal(home.moneyYouHold.realMoney, 245000);
+
+  // 2. Bills to pay: overdue pinned first, month total = 3500 + 4200 = 7700
+  assert.equal(home.billsToPay.items[0].id, 'b-overdue');
+  assert.equal(home.billsToPay.items[0].isOverdue, true);
+  assert.equal(home.billsToPay.totalStillDueThisMonth, 7700);
+
+  // 3. Goal rings: ¥0 target shows "Set a target", never a %
+  assert.equal(home.goalRings[0].isZeroTarget, true);
+  assert.equal(home.goalRings[0].ringLabel, 'Set a target');
+  assert.equal(home.goalRings[1].ringLabel, '40%');
+
+  // 4. Recent transactions include displayTitle
+  assert.equal(home.recentTransactions[0].displayTitle, 'November rent');
+  assert.equal(home.recentTransactions[1].displayTitle, 'Monthly salary');
 });

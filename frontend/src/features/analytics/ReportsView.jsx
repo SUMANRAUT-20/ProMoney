@@ -69,7 +69,7 @@ export default function ReportsView() {
   return (
     <>
       <PageHeading
-        title="Reports & Analytics"
+        title="Reports & Insights"
         subtitle="Monthly category spending breakdown and cumulative JPY savings growth."
         action={
           <label className="inline-editor" style={{ marginTop: 0, alignItems: 'center' }}>

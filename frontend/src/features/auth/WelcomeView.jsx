@@ -9,7 +9,7 @@ export default function WelcomeView() {
 
   function handleDemoLogin() {
     loginDemo();
-    navigate('/dashboard', { replace: true });
+    navigate('/home', { replace: true });
   }
 
   return (

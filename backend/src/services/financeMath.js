@@ -917,3 +917,165 @@ export function getMonthlySavingsSeries(transactions = []) {
     return { month: m, income, expense, net, cumulative };
   });
 }
+
+/**
+ * Home Screen Engine Aggregator (Phase 5 — Feature Spec "Home Screen Specification")
+ * Computes every figure, breakdown, bill countdown, warning, goal ring,
+ * and recent transaction title for the Home view so the view performs
+ * zero arithmetic of its own (Constitution A3, P1–P4, H3).
+ */
+export function buildHomeSummary({
+  accounts = [],
+  transactions = [],
+  budgets = [],
+  bills = [],
+  goals = [],
+  categories = [],
+  preferences = {},
+  today = tokyoTodayISO(),
+  month = String(today).slice(0, 7),
+}) {
+  const accountTotals = getAccountTotals(accounts, transactions, today);
+  const accountBreakdown = accounts.map((acc) => {
+    const liveBalance = getAccountBalance(acc, transactions, today);
+    const openingBalance = Number(acc?.manual_balance ?? 0);
+    return {
+      id: acc.id,
+      name: acc.name,
+      kind: acc.kind,
+      openingBalance,
+      liveBalance,
+      deltaFromTx: liveBalance - openingBalance,
+      isLiability: isLiabilityAccount(acc),
+      isSpendable: isSpendableAccount(acc),
+    };
+  });
+
+  const monthlySummary = getMonthlySummary(transactions, month);
+  const monthlyBudgets = budgets
+    .filter((b) => String(b.budget_month || '').slice(0, 7) === month)
+    .map((b) => getBudgetStatus(b, transactions, today));
+
+  const safeToSpend = getSafeToSpend({
+    accounts,
+    transactions,
+    monthIncome: monthlySummary.income,
+    expectedMonthlyIncome: preferences?.expected_monthly_income ?? null,
+    bills,
+    goals,
+    buffer: preferences?.minimum_buffer ?? 0,
+    today,
+  });
+
+  const billReminderDays = Number(preferences?.bill_reminder_days ?? 3);
+  const unpaidBills = bills
+    .filter((b) => !b.is_paid)
+    .map((b) => {
+      const daysDiff = daysBetweenISO(today, b.due_date);
+      const isOverdue = b.due_date < today;
+      return {
+        ...b,
+        status: getBillStatus(b, today, billReminderDays),
+        daysDiff,
+        isOverdue,
+        dueLabel: isOverdue
+          ? `${Math.abs(daysDiff)}d overdue`
+          : daysDiff === 0
+            ? 'Due today'
+            : `Due in ${daysDiff}d`,
+      };
+    })
+    .sort((a, b) => {
+      if (a.isOverdue !== b.isOverdue) return a.isOverdue ? -1 : 1;
+      return String(a.due_date).localeCompare(String(b.due_date));
+    });
+
+  const warnings = getEngineAlerts({
+    budgets,
+    transactions,
+    bills,
+    goals,
+    safeToSpend,
+    settings: preferences,
+    today,
+  });
+
+  const monthlyPace = getMonthlySavingPace(transactions);
+  const goalRings = goals.map((g) => {
+    const prog = calculateGoalProgress({
+      target_amount: Math.max(0, Math.round(Number(g.target_amount || 0))),
+      saved_amount: Math.max(0, Math.round(Number(g.saved_amount || 0))),
+      monthly_plan: Math.max(0, Math.round(Number(g.monthly_plan || 0))),
+    });
+    const forecast = getGoalForecast(g, monthlyPace, today);
+    const isZeroTarget = prog.progress_percent === null;
+    return {
+      ...g,
+      progress_percent: prog.progress_percent,
+      bar_percent: prog.bar_percent,
+      remaining_amount: prog.remaining_amount,
+      completed: prog.completed,
+      isZeroTarget,
+      ringLabel: isZeroTarget ? 'Set a target' : `${prog.progress_percent}%`,
+      forecast,
+    };
+  });
+
+  const recentTransactions = [...transactions]
+    .sort((a, b) => {
+      const cmp = String(b.transaction_date || '').localeCompare(String(a.transaction_date || ''));
+      if (cmp !== 0) return cmp;
+      return String(b.id || '').localeCompare(String(a.id || ''));
+    })
+    .slice(0, 5)
+    .map((tx) => {
+      const cat = categories.find((c) => String(c.id) === String(tx.category_id));
+      const categoryName = cat?.name || tx.category_name || 'Category';
+      const displayTitle = String(tx.title || tx.note || categoryName || 'Transaction').trim();
+      return {
+        ...tx,
+        displayTitle,
+        categoryName,
+      };
+    });
+
+  const health = getHealthScore({
+    monthIncome: monthlySummary.income,
+    monthExpense: monthlySummary.expense,
+    monthlyBudgets,
+    bills,
+    accounts,
+    transactions,
+    today,
+  });
+
+  const topWarning = warnings[0] || null;
+  const laboAlertText = topWarning
+    ? topWarning.title
+    : `You are on track this month — safe to spend ¥${safeToSpend.dailySafe.toLocaleString('ja-JP')}/day.`;
+
+  return {
+    today,
+    month,
+    moneyYouHold: {
+      spendable: accountTotals.spendable,
+      realMoney: accountTotals.net,
+      toPayBack: accountTotals.owed,
+      totalAssets: accountTotals.held,
+      accountBreakdown,
+    },
+    safeToSpend,
+    billsToPay: {
+      items: unpaidBills,
+      totalStillDueThisMonth: safeToSpend.billsStillDue,
+      overdueCount: unpaidBills.filter((b) => b.isOverdue).length,
+    },
+    warnings,
+    goalRings,
+    recentTransactions,
+    monthlySummary,
+    monthlyBudgets,
+    health,
+    laboAlertText,
+  };
+}

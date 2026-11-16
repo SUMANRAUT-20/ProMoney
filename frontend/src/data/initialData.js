@@ -52,19 +52,19 @@ export function createDemoData(now = new Date()) {
   ];
 
   const transactions = [
-    { id: "demo-tx-1", kind: "income", amount: 115000, category_id: "part-time-salary", category_name: "Part-time Salary", account_id: "demo-acc-bank", transaction_date: padDay(m2, 25), note: "Sample konbini part-time pay" },
-    { id: "demo-tx-2", kind: "expense", amount: 48000, category_id: "housing", category_name: "Housing", account_id: "demo-acc-bank", transaction_date: padDay(m2, 27), note: "Sample student apartment rent" },
-    { id: "demo-tx-3", kind: "expense", amount: 22000, category_id: "groceries", category_name: "Groceries", account_id: "demo-acc-cash", transaction_date: padDay(m2, 28), note: "Sample supermarket groceries" },
-    { id: "demo-tx-4", kind: "expense", amount: 6500, category_id: "transportation", category_name: "Transportation", account_id: "demo-acc-cash", transaction_date: padDay(m2, 28), note: "Sample commuter train pass" },
-    { id: "demo-tx-5", kind: "income", amount: 122000, category_id: "part-time-salary", category_name: "Part-time Salary", account_id: "demo-acc-bank", transaction_date: padDay(m1, 25), note: "Sample cafe part-time pay" },
-    { id: "demo-tx-6", kind: "expense", amount: 48000, category_id: "housing", category_name: "Housing", account_id: "demo-acc-bank", transaction_date: padDay(m1, 26), note: "Sample student apartment rent" },
-    { id: "demo-tx-7", kind: "expense", amount: 24500, category_id: "groceries", category_name: "Groceries", account_id: "demo-acc-cash", transaction_date: padDay(m1, 27), note: "Sample monthly groceries" },
-    { id: "demo-tx-8", kind: "expense", amount: 5800, category_id: "transportation", category_name: "Transportation", account_id: "demo-acc-cash", transaction_date: padDay(m1, 28), note: "Sample train IC recharge" },
-    { id: "demo-tx-9", kind: "income", amount: 128000, category_id: "part-time-salary", category_name: "Part-time Salary", account_id: "demo-acc-bank", transaction_date: safeDay(1), note: "Sample part-time salary" },
-    { id: "demo-tx-10", kind: "expense", amount: 48000, category_id: "housing", category_name: "Housing", account_id: "demo-acc-bank", transaction_date: safeDay(2), note: "Sample student apartment rent" },
-    { id: "demo-tx-11", kind: "expense", amount: 8400, category_id: "groceries", category_name: "Groceries", account_id: "demo-acc-cash", transaction_date: safeDay(3), note: "Sample supermarket food" },
-    { id: "demo-tx-12", kind: "expense", amount: 1850, category_id: "food-dining", category_name: "Food & Dining", account_id: "demo-acc-cash", transaction_date: safeDay(4), note: "Sample campus cafeteria lunch" },
-    { id: "demo-tx-13", kind: "expense", amount: 3200, category_id: "transportation", category_name: "Transportation", account_id: "demo-acc-cash", transaction_date: safeDay(5), note: "Sample train IC top-up" },
+    { id: "demo-tx-1", kind: "income", amount: 115000, category_id: "part-time-salary", category_name: "Part-time Salary", account_id: "demo-acc-bank", transaction_date: padDay(m2, 25), title: "Sample konbini part-time pay", note: "Sample konbini part-time pay" },
+    { id: "demo-tx-2", kind: "expense", amount: 48000, category_id: "housing", category_name: "Housing", account_id: "demo-acc-bank", transaction_date: padDay(m2, 27), title: "Sample student apartment rent", note: "Sample student apartment rent" },
+    { id: "demo-tx-3", kind: "expense", amount: 22000, category_id: "groceries", category_name: "Groceries", account_id: "demo-acc-cash", transaction_date: padDay(m2, 28), title: "Sample supermarket groceries", note: "Sample supermarket groceries" },
+    { id: "demo-tx-4", kind: "expense", amount: 6500, category_id: "transportation", category_name: "Transportation", account_id: "demo-acc-cash", transaction_date: padDay(m2, 28), title: "Sample commuter train pass", note: "Sample commuter train pass" },
+    { id: "demo-tx-5", kind: "income", amount: 122000, category_id: "part-time-salary", category_name: "Part-time Salary", account_id: "demo-acc-bank", transaction_date: padDay(m1, 25), title: "Sample cafe part-time pay", note: "Sample cafe part-time pay" },
+    { id: "demo-tx-6", kind: "expense", amount: 48000, category_id: "housing", category_name: "Housing", account_id: "demo-acc-bank", transaction_date: padDay(m1, 26), title: "Sample student apartment rent", note: "Sample student apartment rent" },
+    { id: "demo-tx-7", kind: "expense", amount: 24500, category_id: "groceries", category_name: "Groceries", account_id: "demo-acc-cash", transaction_date: padDay(m1, 27), title: "Sample monthly groceries", note: "Sample monthly groceries" },
+    { id: "demo-tx-8", kind: "expense", amount: 5800, category_id: "transportation", category_name: "Transportation", account_id: "demo-acc-cash", transaction_date: padDay(m1, 28), title: "Sample train IC recharge", note: "Sample train IC recharge" },
+    { id: "demo-tx-9", kind: "income", amount: 128000, category_id: "part-time-salary", category_name: "Part-time Salary", account_id: "demo-acc-bank", transaction_date: safeDay(1), title: "Sample part-time salary", note: "Sample part-time salary" },
+    { id: "demo-tx-10", kind: "expense", amount: 48000, category_id: "housing", category_name: "Housing", account_id: "demo-acc-bank", transaction_date: safeDay(2), title: "Sample student apartment rent", note: "Sample student apartment rent" },
+    { id: "demo-tx-11", kind: "expense", amount: 8400, category_id: "groceries", category_name: "Groceries", account_id: "demo-acc-cash", transaction_date: safeDay(3), title: "Sample supermarket food", note: "Sample supermarket food" },
+    { id: "demo-tx-12", kind: "expense", amount: 1850, category_id: "food-dining", category_name: "Food & Dining", account_id: "demo-acc-cash", transaction_date: safeDay(4), title: "Sample campus cafeteria lunch", note: "Sample campus cafeteria lunch" },
+    { id: "demo-tx-13", kind: "expense", amount: 3200, category_id: "transportation", category_name: "Transportation", account_id: "demo-acc-cash", transaction_date: safeDay(5), title: "Sample train IC top-up", note: "Sample train IC top-up" },
   ];
 
   const bills = [

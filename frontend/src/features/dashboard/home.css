@@ -1,0 +1,185 @@
+/* Home Screen (Layer 2) — Mobile-First Styles (Phase 5 Feature Spec) */
+
+.home-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.home-top-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: 14px;
+}
+
+.home-tap-card {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.home-tap-card:hover {
+  border-color: var(--green);
+}
+
+.home-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.home-big-amount {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.9px;
+  line-height: 1.15;
+  margin: 4px 0 10px;
+  color: var(--text);
+}
+
+.home-sublines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12.5px;
+  color: var(--muted);
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.home-sublines strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.home-proof-panel {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  font-size: 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.home-proof-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.home-bill-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+}
+
+.home-bill-item.overdue {
+  background: rgba(196, 56, 56, 0.08);
+  border-color: var(--red);
+}
+
+.home-bill-item.overdue strong,
+.home-bill-item.overdue .home-bill-due-tag {
+  color: var(--red);
+}
+
+.home-bill-due-tag {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.home-bills-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+}
+
+.home-warnings-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.home-warning-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+}
+
+.home-warning-item.danger {
+  background: rgba(196, 56, 56, 0.09);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.home-warning-item.warning {
+  background: rgba(217, 130, 43, 0.1);
+  border-color: #d9822b;
+}
+
+.home-goals-rings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 155px), 1fr));
+  gap: 12px;
+}
+
+.home-goal-ring-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 14px 10px;
+  border-radius: 12px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  gap: 6px;
+}
+
+.home-labo-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.home-labo-bar .labo-input-row input {
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12.5px;
+}
+
+.home-labo-alert-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  .home-big-amount {
+    font-size: 26px;
+  }
+}

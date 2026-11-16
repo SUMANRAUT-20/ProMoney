@@ -24,7 +24,7 @@ export default function LoginView() {
         email: String(values.get('email') || '').trim(),
         password: String(values.get('password') || ''),
       });
-      navigate(location.state?.from || '/dashboard', { replace: true });
+      navigate(location.state?.from || '/home', { replace: true });
     } catch (err) {
       setNotice(
         err.status
@@ -38,7 +38,7 @@ export default function LoginView() {
 
   function handleDemoLogin() {
     loginDemo();
-    navigate('/dashboard', { replace: true });
+    navigate('/home', { replace: true });
   }
 
   return (

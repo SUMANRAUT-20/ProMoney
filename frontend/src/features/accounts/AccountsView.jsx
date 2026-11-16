@@ -89,7 +89,7 @@ export default function AccountsView() {
   return (
     <>
       <PageHeading
-        title="Accounts"
+        title="My Accounts"
         subtitle="Manage your JPY bank accounts, cash wallets, IC cards, and credit balances."
         action={
           <button className="btn primary" type="button" onClick={() => openAccount()}>

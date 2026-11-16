@@ -3,18 +3,8 @@ import { useFinance } from '../../context/FinanceContext';
 import { useAuth } from '../../context/AuthContext';
 import { PageHeading } from '../../components/ui';
 import { apiClient } from '../../services/api';
+import { isLiabilityAccount } from '../../utils/financeMath';
 import './settings.css';
-
-/**
- * Settings & Preferences — fully customizable (Arpan, Settings)
- *
- * Preferences (theme, base currency, date format) and profile/security
- * are stored per user by the backend (/api/settings) and applied here:
- * theme via FinanceContext, currency + date format via FinanceContext
- * preferences (the Topbar workspace label reflects the currency).
- * Currency changes the workspace's display currency label only —
- * amounts are NOT converted (no exchange-rate source yet).
- */
 
 const CURRENCIES = [
   { code: 'JPY', label: 'Japanese Yen (JPY, ¥)' },
@@ -27,7 +17,6 @@ const CURRENCIES = [
   { code: 'CAD', label: 'Canadian Dollar (CAD, $)' },
 ];
 
-// Example labels use one fixed sample date: 6 November 2026.
 const DATE_FORMATS = [
   { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD — 2026-11-06' },
   { value: 'DD/MM/YYYY', label: 'DD/MM/YYYY — 06/11/2026' },
@@ -36,16 +25,43 @@ const DATE_FORMATS = [
 ];
 
 export default function SettingsView() {
-  const { theme, setTheme, preferences, setPreferences } = useFinance();
+  const { isDemo, accounts, theme, setTheme, preferences, setPreferences } = useFinance();
   const { user, updateUser } = useAuth();
 
   const [loadError, setLoadError] = useState('');
   const [profile, setProfile] = useState(null);
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [avatarMessage, setAvatarMessage] = useState(null);
-  const [displayName, setDisplayName] = useState('');
+  const [displayName, setDisplayName] = useState(user?.display_name || '');
   const [profileMessage, setProfileMessage] = useState(null);
   const [prefsMessage, setPrefsMessage] = useState(null);
+  const [engineMessage, setEngineMessage] = useState(null);
+
+  // Set-once engine form state (populated from preferences defaults + DB)
+  const [budgetWarningPct, setBudgetWarningPct] = useState(
+    String(preferences.budget_warning_percent ?? 20)
+  );
+  const [billReminderDays, setBillReminderDays] = useState(
+    String(preferences.bill_reminder_days ?? 3)
+  );
+  const [minimumBuffer, setMinimumBuffer] = useState(
+    String(preferences.minimum_buffer ?? 0)
+  );
+  const [paydayDay, setPaydayDay] = useState(
+    preferences.payday_day != null ? String(preferences.payday_day) : '25'
+  );
+  const [expectedIncome, setExpectedIncome] = useState(
+    preferences.expected_monthly_income != null ? String(preferences.expected_monthly_income) : ''
+  );
+  const [cardSchedules, setCardSchedules] = useState(preferences.card_schedules || {});
+  const [warningSwitches, setWarningSwitches] = useState({
+    budget: true,
+    pace: true,
+    bills: true,
+    goals: true,
+    ...(preferences.warning_switches || {}),
+  });
+
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -53,7 +69,19 @@ export default function SettingsView() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
 
+  const creditCards = accounts.filter(isLiabilityAccount);
+
   useEffect(() => {
+    if (isDemo) {
+      setProfile({
+        display_name: user?.display_name || 'Sample Demo Account',
+        email: user?.email || 'demo@promoney.local',
+        has_password: false,
+      });
+      setDisplayName(user?.display_name || 'Sample Demo Account');
+      return;
+    }
+
     let cancelled = false;
     apiClient
       .getSettings()
@@ -64,7 +92,23 @@ export default function SettingsView() {
         setAvatarUrl(loadedProfile.avatar_data_url || null);
         setDisplayName(loadedProfile.display_name || '');
         if (loadedPrefs.theme && loadedPrefs.theme !== theme) setTheme(loadedPrefs.theme);
-        setPreferences({ currency: loadedPrefs.currency, date_format: loadedPrefs.date_format });
+        setPreferences(loadedPrefs);
+
+        setBudgetWarningPct(String(loadedPrefs.budget_warning_percent ?? 20));
+        setBillReminderDays(String(loadedPrefs.bill_reminder_days ?? 3));
+        setMinimumBuffer(String(loadedPrefs.minimum_buffer ?? 0));
+        setPaydayDay(loadedPrefs.payday_day != null ? String(loadedPrefs.payday_day) : '');
+        setExpectedIncome(
+          loadedPrefs.expected_monthly_income != null ? String(loadedPrefs.expected_monthly_income) : ''
+        );
+        setCardSchedules(loadedPrefs.card_schedules || {});
+        setWarningSwitches({
+          budget: true,
+          pace: true,
+          bills: true,
+          goals: true,
+          ...(loadedPrefs.warning_switches || {}),
+        });
       })
       .catch((err) => {
         if (!cancelled) {
@@ -78,29 +122,92 @@ export default function SettingsView() {
     return () => {
       cancelled = true;
     };
-    // Load once on mount; theme/preferences application happens in the handler.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isDemo]);
 
-  const savePreferences = async (partial) => {
-    setPrefsMessage(null);
+  const savePreferences = async (partial, targetMsgSetter = setPrefsMessage) => {
+    targetMsgSetter(null);
+    if (isDemo) {
+      if (partial.theme) setTheme(partial.theme);
+      setPreferences(partial);
+      targetMsgSetter({ kind: 'success', text: 'Preferences saved for this sample session.' });
+      return;
+    }
     try {
       const payload = await apiClient.updatePreferences(partial);
       const saved = payload.data.preferences;
       if (saved.theme) setTheme(saved.theme);
-      setPreferences({ currency: saved.currency, date_format: saved.date_format });
-      setPrefsMessage({ kind: 'success', text: 'Preferences saved.' });
+      setPreferences(saved);
+      targetMsgSetter({ kind: 'success', text: 'Settings saved to your account.' });
     } catch (err) {
-      setPrefsMessage({
+      targetMsgSetter({
         kind: 'error',
-        text: err.status ? err.message : 'Could not reach the ProMoney server. Preference not saved.',
+        text: err.status ? err.message : 'Could not reach the ProMoney server. Settings not saved.',
       });
     }
   };
 
-  // Downscales the chosen image to a 128x128 square JPEG data URL on a
-  // canvas, then saves it as the account avatar. Without a photo, the
-  // sidebar shows the initials from the display name instead.
+  const handleSaveEngineRules = async (event) => {
+    event.preventDefault();
+    const warnPct = Number(budgetWarningPct);
+    const remindDays = Number(billReminderDays);
+    const minBuf = Number(minimumBuffer || 0);
+    const pDay = paydayDay.trim() === '' ? null : Number(paydayDay);
+    const expInc = expectedIncome.trim() === '' ? null : Number(expectedIncome);
+
+    if (!Number.isInteger(warnPct) || warnPct < 1 || warnPct > 100) {
+      setEngineMessage({ kind: 'error', text: 'Budget warning threshold must be 1–100%.' });
+      return;
+    }
+    if (!Number.isInteger(remindDays) || remindDays < 0 || remindDays > 30) {
+      setEngineMessage({ kind: 'error', text: 'Bill reminder window must be 0–30 days.' });
+      return;
+    }
+    if (!Number.isSafeInteger(minBuf) || minBuf < 0) {
+      setEngineMessage({ kind: 'error', text: 'Minimum buffer must be ¥0 or a positive whole-yen amount.' });
+      return;
+    }
+    if (pDay !== null && (!Number.isInteger(pDay) || pDay < 1 || pDay > 31)) {
+      setEngineMessage({ kind: 'error', text: 'Payday must be a day of the month between 1 and 31.' });
+      return;
+    }
+    if (expInc !== null && (!Number.isSafeInteger(expInc) || expInc < 0)) {
+      setEngineMessage({ kind: 'error', text: 'Expected monthly income must be a non-negative whole-yen amount.' });
+      return;
+    }
+
+    await savePreferences(
+      {
+        budget_warning_percent: warnPct,
+        bill_reminder_days: remindDays,
+        minimum_buffer: minBuf,
+        payday_day: pDay,
+        expected_monthly_income: expInc,
+        card_schedules: cardSchedules,
+        warning_switches: warningSwitches,
+      },
+      setEngineMessage
+    );
+  };
+
+  const toggleWarningSwitch = (key) => {
+    const nextSwitches = { ...warningSwitches, [key]: !warningSwitches[key] };
+    setWarningSwitches(nextSwitches);
+    savePreferences({ warning_switches: nextSwitches }, setEngineMessage);
+  };
+
+  const updateCardSchedule = (cardId, field, value) => {
+    const num = Math.min(31, Math.max(1, Number(value) || 1));
+    setCardSchedules((prev) => ({
+      ...prev,
+      [cardId]: {
+        closing_day: prev[cardId]?.closing_day ?? 15,
+        payment_day: prev[cardId]?.payment_day ?? 27,
+        [field]: num,
+      },
+    }));
+  };
+
   const saveAvatarFile = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -124,6 +231,12 @@ export default function SettingsView() {
         .drawImage(image, (image.width - side) / 2, (image.height - side) / 2, side, side, 0, 0, size, size);
       URL.revokeObjectURL(objectUrl);
       const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      if (isDemo) {
+        setAvatarUrl(dataUrl);
+        updateUser({ avatar_data_url: dataUrl });
+        setAvatarMessage({ kind: 'success', text: 'Profile photo updated for demo session.' });
+        return;
+      }
       const payload = await apiClient.updateAvatar({ avatar_data_url: dataUrl });
       setAvatarUrl(payload.data.avatar_data_url);
       updateUser({ avatar_data_url: payload.data.avatar_data_url });
@@ -138,6 +251,11 @@ export default function SettingsView() {
 
   const removeAvatar = async () => {
     setAvatarMessage(null);
+    if (isDemo) {
+      setAvatarUrl(null);
+      updateUser({ avatar_data_url: null });
+      return;
+    }
     try {
       await apiClient.updateAvatar({ avatar_data_url: null });
       setAvatarUrl(null);
@@ -156,6 +274,11 @@ export default function SettingsView() {
     setProfileMessage(null);
     setSavingProfile(true);
     try {
+      if (isDemo) {
+        updateUser({ display_name: displayName.trim() });
+        setProfileMessage({ kind: 'success', text: 'Display name updated for demo session.' });
+        return;
+      }
       const payload = await apiClient.updateProfile({ display_name: displayName.trim() });
       updateUser({ display_name: payload.data.user.display_name });
       setProfile((prev) => (prev ? { ...prev, display_name: payload.data.user.display_name } : prev));
@@ -204,8 +327,8 @@ export default function SettingsView() {
   return (
     <>
       <PageHeading
-        title="Settings & Preferences"
-        subtitle="Customize appearance, regional formats, and your account profile and security."
+        title="Settings"
+        subtitle="Set-once Home engine rules, appearance, regional formats, and account security."
       />
 
       {loadError && (
@@ -213,6 +336,181 @@ export default function SettingsView() {
           <p className="settings-message error">{loadError}</p>
         </section>
       )}
+
+      {/* Set-once Home & Engine Settings (Phase 5 Feature Spec) */}
+      <section className="section-card card settings-card" aria-label="Home and engine set-once rules">
+        <h2>Home &amp; Engine Set-Once Rules</h2>
+        <p className="muted">
+          Set these once — the ProMoney engine remembers them in the database and sharpens your Home safe-to-spend and warning strip automatically.
+        </p>
+
+        <form onSubmit={handleSaveEngineRules}>
+          <div className="setting-row">
+            <div>
+              <strong>Budget Warning Threshold (%)</strong>
+              <div className="muted small">Warn when a category&apos;s remaining budget falls to or below this % (default 20%).</div>
+            </div>
+            <input
+              className="settings-input"
+              type="number"
+              min="1"
+              max="100"
+              step="1"
+              value={budgetWarningPct}
+              onChange={(e) => setBudgetWarningPct(e.target.value)}
+              aria-label="Budget warning threshold percent"
+            />
+          </div>
+
+          <div className="setting-row">
+            <div>
+              <strong>Bill Reminder Window (Days)</strong>
+              <div className="muted small">Warn on Home when a bill is due within N days (default 3 days).</div>
+            </div>
+            <input
+              className="settings-input"
+              type="number"
+              min="0"
+              max="30"
+              step="1"
+              value={billReminderDays}
+              onChange={(e) => setBillReminderDays(e.target.value)}
+              aria-label="Bill reminder window days"
+            />
+          </div>
+
+          <div className="setting-row">
+            <div>
+              <strong>Minimum Safety Buffer (JPY)</strong>
+              <div className="muted small">Untouchable JPY kept out of safe-to-spend (default ¥0).</div>
+            </div>
+            <input
+              className="settings-input"
+              type="number"
+              min="0"
+              step="1000"
+              value={minimumBuffer}
+              onChange={(e) => setMinimumBuffer(e.target.value)}
+              aria-label="Minimum buffer JPY"
+            />
+          </div>
+
+          <div className="setting-row">
+            <div>
+              <strong>Payday (Day of Month)</strong>
+              <div className="muted small">Day income usually arrives (1–31, e.g. 25th).</div>
+            </div>
+            <input
+              className="settings-input"
+              type="number"
+              min="1"
+              max="31"
+              step="1"
+              value={paydayDay}
+              placeholder="e.g. 25"
+              onChange={(e) => setPaydayDay(e.target.value)}
+              aria-label="Payday day of month"
+            />
+          </div>
+
+          <div className="setting-row">
+            <div>
+              <strong>Expected Monthly Income (JPY, Optional)</strong>
+              <div className="muted small">If blank, the engine uses recorded income only and says so.</div>
+            </div>
+            <input
+              className="settings-input"
+              type="number"
+              min="0"
+              step="1000"
+              value={expectedIncome}
+              placeholder="Optional — e.g. 130000"
+              onChange={(e) => setExpectedIncome(e.target.value)}
+              aria-label="Expected monthly income JPY"
+            />
+          </div>
+
+          {creditCards.length > 0 && (
+            <div className="setting-row" style={{ alignItems: 'flex-start' }}>
+              <div>
+                <strong>Credit Card Closing &amp; Payment Days</strong>
+                <div className="muted small">Powers card-bill due warnings per card.</div>
+              </div>
+              <div style={{ display: 'grid', gap: 8 }}>
+                {creditCards.map((card) => {
+                  const sched = cardSchedules[card.id] || { closing_day: 15, payment_day: 27 };
+                  return (
+                    <div key={card.id} className="settings-control" style={{ flexWrap: 'wrap' }}>
+                      <span className="small" style={{ fontWeight: 600, minWidth: 110 }}>{card.name}:</span>
+                      <label className="small">
+                        Close day{' '}
+                        <input
+                          className="settings-input"
+                          style={{ minWidth: 64, width: 64 }}
+                          type="number"
+                          min="1"
+                          max="31"
+                          value={sched.closing_day}
+                          onChange={(e) => updateCardSchedule(card.id, 'closing_day', e.target.value)}
+                        />
+                      </label>
+                      <label className="small">
+                        Pay day{' '}
+                        <input
+                          className="settings-input"
+                          style={{ minWidth: 64, width: 64 }}
+                          type="number"
+                          min="1"
+                          max="31"
+                          value={sched.payment_day}
+                          onChange={(e) => updateCardSchedule(card.id, 'payment_day', e.target.value)}
+                        />
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="setting-row">
+            <div>
+              <strong>Home Warning Switches</strong>
+              <div className="muted small">Choose which alerts appear on the Home warnings strip (all on by default).</div>
+            </div>
+            <div className="segmented" style={{ flexWrap: 'wrap' }}>
+              {[
+                ['budget', 'Budget %'],
+                ['pace', 'Pace'],
+                ['bills', 'Bills'],
+                ['goals', 'Goals'],
+              ].map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={warningSwitches[key] ? 'selected' : ''}
+                  aria-pressed={Boolean(warningSwitches[key])}
+                  onClick={() => toggleWarningSwitch(key)}
+                >
+                  {label}: {warningSwitches[key] ? 'On' : 'Off'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+            <button type="submit" className="settings-button">
+              Save Engine Rules
+            </button>
+          </div>
+        </form>
+
+        {engineMessage && (
+          <p className={`settings-message ${engineMessage.kind}`} role="status">
+            {engineMessage.text}
+          </p>
+        )}
+      </section>
 
       <section className="section-card card settings-card">
         <h2>Appearance &amp; Theme</h2>
@@ -351,7 +649,9 @@ export default function SettingsView() {
           <div className="setting-row">
             <span>Password</span>
             <span className="settings-readonly">
-              This account uses Google sign-in — there is no password to change.
+              {isDemo
+                ? 'Demo mode uses sample data only — no password is required.'
+                : 'This account uses Google sign-in — there is no password to change.'}
             </span>
           </div>
         ) : (

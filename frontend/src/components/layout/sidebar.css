@@ -1,7 +1,96 @@
-/* Sidebar profile block — layout-local styles. The profile (avatar,
-   name, email) lives here only; the header no longer shows it. Settings
-   and Log out are inside the profile menu. The .avatar circle itself
-   is styled in styles.css. */
+/* Sidebar navigation & profile block — layout-local styles (Constitution P5). */
+
+.nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nav-group-toggle {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.nav-group-toggle.group-active {
+  color: var(--green-dark);
+  font-weight: 600;
+}
+
+.nav-group-chevron {
+  margin-left: auto;
+  color: var(--muted);
+}
+
+.nav-subitems {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 14px;
+  margin-left: 14px;
+  border-left: 1.5px solid var(--border);
+}
+
+.nav-subitem {
+  font-size: 12.5px;
+  padding: 7px 10px;
+}
+
+.nav-ai-badge {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  background: var(--green);
+  color: #fff;
+  line-height: 1.2;
+}
+
+.nav-item.active .nav-ai-badge {
+  background: #fff;
+  color: var(--green-dark);
+}
+
+.sidebar-settings-link {
+  margin-bottom: 6px;
+}
+
+@media (max-width: 1150px) {
+  .side-layer:not(.show) .nav-item {
+    position: relative;
+  }
+
+  .side-layer:not(.show) .nav-item > span {
+    display: none;
+  }
+
+  .side-layer:not(.show) .nav-item > span.nav-ai-badge {
+    display: inline-flex;
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    padding: 1px 4px;
+    font-size: 8px;
+  }
+
+  .side-layer:not(.show) .nav-group-chevron {
+    display: none;
+  }
+
+  .side-layer:not(.show) .nav-subitems {
+    padding-left: 0;
+    margin-left: 0;
+    border-left: 0;
+  }
+}
 
 .sidebar-profile-wrap {
   position: relative;

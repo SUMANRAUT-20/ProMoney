@@ -1,4 +1,5 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useFinance } from '../../context/FinanceContext';
 import { QUICK_QUESTIONS, parseLaboTransaction, sendLaboQuestion } from './laboService';
 
@@ -11,11 +12,13 @@ import { QUICK_QUESTIONS, parseLaboTransaction, sendLaboQuestion } from './laboS
  */
 export function useLaboAgent() {
   const finance = useFinance();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [pendingProposal, setPendingProposal] = useState(null);
+  const initialQueryHandledRef = useRef(false);
 
   const ask = useCallback(
     async (questionText) => {
@@ -79,6 +82,15 @@ export function useLaboAgent() {
   const dismissProposal = useCallback(() => {
     setPendingProposal(null);
   }, []);
+
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q && !initialQueryHandledRef.current) {
+      initialQueryHandledRef.current = true;
+      setSearchParams({}, { replace: true });
+      ask(q);
+    }
+  }, [searchParams, setSearchParams, ask]);
 
   return {
     messages,
