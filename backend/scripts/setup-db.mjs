@@ -13,7 +13,7 @@ import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.join(here, '..', '.env') });
+dotenv.config({ path: path.resolve(here, '..', '..', '.env') });
 const schema = await readFile(path.join(here, '..', 'sql', 'schema.sql'), 'utf8');
 
 const connection = await mysql.createConnection({

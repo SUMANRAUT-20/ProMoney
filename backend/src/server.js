@@ -1,6 +1,12 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
-import 'dotenv/config';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(here, '..', '..', '.env') });
+
 import apiRouter from './routes/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { buildCorsOptions, securityHeaders } from './middleware/securityHeaders.js';

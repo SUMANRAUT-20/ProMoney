@@ -1,5 +1,10 @@
-import 'dotenv/config';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import dotenv from 'dotenv';
 import mysql from 'mysql2/promise';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(here, '..', '..', '.env') });
 
 // Cloud databases (TiDB Cloud, Aiven) require TLS: set DB_SSL=true in .env.
 // Local MySQL/MariaDB does not need it, so it stays off by default.
