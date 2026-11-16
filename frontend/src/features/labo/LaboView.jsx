@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Bot,
   BookOpen,
@@ -11,10 +10,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { PageHeading } from "../../components/ui";
-import { useFinance } from "../../context/FinanceContext";
-import { apiClient } from "../../services/api";
-import { currentMonthISO, todayISO } from "../../utils/formatters";
-import { buildFinanceSnapshot } from "./buildSnapshot";
+import { useLaboAgent } from "./useLaboAgent";
 
 const futureModules = [
   {
@@ -62,52 +58,15 @@ const futureModules = [
   },
 ];
 
-const quickQuestions = [
-  "How much did I spend this month?",
-  "What is my biggest expense category?",
-  "How much can I safely spend per day?",
-  "Am I over budget anywhere?",
-];
-
 /**
- * ProMoney Lab View
+ * ProMoney Lab View (Phase 4 Rule 4: View separated from logic)
  * Joint Owners: Arpan Khatiwada & Suman Raut (Members 4 & 5)
  *
- * Module 1 (AI Chat Assistant) is LIVE: it answers from a snapshot
- * calculated by the app's own finance math — the AI invents no numbers.
- * Modules 2–6 remain planned foundations with no fabricated content.
+ * Renders state from `useLaboAgent()` only — no fetch or API calls live
+ * inside this component.
  */
 export default function LaboView() {
-  const finance = useFinance();
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  async function ask(questionText) {
-    const question = (questionText ?? input).trim();
-    if (!question || busy) return;
-    setError("");
-    setInput("");
-    setBusy(true);
-    setMessages((prev) => [...prev, { role: "user", text: question }]);
-    try {
-      const snapshot = buildFinanceSnapshot(finance, currentMonthISO(), todayISO());
-      const payload = await apiClient.laboChat({ question, snapshot });
-      const answer = payload?.data?.answer || "I don't have that in your data yet.";
-      setMessages((prev) => [...prev, { role: "ai", text: answer }]);
-    } catch (err) {
-      if (err.status === 503) {
-        setError("AI is not switched on yet — the server needs its Groq key (GROQ_API_KEY).");
-      } else if (err.status === 401) {
-        setError("Please log in again, then ask LA-BO.");
-      } else {
-        setError("LA-BO could not answer just now. Please try again.");
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
+  const { messages, input, setInput, busy, error, quickQuestions, ask } = useLaboAgent();
 
   return (
     <>
@@ -217,7 +176,7 @@ export default function LaboView() {
         <p className="muted">
           1. <strong>Verified Data Pipeline:</strong> React calculates a
           snapshot with the app&apos;s own finance math → Express
-          (`/api/labo/chat`, login required) → Groq phrases the answer from
+          (`/api/labo/chat`, login required) → AI provider phrases the answer from
           that snapshot only.
         </p>
         <p className="muted">

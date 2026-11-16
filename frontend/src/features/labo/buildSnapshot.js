@@ -6,7 +6,7 @@ import {
   getHealthScore,
   getMonthlySummary,
   getSafeToSpend,
-} from "../../utils/financeMath";
+} from "../../utils/financeMath.js";
 
 /**
  * Builds the finance snapshot the LA-BO chat sends to the backend.

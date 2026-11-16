@@ -1,5 +1,5 @@
-// LA-BO chat tests — prompt rules, Groq call shape (fake fetch, no
-// network, no real key), and controller validation / not-configured flow.
+// LA-BO chat tests — prompt rules, Meta (primary) & Groq (fallback)
+// provider routing, Q1 number verification, and controller validation.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -8,7 +8,12 @@ import {
   buildParseMessages,
   extractProposal,
   askGroq,
-  LABO_MODEL
+  askMeta,
+  askLabo,
+  getActiveProvider,
+  verifyAnswerNumbers,
+  LABO_MODEL,
+  META_MODEL,
 } from '../src/services/laboChat.js';
 import { laboController } from '../src/controllers/laboController.js';
 
@@ -65,6 +70,44 @@ test('askGroq rejects clearly when Groq answers with an error status', async () 
     () => askGroq({ question: 'Hi', snapshot, apiKey: 'k', fetchImpl: fakeFetch }),
     (err) => err.code === 'GROQ_UPSTREAM' && err.status === 429
   );
+});
+
+test('askMeta posts to Meta Model API (Llama 4) and askLabo routes by AI_PROVIDER + enforces Q1', async () => {
+  assert.equal(getActiveProvider({}), 'meta');
+  assert.equal(getActiveProvider({ AI_PROVIDER: 'meta' }), 'meta');
+  assert.equal(getActiveProvider({ AI_PROVIDER: 'groq' }), 'groq');
+
+  let seenUrl = '';
+  let seenBody = null;
+  const fakeMetaFetch = async (url, init) => {
+    seenUrl = url;
+    seenBody = JSON.parse(init.body);
+    return {
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: 'This month you spent ¥48,500, with ¥18,000 on Groceries.' } }],
+      }),
+    };
+  };
+
+  const metaRes = await askLabo({
+    question: 'How much did I spend?',
+    snapshot,
+    env: { AI_PROVIDER: 'meta', META_API_KEY: 'meta-test-key' },
+    fetchImpl: fakeMetaFetch,
+  });
+  assert.equal(metaRes.provider, 'meta');
+  assert.equal(metaRes.model, META_MODEL);
+  assert.match(seenUrl, /api\.meta\.ai\/v1\/chat\/completions/);
+  assert.equal(seenBody.model, META_MODEL);
+  assert.match(metaRes.answer, /¥48,500/);
+
+  // Constitution Q1: fabricated JPY amount not in snapshot is refused
+  const checkOk = verifyAnswerNumbers('You spent ¥48,500 out of ¥85,000 income.', snapshot);
+  assert.equal(checkOk.valid, true);
+  const checkBad = verifyAnswerNumbers('You spent ¥999,999 this month.', snapshot);
+  assert.equal(checkBad.valid, false);
+  assert.deepEqual(checkBad.mismatchedNumbers, [999999]);
 });
 
 test('laboController validates input before calling the AI', async () => {
@@ -124,26 +167,32 @@ test('laboController.parse validates input and the missing-key case', async () =
   await laboController.parse({ body: { text: '', categories: parseCategories } }, res1, next);
   assert.equal(res1.statusCode, 400);
 
-  const saved = process.env.GROQ_API_KEY;
+  const savedGroq = process.env.GROQ_API_KEY;
+  const savedMeta = process.env.META_API_KEY;
   delete process.env.GROQ_API_KEY;
+  delete process.env.META_API_KEY;
   try {
     const res2 = mockRes();
     await laboController.parse({ body: { text: 'khana 1200', categories: parseCategories } }, res2, next);
     assert.equal(res2.statusCode, 503);
   } finally {
-    if (saved !== undefined) process.env.GROQ_API_KEY = saved;
+    if (savedGroq !== undefined) process.env.GROQ_API_KEY = savedGroq;
+    if (savedMeta !== undefined) process.env.META_API_KEY = savedMeta;
   }
 });
 
-test('laboController returns 503 when GROQ_API_KEY is missing', async () => {
-  const saved = process.env.GROQ_API_KEY;
+test('laboController returns 503 when the active provider API key is missing', async () => {
+  const savedGroq = process.env.GROQ_API_KEY;
+  const savedMeta = process.env.META_API_KEY;
   delete process.env.GROQ_API_KEY;
+  delete process.env.META_API_KEY;
   try {
     const res = mockRes();
     await laboController.chat({ body: { question: 'How much did I spend?', snapshot } }, res, next);
     assert.equal(res.statusCode, 503);
     assert.match(res.body.error, /not configured/);
   } finally {
-    if (saved !== undefined) process.env.GROQ_API_KEY = saved;
+    if (savedGroq !== undefined) process.env.GROQ_API_KEY = savedGroq;
+    if (savedMeta !== undefined) process.env.META_API_KEY = savedMeta;
   }
 });
