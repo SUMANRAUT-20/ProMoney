@@ -1,10 +1,10 @@
 /**
- * ProMoney LA-BO Controller (Phase 4: Unified AI Provider Layer).
+ * ProMoney LA-BO Controller (Phase 4 & Phase 6 Branch 1: Multi-Add Parse).
  * Joint Owners: Arpan Khatiwada & Suman Raut
  *
  * Uses `askLabo` and `parseTransactionWithLabo`, which route to Meta
- * Model API (Llama 4, primary) or Groq (fallback) based on `AI_PROVIDER`
- * in `backend/.env`.
+ * Model API (`muse-ember-1.0`, primary) or Groq (`openai/gpt-oss-120b`,
+ * fallback) based on `AI_PROVIDER` in root `.env`.
  */
 import { askLabo, parseTransactionWithLabo } from '../services/laboChat.js';
 
@@ -37,9 +37,10 @@ export const laboController = {
     }
   },
 
-  // POST /api/labo/parse — reads an "add transaction" sentence in any
-  // language and returns a PROPOSAL. Nothing is saved here: the client
-  // shows the proposal and only saves after the user confirms (Constitution K2).
+  // POST /api/labo/parse — reads a single or multi-item "add transaction"
+  // sentence in any language and returns PROPOSALS (`proposal` + `proposals`).
+  // Nothing is saved here: the client shows the confirm card and only saves
+  // after the user confirms (Constitution K2, Feature Spec F5).
   async parse(req, res, next) {
     try {
       const { text, categories, today } = req.body ?? {};
@@ -54,12 +55,12 @@ export const laboController = {
         .slice(0, 40)
         .map((c) => ({ id: c.id, name: c.name.slice(0, 60), kind: c.kind }));
       const todayISO = /^\d{4}-\d{2}-\d{2}$/.test(String(today)) ? String(today) : new Date().toISOString().slice(0, 10);
-      const { proposal, provider, model } = await parseTransactionWithLabo({
+      const { proposal, proposals, provider, model } = await parseTransactionWithLabo({
         text: text.trim(),
         categories: cleanCategories,
         today: todayISO,
       });
-      return res.json({ status: 'ok', data: { proposal, provider, model } });
+      return res.json({ status: 'ok', data: { proposal, proposals, provider, model } });
     } catch (err) {
       if (err.code === 'GROQ_UPSTREAM' || err.code === 'META_UPSTREAM') {
         return res.status(502).json({ error: 'The AI service is busy right now. Please try again.', status: 502 });

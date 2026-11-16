@@ -7,6 +7,8 @@ import {
   buildLaboMessages,
   buildParseMessages,
   extractProposal,
+  extractProposals,
+  parseTransactionWithLabo,
   askGroq,
   askMeta,
   askLabo,
@@ -16,6 +18,8 @@ import {
   META_MODEL,
 } from '../src/services/laboChat.js';
 import { laboController } from '../src/controllers/laboController.js';
+import { transactionsController } from '../src/controllers/transactionsController.js';
+import { UserModel, hashPassword } from '../src/models/userModel.js';
 
 const snapshot = {
   month: '2026-11',
@@ -38,6 +42,7 @@ test('buildLaboMessages embeds the snapshot numbers and the no-inventing rule', 
   const messages = buildLaboMessages({ question: 'How much did I spend?', snapshot });
   assert.equal(messages.length, 2);
   assert.match(messages[0].content, /Never invent/);
+  assert.match(messages[0].content, /warm, casual, friend-like/);
   assert.match(messages[0].content, /data_status/);
   assert.match(messages[0].content, /Transactions page/);
   assert.match(messages[0].content, /Roman Nepali/);
@@ -195,4 +200,106 @@ test('laboController returns 503 when the active provider API key is missing', a
     if (savedGroq !== undefined) process.env.GROQ_API_KEY = savedGroq;
     if (savedMeta !== undefined) process.env.META_API_KEY = savedMeta;
   }
+});
+
+test('Phase 6 F5: extractProposals and parseTransactionWithLabo return a multi-add list from one message', async () => {
+  const multiRaw = JSON.stringify({
+    action: 'add',
+    items: [
+      { kind: 'expense', amount: 500, category_name: 'Groceries', transaction_date: '2026-11-16', note: 'lunch' },
+      { kind: 'expense', amount: 1200, category_name: 'Transportation', transaction_date: '2026-11-16', note: 'train' },
+      { kind: 'expense', amount: -10, category_name: 'Groceries', transaction_date: '2026-11-16', note: 'bad' },
+    ],
+  });
+  const list = extractProposals(multiRaw, parseCategories, '2026-11-16');
+  assert.equal(list.length, 2);
+  assert.equal(list[0].amount, 500);
+  assert.equal(list[0].category_id, 'groceries');
+  assert.equal(list[1].amount, 1200);
+  assert.equal(list[1].category_id, 'transportation');
+
+  const fakeMultiFetch = async () => ({
+    ok: true,
+    json: async () => ({ choices: [{ message: { content: multiRaw } }] }),
+  });
+  const parsed = await parseTransactionWithLabo({
+    text: 'spent 500 on lunch and 1200 on train',
+    categories: parseCategories,
+    today: '2026-11-16',
+    env: { AI_PROVIDER: 'meta', META_API_KEY: 'test-meta-key' },
+    fetchImpl: fakeMultiFetch,
+  });
+  assert.equal(parsed.proposals.length, 2);
+  assert.equal(parsed.proposal.amount, 500);
+});
+
+test('Phase 6 F6: LA-BO multi-add save + Undo path deletes only the saved transaction IDs with ownership check', async () => {
+  const run = Date.now();
+  const user = await UserModel.create({
+    displayName: 'Undo User',
+    email: `undo+${run}@example.com`,
+    passwordHash: hashPassword('ValidPass10'),
+  });
+  const otherUser = await UserModel.create({
+    displayName: 'Other User',
+    email: `undo-other+${run}@example.com`,
+    passwordHash: hashPassword('ValidPass10'),
+  });
+
+  // Save 2 confirmed proposals from LA-BO
+  const res1 = mockRes();
+  await transactionsController.create(
+    {
+      user: { id: user.id },
+      body: {
+        kind: 'expense',
+        amount: 500,
+        category_name: 'Food & Dining',
+        transaction_date: '2026-11-16',
+        note: 'lunch',
+      },
+    },
+    res1,
+    next
+  );
+  assert.equal(res1.statusCode, 201);
+
+  const res2 = mockRes();
+  await transactionsController.create(
+    {
+      user: { id: user.id },
+      body: {
+        kind: 'expense',
+        amount: 1200,
+        category_name: 'Transportation',
+        transaction_date: '2026-11-16',
+        note: 'train',
+      },
+    },
+    res2,
+    next
+  );
+  assert.equal(res2.statusCode, 201);
+
+  const savedIds = [res1.body.data.id, res2.body.data.id];
+
+  // Other user cannot undo/delete user's saved transactions
+  const badUndo = mockRes();
+  await transactionsController.remove(
+    { user: { id: otherUser.id }, params: { id: savedIds[0] } },
+    badUndo,
+    next
+  );
+  assert.equal(badUndo.statusCode, 404);
+
+  // User clicks Undo -> deletes exact savedIds
+  for (const id of savedIds) {
+    const undoRes = mockRes();
+    await transactionsController.remove({ user: { id: user.id }, params: { id } }, undoRes, next);
+    assert.equal(undoRes.statusCode, 200);
+  }
+
+  const listAfterUndo = mockRes();
+  await transactionsController.list({ user: { id: user.id } }, listAfterUndo, next);
+  assert.deepEqual(listAfterUndo.body.data, []);
 });
