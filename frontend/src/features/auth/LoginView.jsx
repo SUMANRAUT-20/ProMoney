@@ -36,9 +36,21 @@ export default function LoginView() {
     }
   }
 
-  function handleDemoLogin() {
-    loginDemo();
-    navigate('/home', { replace: true });
+  async function handleDemoLogin() {
+    setNotice('');
+    setIsSubmitting(true);
+    try {
+      await loginDemo();
+      navigate('/home', { replace: true });
+    } catch (err) {
+      setNotice(
+        err.status
+          ? err.message
+          : 'Could not reach the ProMoney server. Check that the backend is running, then try again.'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (

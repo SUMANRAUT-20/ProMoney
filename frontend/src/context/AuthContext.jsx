@@ -2,36 +2,36 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { apiClient } from '../services/api';
 
 /**
- * Auth State Provider — Phase 3 Security Hardening
+ * Auth State Provider — Phase 3 Security Hardening & Real Demo Account
  *
- * - Real session tokens live in the `pm_session` httpOnly cookie only;
- *   the frontend NEVER stores a JWT token in localStorage.
- * - Any legacy `pm_auth_token` key in localStorage is purged on startup.
- * - Demo mode uses a non-secret boolean flag (`pm_demo_mode`) to display
- *   the "Sample data" workspace (Constitution O1/O2).
+ * - Real session tokens (including for the Demo Account) live in the
+ *   `pm_session` httpOnly cookie only; the frontend NEVER stores a JWT
+ *   token in localStorage.
+ * - Any legacy `pm_auth_token` or `pm_demo_mode` key in localStorage is
+ *   purged on startup.
+ * - `loginDemo()` performs a real `/api/auth/login` call with the demo
+ *   credentials from the root `.env` (`DEMO_EMAIL` / `DEMO_PASSWORD`).
  */
 
 const LEGACY_TOKEN_KEY = 'pm_auth_token';
+const LEGACY_DEMO_MODE_KEY = 'pm_demo_mode';
 const USER_KEY = 'pm_auth_user';
-const DEMO_MODE_KEY = 'pm_demo_mode';
-
-export const DEMO_USER = {
-  id: 'demo',
-  display_name: 'Sample Demo Account',
-  email: 'demo@promoney.local',
-  is_demo: true,
-};
 
 const AuthContext = createContext(null);
 
 function loadStoredUser() {
   try {
     localStorage.removeItem(LEGACY_TOKEN_KEY);
-    if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
-      return DEMO_USER;
-    }
+    localStorage.removeItem(LEGACY_DEMO_MODE_KEY);
     const raw = localStorage.getItem(USER_KEY);
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    // Purge legacy fake local demo user object (`id === 'demo'`)
+    if (parsed?.id === 'demo') {
+      localStorage.removeItem(USER_KEY);
+      return null;
+    }
+    return parsed;
   } catch {
     return null;
   }
@@ -39,20 +39,14 @@ function loadStoredUser() {
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(loadStoredUser);
-  const [isCheckingSession, setIsCheckingSession] = useState(() => {
-    try {
-      return localStorage.getItem(DEMO_MODE_KEY) !== 'true';
-    } catch {
-      return true;
-    }
-  });
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
   const sessionCheckStarted = useRef(false);
 
   const clearSession = useCallback(() => {
     try {
       localStorage.removeItem(LEGACY_TOKEN_KEY);
+      localStorage.removeItem(LEGACY_DEMO_MODE_KEY);
       localStorage.removeItem(USER_KEY);
-      localStorage.removeItem(DEMO_MODE_KEY);
     } catch {
       // Storage may be unavailable; state is still cleared.
     }
@@ -62,7 +56,7 @@ export function AuthProvider({ children }) {
   const saveSession = useCallback(({ user: nextUser }) => {
     try {
       localStorage.removeItem(LEGACY_TOKEN_KEY);
-      localStorage.removeItem(DEMO_MODE_KEY);
+      localStorage.removeItem(LEGACY_DEMO_MODE_KEY);
       localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
     } catch {
       // If storage fails the in-memory session still works for this tab.
@@ -75,11 +69,7 @@ export function AuthProvider({ children }) {
     sessionCheckStarted.current = true;
     try {
       localStorage.removeItem(LEGACY_TOKEN_KEY);
-      if (localStorage.getItem(DEMO_MODE_KEY) === 'true') {
-        setUser(DEMO_USER);
-        setIsCheckingSession(false);
-        return;
-      }
+      localStorage.removeItem(LEGACY_DEMO_MODE_KEY);
     } catch {
       // Ignore storage errors
     }
@@ -127,17 +117,13 @@ export function AuthProvider({ children }) {
     [saveSession]
   );
 
-  const loginDemo = useCallback(() => {
-    try {
-      localStorage.removeItem(LEGACY_TOKEN_KEY);
-      localStorage.setItem(DEMO_MODE_KEY, 'true');
-      localStorage.setItem(USER_KEY, JSON.stringify(DEMO_USER));
-    } catch {
-      // Ignore storage errors
-    }
-    setUser(DEMO_USER);
-    return DEMO_USER;
-  }, []);
+  const loginDemo = useCallback(async () => {
+    const email = String(import.meta.env.DEMO_EMAIL || 'demo@promoney.local').trim();
+    const password = String(import.meta.env.DEMO_PASSWORD || '');
+    const payload = await apiClient.login({ email, password });
+    saveSession(payload.data);
+    return payload.data.user;
+  }, [saveSession]);
 
   const logout = useCallback(async () => {
     try {

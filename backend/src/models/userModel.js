@@ -85,6 +85,16 @@ export function setCachedTokenVersion(userId, version) {
   tokenVersionCache.set(Number(userId), Number(version ?? 0));
 }
 
+export function getDemoEmail() {
+  return String(process.env.DEMO_EMAIL || 'demo@promoney.local').trim().toLowerCase();
+}
+
+export function isDemoUser(userOrRow) {
+  if (!userOrRow) return false;
+  const email = typeof userOrRow === 'string' ? userOrRow : userOrRow.email;
+  return String(email || '').trim().toLowerCase() === getDemoEmail();
+}
+
 export function toPublicUser(row) {
   if (!row) return null;
   if (row.token_version !== undefined) {
@@ -94,6 +104,7 @@ export function toPublicUser(row) {
     id: Number(row.id),
     display_name: row.display_name,
     email: row.email,
+    ...(isDemoUser(row) ? { is_demo: true } : {}),
   };
 }
 

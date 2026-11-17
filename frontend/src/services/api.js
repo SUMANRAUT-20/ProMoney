@@ -56,6 +56,10 @@ export const apiClient = {
     return request('/auth/logout-all', { method: 'POST' });
   },
 
+  async resetDemoData() {
+    return request('/auth/demo-reset', { method: 'POST' });
+  },
+
   async getMe() {
     return request('/auth/me', { method: 'GET' });
   },

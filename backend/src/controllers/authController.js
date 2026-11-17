@@ -4,6 +4,8 @@ import {
   verifyPassword,
   toPublicUser,
   validatePasswordPolicy,
+  getDemoEmail,
+  isDemoUser,
 } from '../models/userModel.js';
 import {
   clearSessionCookie,
@@ -13,6 +15,7 @@ import {
   verifyToken,
 } from '../middleware/authMiddleware.js';
 import { verifyGoogleIdToken } from '../services/googleAuth.js';
+import { seedDemoAccount } from '../services/demoSeed.js';
 
 export function decideGoogleAccountAction({ byGoogleSub, byEmail }) {
   if (byGoogleSub) return 'login';
@@ -156,7 +159,12 @@ export const authController = {
         });
       }
 
-      const row = await UserModel.findByEmail(email);
+      let row = await UserModel.findByEmail(email);
+      if (!row && email === getDemoEmail() && process.env.DEMO_PASSWORD) {
+        await seedDemoAccount();
+        row = await UserModel.findByEmail(email);
+      }
+
       // Phase 3 Rule 5: Run dummy scrypt verification when the email does not
       // exist (or has no password) so response message and timing never leak
       // whether an account exists.
@@ -173,6 +181,21 @@ export const authController = {
       const token = signToken(user, { tokenVersion: row.token_version ?? 0 });
       setSessionCookie(res, token);
       return res.status(200).json({ status: 'ok', data: { token, user } });
+    } catch (err) {
+      return next(err);
+    }
+  },
+
+  async resetDemo(req, res, next) {
+    try {
+      if (!isDemoUser(req.user)) {
+        return res.status(403).json({
+          error: 'Only the Demo Account can reset sample data',
+          status: 403,
+        });
+      }
+      const seeded = await seedDemoAccount();
+      return res.status(200).json({ status: 'ok', data: { reset: true, counts: seeded.counts } });
     } catch (err) {
       return next(err);
     }

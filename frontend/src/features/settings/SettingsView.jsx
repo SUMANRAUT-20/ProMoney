@@ -72,16 +72,6 @@ export default function SettingsView() {
   const creditCards = accounts.filter(isLiabilityAccount);
 
   useEffect(() => {
-    if (isDemo) {
-      setProfile({
-        display_name: user?.display_name || 'Sample Demo Account',
-        email: user?.email || 'demo@promoney.local',
-        has_password: false,
-      });
-      setDisplayName(user?.display_name || 'Sample Demo Account');
-      return;
-    }
-
     let cancelled = false;
     apiClient
       .getSettings()
@@ -123,16 +113,10 @@ export default function SettingsView() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDemo]);
+  }, [user?.id]);
 
   const savePreferences = async (partial, targetMsgSetter = setPrefsMessage) => {
     targetMsgSetter(null);
-    if (isDemo) {
-      if (partial.theme) setTheme(partial.theme);
-      setPreferences(partial);
-      targetMsgSetter({ kind: 'success', text: 'Preferences saved for this sample session.' });
-      return;
-    }
     try {
       const payload = await apiClient.updatePreferences(partial);
       const saved = payload.data.preferences;
@@ -231,12 +215,6 @@ export default function SettingsView() {
         .drawImage(image, (image.width - side) / 2, (image.height - side) / 2, side, side, 0, 0, size, size);
       URL.revokeObjectURL(objectUrl);
       const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-      if (isDemo) {
-        setAvatarUrl(dataUrl);
-        updateUser({ avatar_data_url: dataUrl });
-        setAvatarMessage({ kind: 'success', text: 'Profile photo updated for demo session.' });
-        return;
-      }
       const payload = await apiClient.updateAvatar({ avatar_data_url: dataUrl });
       setAvatarUrl(payload.data.avatar_data_url);
       updateUser({ avatar_data_url: payload.data.avatar_data_url });
@@ -251,11 +229,6 @@ export default function SettingsView() {
 
   const removeAvatar = async () => {
     setAvatarMessage(null);
-    if (isDemo) {
-      setAvatarUrl(null);
-      updateUser({ avatar_data_url: null });
-      return;
-    }
     try {
       await apiClient.updateAvatar({ avatar_data_url: null });
       setAvatarUrl(null);
@@ -274,11 +247,6 @@ export default function SettingsView() {
     setProfileMessage(null);
     setSavingProfile(true);
     try {
-      if (isDemo) {
-        updateUser({ display_name: displayName.trim() });
-        setProfileMessage({ kind: 'success', text: 'Display name updated for demo session.' });
-        return;
-      }
       const payload = await apiClient.updateProfile({ display_name: displayName.trim() });
       updateUser({ display_name: payload.data.user.display_name });
       setProfile((prev) => (prev ? { ...prev, display_name: payload.data.user.display_name } : prev));
@@ -645,13 +613,18 @@ export default function SettingsView() {
         <h2>Security</h2>
         <p className="muted">Change the password you use to sign in with email.</p>
 
-        {profile && !profile.has_password ? (
+        {isDemo ? (
+          <div className="setting-row">
+            <span>Password &amp; Email</span>
+            <span className="settings-readonly">
+              Password and email changes are disabled for the shared Demo Account.
+            </span>
+          </div>
+        ) : profile && !profile.has_password ? (
           <div className="setting-row">
             <span>Password</span>
             <span className="settings-readonly">
-              {isDemo
-                ? 'Demo mode uses sample data only — no password is required.'
-                : 'This account uses Google sign-in — there is no password to change.'}
+              This account uses Google sign-in — there is no password to change.
             </span>
           </div>
         ) : (

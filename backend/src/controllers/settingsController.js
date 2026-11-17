@@ -4,6 +4,7 @@ import {
   verifyPassword,
   toPublicUser,
   validatePasswordPolicy,
+  isDemoUser,
 } from '../models/userModel.js';
 import { SettingsModel, validatePreferences, validateAvatar } from '../models/settingsModel.js';
 
@@ -53,6 +54,12 @@ export const settingsController = {
 
   async updateProfile(req, res, next) {
     try {
+      if (isDemoUser(req.user) && req.body?.email !== undefined) {
+        return res.status(403).json({
+          error: 'Password and email changes are disabled for the shared Demo Account',
+          status: 403,
+        });
+      }
       const displayName = typeof req.body?.display_name === 'string' ? req.body.display_name.trim() : '';
       if (!displayName) {
         return res.status(400).json({ error: 'display_name is required', status: 400 });
@@ -81,6 +88,12 @@ export const settingsController = {
 
   async changePassword(req, res, next) {
     try {
+      if (isDemoUser(req.user)) {
+        return res.status(403).json({
+          error: 'Password and email changes are disabled for the shared Demo Account',
+          status: 403,
+        });
+      }
       const { current_password: currentPassword, new_password: newPassword } = req.body || {};
       if (typeof currentPassword !== 'string' || typeof newPassword !== 'string' || !currentPassword || !newPassword) {
         return res.status(400).json({ error: 'current_password and new_password are required', status: 400 });
@@ -91,6 +104,12 @@ export const settingsController = {
       }
       const row = await UserModel.findByIdWithCredentials(req.user.id);
       if (!row) return res.status(404).json({ error: 'User not found', status: 404 });
+      if (isDemoUser(row)) {
+        return res.status(403).json({
+          error: 'Password and email changes are disabled for the shared Demo Account',
+          status: 403,
+        });
+      }
       if (!row.password_hash) {
         return res.status(400).json({ error: 'This account uses Google sign-in and has no password to change', status: 400 });
       }
