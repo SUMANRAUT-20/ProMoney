@@ -166,7 +166,7 @@ export async function askGroq({ question, snapshot, apiKey, fetchImpl = fetch })
 
 // --- Meta Model API Provider (Muse Ember — Primary) ---
 
-async function metaComplete(
+export async function metaComplete(
   messages,
   {
     apiKey,

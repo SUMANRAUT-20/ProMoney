@@ -1,0 +1,37 @@
+.labo-statement-review {
+  padding: 14px;
+  margin-block: 10px;
+  border-color: var(--green);
+}
+
+.labo-statement-review .table-scroll {
+  max-height: 22rem;
+}
+
+.labo-statement-review .align-right,
+.labo-statement-review time {
+  white-space: nowrap;
+}
+
+.labo-statement-review .status-pill {
+  margin-inline-start: 8px;
+}
+
+.labo-statement-account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.labo-statement-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block-start: 10px;
+}
+
+.labo-statement-review .labo-statement-actions {
+  justify-content: flex-end;
+}

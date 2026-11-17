@@ -18,13 +18,13 @@ function toRow(row) {
 }
 
 export const CategoryModel = {
-  async findByUser(userId) {
+  async findByUser(userId, { seedDefaults = true } = {}) {
     const uid = Number(userId);
     const [rows] = await pool.execute(
       'SELECT id, user_id, name, kind FROM categories WHERE user_id = ? ORDER BY id ASC',
       [uid]
     );
-    if (rows.length > 0) return rows.map(toRow);
+    if (rows.length > 0 || !seedDefaults) return rows.map(toRow);
 
     // If a user exists in users but has no categories yet, seed defaults.
     const [userRows] = await pool.execute('SELECT id FROM users WHERE id = ?', [uid]);

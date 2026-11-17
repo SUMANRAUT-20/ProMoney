@@ -26,6 +26,13 @@ export function positiveYen(n) {
   return value;
 }
 
+export function getStatementNet(rows) {
+  return rows.reduce((net, row) => {
+    const amount = positiveYen(row.amount);
+    return net + (row.kind === 'expense' ? -amount : amount);
+  }, 0);
+}
+
 export function iso(d) {
   if (typeof d !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(d)) {
     throw new Error('Expected YYYY-MM-DD');

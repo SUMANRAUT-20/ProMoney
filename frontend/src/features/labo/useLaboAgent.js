@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useFinance } from '../../context/FinanceContext';
 import { makeId, money } from '../../utils/formatters';
+import { useStatementImport } from './useStatementImport';
 import {
   QUICK_QUESTIONS,
   compressReceiptImage,
@@ -38,6 +39,7 @@ export function useLaboAgent() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [pendingProposals, setPendingProposals] = useState([]);
+  const statement = useStatementImport({ busy, setBusy, setError, setMessages, finance });
 
   const [voiceMuted, setVoiceMuted] = useState(loadVoiceMuted);
   const [voiceLang, setVoiceLangState] = useState(loadVoiceLang);
@@ -419,5 +421,6 @@ export function useLaboAgent() {
     dismissProposal,
     undoSave,
     categories: finance.categories || [],
+    statement,
   };
 }

@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { PageHeading } from "../../components/ui";
 import { money } from "../../utils/formatters";
+import { StatementAttachment, StatementReview } from "./StatementImport";
 import { useLaboAgent } from "./useLaboAgent";
 
 const futureModules = [
@@ -28,7 +29,7 @@ const futureModules = [
     title: "1. AI Chat Assistant, Voice & Photo Scan",
     phase: "Phase 5–6",
     icon: Bot,
-    status: "Live — chat, voice in/out, receipt photo scan, multi-add & undo",
+    status: "Live — chat, voice, receipt scans, statement import, multi-add and Undo",
     description:
       "Conversational assistant that answers questions, scans receipt/bill photos with Muse Ember vision, and prepares transaction proposals using only figures verified by ProMoney.",
   },
@@ -102,6 +103,7 @@ export default function LaboView() {
     dismissProposal,
     undoSave,
     categories,
+    statement,
   } = useLaboAgent();
 
   const photoInputRef = useRef(null);
@@ -111,20 +113,30 @@ export default function LaboView() {
     <>
       <PageHeading
         title="ProMoney LA-BO"
-        subtitle="Explainable AI Financial Workspace — Chat, Voice In/Out, Receipt Photo Scan, Multi-Add & One-Tap Undo."
+        subtitle="Chat, voice, receipt scans, statement imports, and one-tap Undo."
       />
 
       <div className="status-banner" role="status">
         <Info size={16} />
         <div>
-          <strong>AI Chat, Voice &amp; Receipt Photo Scan is LIVE</strong>
+          <strong>Review before saving</strong>
           <span>
-            Ask about your money, speak/type transactions, or tap 📷 to scan a bill/receipt photo. LA-BO prepares an editable confirm card first — nothing saves until you tap Confirm.
+            LA-BO shows a review before saving transactions from chat, receipt photos, or statements.
           </span>
         </div>
       </div>
 
-      <section className="section-card card">
+      <section
+        className="section-card card"
+        onDragOver={(event) => {
+          if (event.dataTransfer.types.includes("Files")) event.preventDefault();
+        }}
+        onDrop={(event) => {
+          if (!event.dataTransfer.files.length) return;
+          event.preventDefault();
+          statement.attach(event.dataTransfer.files);
+        }}
+      >
         <div className="section-title" style={{ flexWrap: "wrap", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Bot size={20} color="var(--green)" />
@@ -338,6 +350,8 @@ export default function LaboView() {
           </div>
         )}
 
+        {statement.rows.length > 0 && <StatementReview statement={statement} categories={categories} busy={busy} />}
+
         <div className="labo-quick">
           {quickQuestions.map((q) => (
             <button key={q} type="button" className="labo-chip" onClick={() => ask(q)} disabled={busy}>
@@ -414,6 +428,7 @@ export default function LaboView() {
             <Send size={15} /> Ask
           </button>
         </form>
+        <StatementAttachment onAttach={statement.attach} disabled={busy || statement.rows.length > 0} />
       </section>
 
       <section className="section-card card">
@@ -454,8 +469,7 @@ export default function LaboView() {
           that snapshot only.
         </p>
         <p className="muted">
-          2. <strong>Coming next:</strong> Bill photo extraction, CSV/PDF statement import,
-          custom chat reports, and what-if simulators.
+          2. <strong>Coming next:</strong> Custom chat reports and what-if simulators.
         </p>
         <p className="muted" style={{ marginBottom: 0 }}>
           3. <strong>Strict Human-in-the-Loop Rule:</strong> AI suggestions

@@ -80,6 +80,13 @@ export const apiClient = {
   async laboScan(body) {
     return request('/labo/scan', { method: 'POST', body: JSON.stringify(body) });
   },
+  async laboImport(file, format) {
+    return request('/labo/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream', 'X-Statement-Format': format },
+      body: file,
+    });
+  },
 
   // Settings & Preferences (SQL-persisted)
   async getSettings() {
