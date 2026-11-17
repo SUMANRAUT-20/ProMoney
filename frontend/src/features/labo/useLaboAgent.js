@@ -69,10 +69,11 @@ export function useLaboAgent() {
   }, []);
 
   const speak = useCallback(
-    (text) => {
+    (text, verbatim = false) => {
       speakLaboReply(text, {
         muted: voiceMuted,
         preferredLang: voiceLang,
+        verbatim,
         onStart: () => setIsSpeaking(true),
         onEnd: () => setIsSpeaking(false),
       });
@@ -153,9 +154,12 @@ export function useLaboAgent() {
           }
         }
 
-        const { answer } = await sendLaboQuestion({ question, finance });
-        setMessages((prev) => [...prev, { id: makeId('msg'), role: 'ai', text: answer }]);
-        speak(answer);
+        const { answer, report, signature, warnings } = await sendLaboQuestion({ question, finance });
+        setMessages((prev) => [...prev, {
+          id: makeId('msg'), role: 'ai', text: answer, report, signature, warnings,
+        }]);
+        if (warnings) speak([answer, ...warnings].join('\n'), true);
+        else speak(answer);
       } catch (err) {
         if (err.status === 503) {
           setError('AI is not switched on yet — the server needs its AI API key in the root .env.');

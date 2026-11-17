@@ -1,0 +1,26 @@
+.labo-report-card {
+  margin-top: 10px;
+}
+
+.labo-report-card table {
+  border-collapse: collapse;
+  width: 100%;
+  text-align: left;
+}
+
+.labo-report-card caption {
+  font-weight: 650;
+  padding-block: 4px 8px;
+  text-align: left;
+}
+
+.labo-report-card th,
+.labo-report-card td {
+  border-bottom: 1px solid var(--border);
+  padding: 7px;
+}
+
+.labo-report-card td {
+  text-align: right;
+  white-space: nowrap;
+}

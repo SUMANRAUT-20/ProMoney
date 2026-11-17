@@ -22,6 +22,7 @@ import {
 import { PageHeading } from "../../components/ui";
 import { money } from "../../utils/formatters";
 import { StatementAttachment, StatementReview } from "./StatementImport";
+import { ReportCard } from "./ReportCard";
 import { useLaboAgent } from "./useLaboAgent";
 
 const futureModules = [
@@ -113,7 +114,7 @@ export default function LaboView() {
     <>
       <PageHeading
         title="ProMoney LA-BO"
-        subtitle="Chat, voice, receipt scans, statement imports, and one-tap Undo."
+        subtitle="Chat, voice, receipt scans, statement imports, and reports."
       />
 
       <div className="status-banner" role="status">
@@ -153,7 +154,7 @@ export default function LaboView() {
             )}
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <div className="segmented" aria-label="Voice recognition language">
               <button
                 type="button"
@@ -184,6 +185,10 @@ export default function LaboView() {
               {voiceMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
               <span>{voiceMuted ? "Muted" : "Voice On"}</span>
             </button>
+            <button type="button" className="btn secondary compact" disabled={busy}
+              onClick={() => ask(voiceLang === "ja-JP" ? "アラートを聞く" : "Hear alerts")}>
+              <Volume2 size={15} /> Hear alerts
+            </button>
           </div>
         </div>
 
@@ -199,6 +204,10 @@ export default function LaboView() {
               className={`labo-msg ${m.role === "user" ? "labo-msg-user" : "labo-msg-ai"}`}
             >
               <div>{m.text}</div>
+              {m.report && <ReportCard report={m.report} signature={m.signature} />}
+              {m.warnings?.length > 0 && (
+                <ul>{m.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>
+              )}
               {m.savedIds?.length > 0 && (
                 <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
                   {m.undone ? (
@@ -469,7 +478,7 @@ export default function LaboView() {
           that snapshot only.
         </p>
         <p className="muted">
-          2. <strong>Coming next:</strong> Custom chat reports and what-if simulators.
+          2. <strong>Coming next:</strong> What-if simulators.
         </p>
         <p className="muted" style={{ marginBottom: 0 }}>
           3. <strong>Strict Human-in-the-Loop Rule:</strong> AI suggestions

@@ -15,6 +15,9 @@ export const QUICK_QUESTIONS = [
   'What is my biggest expense category?',
   'How much can I safely spend per day?',
   'Am I over budget anywhere?',
+  'Spending by category this month',
+  'Last month vs this month',
+  'Show my income vs expenses',
 ];
 
 const VOICE_MUTE_STORAGE_KEY = 'pm_labo_voice_muted_v1';
@@ -75,14 +78,14 @@ export function stopLaboSpeech() {
   }
 }
 
-export function speakLaboReply(text, { muted = false, preferredLang = 'en-US', onStart, onEnd } = {}) {
+export function speakLaboReply(text, { muted = false, preferredLang = 'en-US', onStart, onEnd, verbatim = false } = {}) {
   if (muted || typeof window === 'undefined' || !window.speechSynthesis || !window.SpeechSynthesisUtterance) {
     if (onEnd) onEnd();
     return;
   }
   try {
     window.speechSynthesis.cancel();
-    const cleanText = String(text || '').replace(/[*_`#]/g, '').trim();
+    const cleanText = verbatim ? text : String(text || '').replace(/[*_`#]/g, '').trim();
     if (!cleanText) {
       if (onEnd) onEnd();
       return;
@@ -148,6 +151,7 @@ export function looksLikeAddIntent(text) {
   if (!/\d{2,}/.test(str)) return false;
   const lower = str.toLowerCase();
   if (/^(how|what|why|when|where|am i|can i|do i|show|tell)\b/.test(lower)) return false;
+  if (/\b(by category|category breakdown|category spending|report|monthly comparison)\b|\bincome\b.*\bexpenses?\b|\bexpenses?\b.*\bincome\b|カテゴリ別|レポート|収入.*支出/.test(lower)) return false;
   if (
     /\b(spent|spend|paid|pay|bought|buy|add|record|received|got|salary|baito|khana|kharcha|aayo|lunch|dinner|coffee|bus|train|groceries|rent)\b/i.test(
       str
@@ -169,6 +173,9 @@ export async function sendLaboQuestion({ question, finance }) {
     answer: payload?.data?.answer || "I don't have that in your data yet.",
     provider: payload?.data?.provider || 'meta',
     model: payload?.data?.model || null,
+    report: payload?.data?.report,
+    signature: payload?.data?.signature,
+    warnings: payload?.data?.warnings,
   };
 }
 

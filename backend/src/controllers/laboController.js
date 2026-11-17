@@ -7,6 +7,7 @@
  * fallback) based on `AI_PROVIDER` in root `.env`.
  */
 import { askLabo, parseTransactionWithLabo, scanReceiptWithLabo } from '../services/laboChat.js';
+import { getLaboInsight } from './laboInsights.js';
 
 export const laboController = {
   async chat(req, res, next) {
@@ -18,6 +19,8 @@ export const laboController = {
       if (question.length > 500) {
         return res.status(400).json({ error: 'question is too long (max 500 characters)', status: 400 });
       }
+      const insight = await getLaboInsight(question.trim(), req.user?.id);
+      if (insight) return res.set('Cache-Control', 'no-store').json({ status: 'ok', data: insight });
       if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
         return res.status(400).json({ error: 'snapshot (finance data) is required', status: 400 });
       }

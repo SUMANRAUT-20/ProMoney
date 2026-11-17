@@ -9,7 +9,7 @@
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 
-async function request(path, options = {}) {
+async function request(path, options = {}, responseType = 'json') {
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers || {}),
@@ -21,6 +21,7 @@ async function request(path, options = {}) {
     headers,
   });
 
+  if (response.ok && responseType === 'blob') return response.blob();
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = new Error(payload.error || `Request failed with status ${response.status}`);
@@ -71,6 +72,9 @@ export const apiClient = {
   // ProMoney LA-BO
   async laboChat(body) {
     return request('/labo/chat', { method: 'POST', body: JSON.stringify(body) });
+  },
+  async laboReportExport(body) {
+    return request('/labo/report/export', { method: 'POST', body: JSON.stringify(body) }, 'blob');
   },
 
   async laboParse(body) {
