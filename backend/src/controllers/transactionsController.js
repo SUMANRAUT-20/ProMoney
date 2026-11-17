@@ -116,7 +116,12 @@ export const transactionsController = {
         if (!acc) {
           return res.status(400).json({ error: 'Account not found or does not belong to user', status: 400 });
         }
-        accountId = acc.id;
+        if (acc.parent_account_id) {
+          const parentAcc = await AccountModel.findByIdAndUser(acc.parent_account_id, userId);
+          accountId = parentAcc ? parentAcc.id : acc.id;
+        } else {
+          accountId = acc.id;
+        }
       } else {
         accountId = null;
       }
@@ -235,7 +240,12 @@ export const transactionsController = {
           if (!acc) {
             return res.status(400).json({ error: 'Account not found or does not belong to user', status: 400 });
           }
-          nextAccountId = acc.id;
+          if (acc.parent_account_id) {
+            const parentAcc = await AccountModel.findByIdAndUser(acc.parent_account_id, userId);
+            nextAccountId = parentAcc ? parentAcc.id : acc.id;
+          } else {
+            nextAccountId = acc.id;
+          }
         }
       }
 

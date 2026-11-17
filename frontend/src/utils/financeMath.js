@@ -76,14 +76,36 @@ export function monthBounds(month) {
   return { start, endExclusive: next };
 }
 
+export function getParentAccountId(account) {
+  return (
+    account?.parent_account_id ??
+    account?.parent_bank_account_id ??
+    account?.ui_details?.parent_account_id ??
+    null
+  );
+}
+
+export function isDebitCardAccount(account) {
+  const kind = String(account?.kind || '').toLowerCase();
+  const group = String(account?.ui_details?.group || '').toLowerCase();
+  return kind === 'debit_card' || group === 'debit' || Boolean(getParentAccountId(account));
+}
+
+export function isPrepaidAccount(account) {
+  const kind = String(account?.kind || '').toLowerCase();
+  const group = String(account?.ui_details?.group || '').toLowerCase();
+  return kind === 'prepaid' || group === 'prepaid';
+}
+
 export function isLiabilityAccount(account) {
+  if (isDebitCardAccount(account)) return false;
   const kind = String(account?.kind || '').toLowerCase();
   const group = String(account?.ui_details?.group || '').toLowerCase();
   return LIABILITY_ACCOUNT_KINDS.includes(kind) || ['credit', 'bnpl', 'loan'].includes(group);
 }
 
 export function isSpendableAccount(account) {
-  if (isLiabilityAccount(account)) return false;
+  if (isDebitCardAccount(account) || isLiabilityAccount(account)) return false;
   const kind = String(account?.kind || 'cash').toLowerCase();
   const group = String(account?.ui_details?.group || '').toLowerCase();
   if (kind === 'savings' || group === 'savings' || group === 'loan_asset') return false;
@@ -93,20 +115,35 @@ export function isSpendableAccount(account) {
 export function resolvePaymentAccountId(txOrInput, accounts = []) {
   if (txOrInput?.account_id) {
     const chosen = accounts.find((a) => String(a.id) === String(txOrInput.account_id));
-    if (chosen?.parent_bank_account_id) return chosen.parent_bank_account_id;
+    if (chosen && isDebitCardAccount(chosen)) {
+      return getParentAccountId(chosen) ?? txOrInput.account_id;
+    }
     return txOrInput.account_id;
   }
   if (txOrInput?.payment_method === 'debit') {
+    const debitAcc = accounts.find((a) => isDebitCardAccount(a) && getParentAccountId(a));
+    if (debitAcc) return getParentAccountId(debitAcc);
     const bankAcc = accounts.find((a) => a.kind === 'bank');
     if (bankAcc) return bankAcc.id;
   }
   return txOrInput?.account_id ?? null;
 }
 
-export function getAccountBalance(account, transactions = [], asOfDate = null) {
+export function getAccountBalance(account, transactions = [], asOfDate = null, accounts = []) {
+  if (isDebitCardAccount(account)) return 0;
+
   const base = Number(account?.manual_balance ?? account?.opening_balance ?? 0);
   const accId = String(account?.id ?? '');
   const liability = isLiabilityAccount(account);
+  const prepaid = isPrepaidAccount(account);
+
+  const childDebitIds = new Set(
+    Array.isArray(accounts)
+      ? accounts
+          .filter((a) => isDebitCardAccount(a) && String(getParentAccountId(a)) === accId)
+          .map((a) => String(a.id))
+      : []
+  );
 
   let delta = 0;
   for (const tx of transactions) {
@@ -115,10 +152,23 @@ export function getAccountBalance(account, transactions = [], asOfDate = null) {
 
     const amt = Number(tx.amount || 0);
     const kind = String(tx.kind || '');
-    const fromMatch = String(tx.account_id ?? '') === accId;
-    const toMatch = String(tx.to_account_id ?? '') === accId;
+    const txAccId = String(tx.account_id ?? '');
+    const txToAccId = String(tx.to_account_id ?? '');
+    const fromMatch = txAccId === accId || childDebitIds.has(txAccId);
+    const toMatch = txToAccId === accId || childDebitIds.has(txToAccId);
 
     if (!fromMatch && !toMatch) continue;
+
+    if (prepaid) {
+      if (TRANSFER_KINDS.includes(kind)) {
+        if (fromMatch) delta -= amt;
+        if (toMatch) delta += amt;
+      } else if (kind === 'adjustment' && fromMatch) {
+        const sign = tx.direction === 'decrease' ? -1 : 1;
+        delta += sign * amt;
+      }
+      continue;
+    }
 
     if (kind === 'income') {
       if (fromMatch) delta += liability ? -amt : amt;
@@ -145,8 +195,8 @@ export function getAccountTotals(accounts = [], transactions = [], asOfDate = nu
   let owed = 0;
   let spendable = 0;
   for (const acc of accounts) {
-    if (acc?.kind === 'debit_card' && acc?.parent_bank_account_id) continue;
-    const bal = getAccountBalance(acc, transactions, asOfDate);
+    if (isDebitCardAccount(acc)) continue;
+    const bal = getAccountBalance(acc, transactions, asOfDate, accounts);
     if (isLiabilityAccount(acc)) {
       owed += bal;
     } else {
@@ -808,20 +858,22 @@ export function buildHomeSummary({
   month = String(today).slice(0, 7),
 }) {
   const accountTotals = getAccountTotals(accounts, transactions, today);
-  const accountBreakdown = accounts.map((acc) => {
-    const liveBalance = getAccountBalance(acc, transactions, today);
-    const openingBalance = Number(acc?.manual_balance ?? 0);
-    return {
-      id: acc.id,
-      name: acc.name,
-      kind: acc.kind,
-      openingBalance,
-      liveBalance,
-      deltaFromTx: liveBalance - openingBalance,
-      isLiability: isLiabilityAccount(acc),
-      isSpendable: isSpendableAccount(acc),
-    };
-  });
+  const accountBreakdown = accounts
+    .filter((acc) => !isDebitCardAccount(acc))
+    .map((acc) => {
+      const liveBalance = getAccountBalance(acc, transactions, today, accounts);
+      const openingBalance = Number(acc?.manual_balance ?? 0);
+      return {
+        id: acc.id,
+        name: acc.name,
+        kind: acc.kind,
+        openingBalance,
+        liveBalance,
+        deltaFromTx: liveBalance - openingBalance,
+        isLiability: isLiabilityAccount(acc),
+        isSpendable: isSpendableAccount(acc),
+      };
+    });
 
   const monthlySummary = getMonthlySummary(transactions, month);
   const monthlyBudgets = budgets

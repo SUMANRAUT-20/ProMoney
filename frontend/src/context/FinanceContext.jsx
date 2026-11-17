@@ -62,6 +62,66 @@ function saveDemoCollection(key, value) {
   }
 }
 
+/**
+ * Ensures demo accounts always have WISE (¥63) counted once and "WISE Master Card"
+ * as a linked debit card tag on WISE (never a standalone account card).
+ */
+function normalizeDemoAccounts(rawAccounts, seedAccounts) {
+  const list = Array.isArray(rawAccounts) ? rawAccounts.map((a) => ({ ...a })) : [];
+  let wiseAcc = list.find(
+    (a) => a.id === 'demo-acc-wise' || String(a.name || '').trim().toLowerCase() === 'wise'
+  );
+  if (!wiseAcc) {
+    const seedWise = seedAccounts.find((a) => a.id === 'demo-acc-wise');
+    if (seedWise) {
+      wiseAcc = { ...seedWise };
+      list.push(wiseAcc);
+    }
+  }
+  const wiseId = wiseAcc ? wiseAcc.id : 'demo-acc-wise';
+
+  let hasWiseDebit = false;
+  const normalized = [];
+  for (const acc of list) {
+    const isWiseMaster =
+      acc.id === 'demo-acc-wise-debit' ||
+      /wise\s*master\s*card/i.test(String(acc.name || '').trim());
+    if (isWiseMaster) {
+      if (hasWiseDebit) continue;
+      hasWiseDebit = true;
+      normalized.push({
+        ...acc,
+        id: acc.id || 'demo-acc-wise-debit',
+        name: 'WISE Master Card',
+        kind: 'debit_card',
+        parent_account_id: wiseId,
+        manual_balance: 0,
+        ui_details: {
+          ...(acc.ui_details || {}),
+          group: 'debit',
+          provider: 'WISE',
+          parent_account_id: wiseId,
+        },
+      });
+    } else {
+      normalized.push(acc);
+    }
+  }
+
+  if (!hasWiseDebit) {
+    const seedDebit = seedAccounts.find((a) => a.id === 'demo-acc-wise-debit');
+    if (seedDebit) {
+      normalized.push({
+        ...seedDebit,
+        parent_account_id: wiseId,
+        ui_details: { ...seedDebit.ui_details, parent_account_id: wiseId },
+      });
+    }
+  }
+
+  return normalized;
+}
+
 function loadTheme() {
   try {
     const stored = localStorage.getItem('pm_theme_v2');
@@ -136,7 +196,10 @@ export function FinanceProvider({ children }) {
 
     if (isDemo) {
       const seed = createDemoData();
-      const loadedAccounts = loadDemoCollection(DEMO_KEYS.accounts, seed.accounts);
+      const loadedAccounts = normalizeDemoAccounts(
+        loadDemoCollection(DEMO_KEYS.accounts, seed.accounts),
+        seed.accounts
+      );
       const loadedTx = loadDemoCollection(DEMO_KEYS.transactions, seed.transactions);
       const loadedBudgets = loadDemoCollection(DEMO_KEYS.budgets, seed.budgets);
       const loadedBills = loadDemoCollection(DEMO_KEYS.bills, seed.bills);
@@ -224,12 +287,23 @@ export function FinanceProvider({ children }) {
   // --- Accounts actions ---
   const addAccount = useCallback(
     async (values, uiDetails) => {
+      const parentAccountId = values?.parent_account_id ?? uiDetails?.parent_account_id ?? null;
       if (isDemo) {
-        const created = { ...values, id: makeId('acc'), currency: 'JPY', ui_details: uiDetails };
+        const created = {
+          ...values,
+          id: makeId('acc'),
+          currency: 'JPY',
+          parent_account_id: parentAccountId,
+          ui_details: uiDetails,
+        };
         setAccounts((cur) => [...cur, created]);
         return created;
       }
-      const res = await apiClient.createAccount({ ...values, ui_details: uiDetails });
+      const res = await apiClient.createAccount({
+        ...values,
+        parent_account_id: parentAccountId,
+        ui_details: uiDetails,
+      });
       setAccounts((cur) => [...cur, res.data]);
       return res.data;
     },
@@ -238,12 +312,18 @@ export function FinanceProvider({ children }) {
 
   const editAccount = useCallback(
     async (id, values, uiDetails) => {
+      const parentAccountId = values?.parent_account_id ?? uiDetails?.parent_account_id ?? null;
       if (isDemo) {
         let updated = null;
         setAccounts((cur) =>
           cur.map((acc) => {
             if (acc.id === id) {
-              updated = { ...acc, ...values, ui_details: uiDetails };
+              updated = {
+                ...acc,
+                ...values,
+                parent_account_id: parentAccountId,
+                ui_details: uiDetails,
+              };
               return updated;
             }
             return acc;
@@ -251,7 +331,11 @@ export function FinanceProvider({ children }) {
         );
         return updated;
       }
-      const res = await apiClient.updateAccount(id, { ...values, ui_details: uiDetails });
+      const res = await apiClient.updateAccount(id, {
+        ...values,
+        parent_account_id: parentAccountId,
+        ui_details: uiDetails,
+      });
       setAccounts((cur) => cur.map((acc) => (String(acc.id) === String(id) ? res.data : acc)));
       return res.data;
     },

@@ -470,3 +470,68 @@ test('Phase 5 Home summary: pins overdue bills, enforces ¥0-target goal guard, 
   assert.equal(home.recentTransactions[0].displayTitle, 'November rent');
   assert.equal(home.recentTransactions[1].displayTitle, 'Monthly salary');
 });
+
+test('Account Linking (a): a linked debit card does not change money-you-hold, spending draws from parent, and prepaid fills via transfer only', () => {
+  const baseAccounts = [
+    { id: 'acc-bank', name: 'Main Bank', kind: 'bank', manual_balance: 100000 },
+    { id: 'acc-app', name: 'WISE', kind: 'digital', manual_balance: 63, ui_details: { group: 'app', provider: 'WISE' } },
+    { id: 'acc-prepaid', name: 'Suica', kind: 'prepaid', manual_balance: 2000, ui_details: { group: 'prepaid', provider: 'Suica' } },
+  ];
+
+  const beforeDebit = getAccountTotals(baseAccounts, []);
+  assert.equal(beforeDebit.held, 102063);
+  assert.equal(beforeDebit.spendable, 102063);
+
+  // Add a linked debit card (even if someone passes a non-zero manual_balance on it, it has NO own balance)
+  const withLinkedDebit = [
+    ...baseAccounts,
+    {
+      id: 'acc-wise-debit',
+      name: 'WISE Master Card',
+      kind: 'debit_card',
+      parent_account_id: 'acc-app',
+      manual_balance: 63,
+      ui_details: { group: 'debit', parent_account_id: 'acc-app' },
+    },
+  ];
+
+  const afterDebit = getAccountTotals(withLinkedDebit, []);
+  assert.equal(afterDebit.held, 102063);
+  assert.equal(afterDebit.spendable, 102063);
+  assert.equal(getAccountBalance(withLinkedDebit[3], [], null, withLinkedDebit), 0);
+
+  // Spending on the linked debit card draws directly from its parent WISE account
+  const records = [
+    { id: 'tx-debit-spend', kind: 'expense', amount: 23, account_id: 'acc-wise-debit', transaction_date: '2026-11-17' },
+    // Transfer from bank to prepaid fills the prepaid pot
+    { id: 'tx-suica-topup', kind: 'transfer', amount: 3000, account_id: 'acc-bank', to_account_id: 'acc-prepaid', transaction_date: '2026-11-17' },
+    // Direct income on prepaid is ignored (prepaid is filled only by transfers)
+    { id: 'tx-prepaid-inc', kind: 'income', amount: 9999, account_id: 'acc-prepaid', transaction_date: '2026-11-17' },
+  ];
+
+  assert.equal(getAccountBalance(withLinkedDebit[1], records, null, withLinkedDebit), 40); // 63 - 23
+  assert.equal(getAccountBalance(withLinkedDebit[2], records, null, withLinkedDebit), 5000); // 2000 + 3000 transfer
+  assert.equal(getAccountBalance(withLinkedDebit[0], records, null, withLinkedDebit), 97000); // 100000 - 3000 transfer
+  assert.equal(getAccountTotals(withLinkedDebit, records).held, 97000 + 40 + 5000);
+});
+
+test('Account Linking (b): demo WISE money counts once — WISE (¥63) + linked WISE Master Card gives money-you-hold = ¥343,813', async () => {
+  const { createDemoData } = await import('../../frontend/src/data/initialData.js');
+  const demo = createDemoData(new Date('2026-11-17T00:00:00Z'));
+
+  const wiseAccount = demo.accounts.find((a) => a.name === 'WISE');
+  const wiseDebit = demo.accounts.find((a) => a.name === 'WISE Master Card');
+  assert.ok(wiseAccount, 'Demo seed includes WISE account');
+  assert.ok(wiseDebit, 'Demo seed includes WISE Master Card');
+  assert.equal(wiseDebit.kind, 'debit_card');
+  assert.equal(wiseDebit.parent_account_id, wiseAccount.id);
+
+  // Linked debit card has 0 own balance; WISE ¥63 is counted once -> total money-you-hold = ¥343,813
+  assert.equal(getAccountBalance(wiseAccount, demo.transactions, null, demo.accounts), 63);
+  assert.equal(getAccountBalance(wiseDebit, demo.transactions, null, demo.accounts), 0);
+
+  const totals = getAccountTotals(demo.accounts, demo.transactions);
+  assert.equal(totals.held, 343813);
+  assert.equal(totals.spendable, 343813);
+  assert.equal(totals.net, 343813);
+});

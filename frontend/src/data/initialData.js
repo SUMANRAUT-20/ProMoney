@@ -49,6 +49,28 @@ export function createDemoData(now = new Date()) {
       currency: "JPY",
       ui_details: { group: "cash", provider: "", note: "Sample daily cash" },
     },
+    {
+      id: "demo-acc-wise",
+      name: "WISE",
+      kind: "bank",
+      manual_balance: 63,
+      currency: "JPY",
+      ui_details: { group: "app", provider: "WISE", note: "Sample multi-currency account" },
+    },
+    {
+      id: "demo-acc-wise-debit",
+      name: "WISE Master Card",
+      kind: "debit_card",
+      parent_account_id: "demo-acc-wise",
+      manual_balance: 0,
+      currency: "JPY",
+      ui_details: {
+        group: "debit",
+        provider: "WISE",
+        parent_account_id: "demo-acc-wise",
+        note: "Linked debit card on WISE",
+      },
+    },
   ];
 
   const transactions = [

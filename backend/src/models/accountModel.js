@@ -19,6 +19,7 @@ function parseUiDetails(raw) {
 
 function toRow(row) {
   if (!row) return null;
+  const uiDetails = parseUiDetails(row.ui_details);
   return {
     id: Number(row.id),
     user_id: Number(row.user_id),
@@ -26,7 +27,8 @@ function toRow(row) {
     kind: row.kind,
     manual_balance: Number(row.manual_balance),
     currency: row.currency || 'JPY',
-    ui_details: parseUiDetails(row.ui_details),
+    parent_account_id: uiDetails?.parent_account_id ?? null,
+    ui_details: uiDetails,
     created_at: row.created_at,
   };
 }

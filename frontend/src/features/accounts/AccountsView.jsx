@@ -3,7 +3,13 @@ import { CreditCard, Pencil, Plus, Scale, Trash2, Wallet } from "lucide-react";
 import { EmptyState, Metric, Modal, PageHeading } from "../../components/ui";
 import { useFinance } from "../../context/FinanceContext";
 import { money, todayISO } from "../../utils/formatters";
-import { getAccountBalance, getAccountTotals, isLiabilityAccount } from "../../utils/financeMath";
+import {
+  getAccountBalance,
+  getAccountTotals,
+  getParentAccountId,
+  isDebitCardAccount,
+  isLiabilityAccount,
+} from "../../utils/financeMath";
 import AccountFormModal, { accountGroup, accountGroups } from "./AccountFormModal";
 
 export default function AccountsView() {
@@ -17,6 +23,7 @@ export default function AccountsView() {
 
   const today = todayISO();
   const { held, owed, net } = getAccountTotals(accounts, transactions, today);
+  const standaloneAccounts = accounts.filter((a) => !isDebitCardAccount(a));
   const selectedAccounts = accounts.filter((a) => accountGroup(a).id === selectedGroup?.id);
 
   function openAccount(group = "bank", account = null) {
@@ -47,8 +54,49 @@ export default function AccountsView() {
 
   function renderAccountCard(account) {
     const group = accountGroup(account);
-    const liveBalance = getAccountBalance(account, transactions, today);
+    const isDebit = isDebitCardAccount(account);
+    const parentId = getParentAccountId(account);
+    const parentAcc = parentId ? accounts.find((a) => String(a.id) === String(parentId)) : null;
+
+    if (isDebit) {
+      return (
+        <article className="account-card card" key={account.id}>
+          <div className="budget-top">
+            <div>
+              <h3>💳 {account.name} — linked</h3>
+              <p style={{ margin: 0 }}>
+                Linked to <strong>{parentAcc?.name || "parent account"}</strong> (draws from parent directly)
+              </p>
+            </div>
+            <span className="neutral-badge">{group.label}</span>
+          </div>
+          {account.ui_details?.note && <p style={{ marginTop: 8 }}>{account.ui_details.note}</p>}
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button className="btn secondary compact" type="button" onClick={() => openAccount("debit", account)}>
+              <Pencil size={14} /> Edit
+            </button>
+            <button
+              className="btn secondary compact"
+              type="button"
+              onClick={() => {
+                setDeleteError("");
+                setDeleteTarget(account);
+              }}
+              aria-label={`Delete ${account.name}`}
+            >
+              <Trash2 size={14} /> Delete
+            </button>
+          </div>
+        </article>
+      );
+    }
+
+    const liveBalance = getAccountBalance(account, transactions, today, accounts);
     const txDelta = liveBalance - Number(account.manual_balance || 0);
+    const linkedDebitCards = accounts.filter(
+      (item) => isDebitCardAccount(item) && String(getParentAccountId(item)) === String(account.id)
+    );
+
     return (
       <article className="account-card card" key={account.id}>
         <div className="budget-top">
@@ -65,6 +113,55 @@ export default function AccountsView() {
             {txDelta !== 0 ? ` (${txDelta > 0 ? "+" : ""}${money(txDelta)} from tx)` : ""}
           </p>
         </div>
+        {linkedDebitCards.length > 0 && (
+          <div
+            className="linked-debit-tags"
+            style={{ display: "flex", flexDirection: "column", gap: 6, margin: "10px 0" }}
+          >
+            {linkedDebitCards.map((dc) => (
+              <div
+                key={dc.id}
+                className="linked-debit-tag"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  padding: "6px 10px",
+                  borderRadius: 8,
+                  background: "var(--surface-muted, rgba(15, 23, 42, 0.06))",
+                  fontSize: 13,
+                  fontWeight: 500,
+                }}
+              >
+                <span>💳 {dc.name} — linked</span>
+                <span style={{ display: "inline-flex", gap: 4 }}>
+                  <button
+                    className="icon-button"
+                    type="button"
+                    title={`Edit ${dc.name}`}
+                    aria-label={`Edit ${dc.name}`}
+                    onClick={() => openAccount("debit", dc)}
+                  >
+                    <Pencil size={13} />
+                  </button>
+                  <button
+                    className="icon-button"
+                    type="button"
+                    title={`Delete ${dc.name}`}
+                    aria-label={`Delete ${dc.name}`}
+                    onClick={() => {
+                      setDeleteError("");
+                      setDeleteTarget(dc);
+                    }}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
         {account.ui_details?.note && <p>{account.ui_details.note}</p>}
         <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
           <button className="btn secondary compact" type="button" onClick={() => openAccount(group.id, account)}>
@@ -101,7 +198,7 @@ export default function AccountsView() {
       <section className="metrics-grid" aria-label="Accounts summary" style={{ marginBottom: 14 }}>
         <Metric icon={Wallet} label="Money you hold" value={money(held)} small="Cash, bank & prepaid" />
         <Metric icon={CreditCard} label="Money you owe" value={money(owed)} small="Credit card balances" />
-        <Metric icon={Scale} label="Net balance" value={money(net)} small="Matches Dashboard total" />
+        <Metric icon={Scale} label="Net balance" value={money(net)} small="Matches Home total" />
       </section>
 
       <section
@@ -124,7 +221,7 @@ export default function AccountsView() {
         })}
       </section>
 
-      {accounts.length === 0 ? (
+      {standaloneAccounts.length === 0 ? (
         <EmptyState
           icon="🏦"
           title="No accounts added yet"
@@ -136,7 +233,7 @@ export default function AccountsView() {
           }
         />
       ) : (
-        <section className="account-grid">{accounts.map(renderAccountCard)}</section>
+        <section className="account-grid">{standaloneAccounts.map(renderAccountCard)}</section>
       )}
 
       <p className="support-note">

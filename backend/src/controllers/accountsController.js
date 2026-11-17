@@ -1,7 +1,7 @@
 import { AccountModel } from '../models/accountModel.js';
 import { ASSET_ACCOUNT_KINDS, LIABILITY_ACCOUNT_KINDS } from '../services/financeMath.js';
 
-const VALID_ACCOUNT_KINDS = [...ASSET_ACCOUNT_KINDS, ...LIABILITY_ACCOUNT_KINDS];
+const VALID_ACCOUNT_KINDS = [...ASSET_ACCOUNT_KINDS, ...LIABILITY_ACCOUNT_KINDS, 'debit_card'];
 
 function parseNonNegYen(val) {
   const num = Number(val);
@@ -26,10 +26,11 @@ export const accountsController = {
   async create(req, res, next) {
     try {
       const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
-      const kind = String(req.body?.kind || 'cash').toLowerCase();
-      const manualBalance = parseNonNegYen(req.body?.manual_balance ?? 0);
-      const uiDetails =
+      const rawUiDetails =
         req.body?.ui_details && typeof req.body.ui_details === 'object' ? req.body.ui_details : null;
+      const isDebitGroup = String(rawUiDetails?.group || '').toLowerCase() === 'debit';
+      const kind = isDebitGroup ? 'debit_card' : String(req.body?.kind || 'cash').toLowerCase();
+      const rawParentId = req.body?.parent_account_id ?? rawUiDetails?.parent_account_id ?? null;
 
       if (!name || name.length > 100) {
         return res.status(400).json({ error: 'name is required (1–100 characters)', status: 400 });
@@ -40,11 +41,36 @@ export const accountsController = {
           status: 400,
         });
       }
+
+      let manualBalance = kind === 'debit_card' ? 0 : parseNonNegYen(req.body?.manual_balance ?? 0);
       if (manualBalance === null) {
         return res.status(400).json({
           error: 'manual_balance must be a non-negative whole JPY integer',
           status: 400,
         });
+      }
+
+      let uiDetails = rawUiDetails ? { ...rawUiDetails } : null;
+      if (kind === 'debit_card') {
+        if (!rawParentId) {
+          return res.status(400).json({
+            error: 'debit_card requires a parent_account_id',
+            status: 400,
+          });
+        }
+        const parentAcc = await AccountModel.findByIdAndUser(rawParentId, req.user.id);
+        if (!parentAcc) {
+          return res.status(400).json({
+            error: 'Parent account not found or does not belong to user',
+            status: 400,
+          });
+        }
+        manualBalance = 0;
+        uiDetails = {
+          ...(uiDetails || {}),
+          group: 'debit',
+          parent_account_id: parentAcc.id,
+        };
       }
 
       const created = await AccountModel.create({
@@ -96,9 +122,44 @@ export const accountsController = {
         }
         updates.manualBalance = bal;
       }
-      if (req.body?.ui_details !== undefined) {
-        updates.uiDetails =
-          req.body.ui_details && typeof req.body.ui_details === 'object' ? req.body.ui_details : null;
+      if (req.body?.ui_details !== undefined || req.body?.parent_account_id !== undefined) {
+        const baseUi =
+          req.body?.ui_details && typeof req.body.ui_details === 'object'
+            ? { ...req.body.ui_details }
+            : existing.ui_details
+              ? { ...existing.ui_details }
+              : {};
+        if (req.body?.parent_account_id !== undefined) {
+          baseUi.parent_account_id = req.body.parent_account_id;
+        }
+        updates.uiDetails = Object.keys(baseUi).length ? baseUi : null;
+      }
+
+      const effectiveKind = updates.kind ?? existing.kind;
+      if (effectiveKind === 'debit_card') {
+        const rawParentId =
+          req.body?.parent_account_id ??
+          updates.uiDetails?.parent_account_id ??
+          existing.parent_account_id;
+        if (!rawParentId) {
+          return res.status(400).json({
+            error: 'debit_card requires a parent_account_id',
+            status: 400,
+          });
+        }
+        const parentAcc = await AccountModel.findByIdAndUser(rawParentId, req.user.id);
+        if (!parentAcc) {
+          return res.status(400).json({
+            error: 'Parent account not found or does not belong to user',
+            status: 400,
+          });
+        }
+        updates.manualBalance = 0;
+        updates.uiDetails = {
+          ...(updates.uiDetails || existing.ui_details || {}),
+          group: 'debit',
+          parent_account_id: parentAcc.id,
+        };
       }
 
       const updated = await AccountModel.update(req.params.id, req.user.id, updates);
