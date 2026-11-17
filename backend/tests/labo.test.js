@@ -9,6 +9,7 @@ import {
   extractProposal,
   extractProposals,
   parseTransactionWithLabo,
+  scanReceiptWithLabo,
   askGroq,
   askMeta,
   askLabo,
@@ -19,6 +20,7 @@ import {
 } from '../src/services/laboChat.js';
 import { laboController } from '../src/controllers/laboController.js';
 import { transactionsController } from '../src/controllers/transactionsController.js';
+import { TransactionModel } from '../src/models/transactionModel.js';
 import { UserModel, hashPassword } from '../src/models/userModel.js';
 
 const snapshot = {
@@ -302,4 +304,181 @@ test('Phase 6 F6: LA-BO multi-add save + Undo path deletes only the saved transa
   const listAfterUndo = mockRes();
   await transactionsController.list({ user: { id: user.id } }, listAfterUndo, next);
   assert.deepEqual(listAfterUndo.body.data, []);
+});
+
+const SAMPLE_RECEIPT_DATA_URL =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==';
+
+test('Phase 6 F3 (a): photo scan extraction result becomes a proposal in the confirm-card shape', async () => {
+  let seenBody = null;
+  const fakeVisionFetch = async (_url, init) => {
+    seenBody = JSON.parse(init.body);
+    return {
+      ok: true,
+      json: async () => ({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                action: 'add',
+                kind: 'expense',
+                amount: 7420,
+                category_name: 'Groceries',
+                transaction_date: '2026-11-12',
+                note: 'Tokyo Electric Power',
+                message: 'I read your receipt from Tokyo Electric Power for ¥7,420.',
+              }),
+            },
+          },
+        ],
+      }),
+    };
+  };
+
+  const result = await scanReceiptWithLabo({
+    imageDataUrl: SAMPLE_RECEIPT_DATA_URL,
+    categories: parseCategories,
+    today: '2026-11-17',
+    language: 'en-US',
+    env: { AI_PROVIDER: 'meta', META_API_KEY: 'meta-vision-key' },
+    fetchImpl: fakeVisionFetch,
+  });
+
+  // Verify multimodal image_url request structure sent to Muse Ember
+  assert.equal(seenBody.model, META_MODEL);
+  assert.equal(seenBody.max_tokens, 1500);
+  const userContent = seenBody.messages[1].content;
+  assert.ok(Array.isArray(userContent));
+  assert.equal(userContent[1].type, 'image_url');
+  assert.equal(userContent[1].image_url.url, SAMPLE_RECEIPT_DATA_URL);
+
+  // Verify confirm-card proposal shape
+  assert.equal(result.unreadable, false);
+  assert.equal(result.proposals.length, 1);
+  assert.deepEqual(result.proposal, {
+    kind: 'expense',
+    amount: 7420,
+    category_id: 'groceries',
+    category_name: 'Groceries',
+    transaction_date: '2026-11-12',
+    note: 'Tokyo Electric Power',
+  });
+});
+
+test('Phase 6 F3 (b): unreadable image or non-Meta provider returns honest refusal with no proposal', async () => {
+  const fakeUnreadableFetch = async () => ({
+    ok: true,
+    json: async () => ({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              action: 'unreadable',
+              message: "I couldn't read a clear receipt from that blurry photo, so I won't guess any numbers.",
+            }),
+          },
+        },
+      ],
+    }),
+  });
+
+  const unreadableRes = await scanReceiptWithLabo({
+    imageDataUrl: SAMPLE_RECEIPT_DATA_URL,
+    categories: parseCategories,
+    today: '2026-11-17',
+    language: 'en-US',
+    env: { AI_PROVIDER: 'meta', META_API_KEY: 'meta-vision-key' },
+    fetchImpl: fakeUnreadableFetch,
+  });
+
+  assert.equal(unreadableRes.unreadable, true);
+  assert.equal(unreadableRes.proposal, null);
+  assert.deepEqual(unreadableRes.proposals, []);
+  assert.match(unreadableRes.message, /won't guess/i);
+
+  // Non-Meta provider (Groq) -> honest refusal in user's language without calling fetch
+  let fetchCalled = false;
+  const nonMetaJa = await scanReceiptWithLabo({
+    imageDataUrl: SAMPLE_RECEIPT_DATA_URL,
+    categories: parseCategories,
+    today: '2026-11-17',
+    language: 'ja-JP',
+    env: { AI_PROVIDER: 'groq', GROQ_API_KEY: 'groq-key' },
+    fetchImpl: async () => {
+      fetchCalled = true;
+      throw new Error('Should not call Groq for images');
+    },
+  });
+  assert.equal(fetchCalled, false);
+  assert.equal(nonMetaJa.unreadable, true);
+  assert.equal(nonMetaJa.requiresMetaProvider, true);
+  assert.equal(nonMetaJa.proposal, null);
+  assert.deepEqual(nonMetaJa.proposals, []);
+  assert.match(nonMetaJa.message, /Metaプロバイダー/);
+});
+
+test('Phase 6 F3 (c): the scan endpoint never writes a transaction by itself', async () => {
+  const run = Date.now();
+  const user = await UserModel.create({
+    displayName: 'Scan Safety User',
+    email: `scan-safety+${run}@example.com`,
+    passwordHash: hashPassword('ValidPass10'),
+  });
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({
+    ok: true,
+    json: async () => ({
+      choices: [
+        {
+          message: {
+            content: JSON.stringify({
+              action: 'add',
+              kind: 'expense',
+              amount: 3200,
+              category_name: 'Groceries',
+              transaction_date: '2026-11-17',
+              note: 'Supermarket Receipt',
+            }),
+          },
+        },
+      ],
+    }),
+  });
+
+  const savedProvider = process.env.AI_PROVIDER;
+  const savedMetaKey = process.env.META_API_KEY;
+  process.env.AI_PROVIDER = 'meta';
+  process.env.META_API_KEY = 'test-meta-key';
+
+  try {
+    const res = mockRes();
+    await laboController.scan(
+      {
+        user: { id: user.id },
+        body: {
+          image: SAMPLE_RECEIPT_DATA_URL,
+          categories: parseCategories,
+          today: '2026-11-17',
+          language: 'en-US',
+        },
+      },
+      res,
+      next
+    );
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.data.proposal.amount, 3200);
+    assert.equal(res.body.data.proposal.note, 'Supermarket Receipt');
+
+    // Verify 0 transactions were written to the database by /api/labo/scan
+    const userTxs = await TransactionModel.findByUser(user.id);
+    assert.deepEqual(userTxs, []);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (savedProvider !== undefined) process.env.AI_PROVIDER = savedProvider;
+    else delete process.env.AI_PROVIDER;
+    if (savedMetaKey !== undefined) process.env.META_API_KEY = savedMetaKey;
+    else delete process.env.META_API_KEY;
+  }
 });

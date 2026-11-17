@@ -1,7 +1,9 @@
+import { useRef } from "react";
 import {
   Bot,
   BookOpen,
   Calculator,
+  Camera,
   Check,
   FileSearch,
   FlaskConical,
@@ -18,17 +20,17 @@ import {
   X,
 } from "lucide-react";
 import { PageHeading } from "../../components/ui";
-import { formatDate, money } from "../../utils/formatters";
+import { money } from "../../utils/formatters";
 import { useLaboAgent } from "./useLaboAgent";
 
 const futureModules = [
   {
-    title: "1. AI Chat Assistant & Voice",
+    title: "1. AI Chat Assistant, Voice & Photo Scan",
     phase: "Phase 5–6",
     icon: Bot,
-    status: "Live — chat, voice in/out, multi-add & undo",
+    status: "Live — chat, voice in/out, receipt photo scan, multi-add & undo",
     description:
-      "Conversational assistant that answers questions and prepares transaction proposals using only figures calculated by ProMoney.",
+      "Conversational assistant that answers questions, scans receipt/bill photos with Muse Ember vision, and prepares transaction proposals using only figures verified by ProMoney.",
   },
   {
     title: "2. Financial X-Ray",
@@ -93,27 +95,31 @@ export default function LaboView() {
     speechSupported,
     toggleListening,
     ask,
+    scanPhoto,
+    updateProposalItem,
     removeProposalItem,
     confirmProposal,
     dismissProposal,
     undoSave,
+    categories,
   } = useLaboAgent();
 
+  const photoInputRef = useRef(null);
   const proposalsTotal = pendingProposals.reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
   return (
     <>
       <PageHeading
         title="ProMoney LA-BO"
-        subtitle="Explainable AI Financial Workspace — Chat, Voice In/Out, Multi-Add & One-Tap Undo."
+        subtitle="Explainable AI Financial Workspace — Chat, Voice In/Out, Receipt Photo Scan, Multi-Add & One-Tap Undo."
       />
 
       <div className="status-banner" role="status">
         <Info size={16} />
         <div>
-          <strong>AI Chat &amp; Voice Assistant is LIVE</strong>
+          <strong>AI Chat, Voice &amp; Receipt Photo Scan is LIVE</strong>
           <span>
-            Ask about your money or type/speak transactions like &ldquo;spent 500 on lunch and 1200 on train&rdquo;. LA-BO prepares a confirm card first — nothing saves until you tap Confirm.
+            Ask about your money, speak/type transactions, or tap 📷 to scan a bill/receipt photo. LA-BO prepares an editable confirm card first — nothing saves until you tap Confirm.
           </span>
         </div>
       </div>
@@ -234,42 +240,91 @@ export default function LaboView() {
               </button>
             </div>
 
-            <div style={{ display: "grid", gap: 6, marginBottom: 12 }}>
-              {pendingProposals.map((item) => (
-                <div
-                  key={item.itemId}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    gap: 8,
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    background: "var(--surface)",
-                    border: "1px solid var(--border)",
-                    fontSize: 12.5,
-                  }}
-                >
-                  <div>
-                    <strong>{item.note}</strong>
-                    <span className="muted" style={{ marginLeft: 8 }}>
-                      {item.category_name} · {item.kind} · {formatDate(item.transaction_date)}
-                    </span>
+            <div style={{ display: "grid", gap: 8, marginBottom: 12 }}>
+              {pendingProposals.map((item) => {
+                const catsOfKind = categories.filter((c) => c.kind === item.kind);
+                return (
+                  <div
+                    key={item.itemId}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "10px",
+                      borderRadius: 8,
+                      background: "var(--surface)",
+                      border: "1px solid var(--border)",
+                      fontSize: 12.5,
+                    }}
+                  >
+                    <label style={{ display: "flex", flexDirection: "column", gap: 2, margin: 0 }}>
+                      <span className="muted small">Payee / Title</span>
+                      <input
+                        type="text"
+                        value={item.note ?? ""}
+                        maxLength={120}
+                        aria-label="Proposed payee or title"
+                        onChange={(e) => updateProposalItem(item.itemId, { note: e.target.value })}
+                        style={{ padding: "5px 8px", fontSize: 12.5 }}
+                      />
+                    </label>
+
+                    <label style={{ display: "flex", flexDirection: "column", gap: 2, margin: 0 }}>
+                      <span className="muted small">Amount (JPY)</span>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={item.amount ?? ""}
+                        aria-label="Proposed amount JPY"
+                        onChange={(e) => updateProposalItem(item.itemId, { amount: e.target.value })}
+                        style={{ padding: "5px 8px", fontSize: 12.5 }}
+                      />
+                    </label>
+
+                    <label style={{ display: "flex", flexDirection: "column", gap: 2, margin: 0 }}>
+                      <span className="muted small">Date</span>
+                      <input
+                        type="date"
+                        value={item.transaction_date ?? ""}
+                        aria-label="Proposed transaction date"
+                        onChange={(e) => updateProposalItem(item.itemId, { transaction_date: e.target.value })}
+                        style={{ padding: "5px 8px", fontSize: 12.5 }}
+                      />
+                    </label>
+
+                    <label style={{ display: "flex", flexDirection: "column", gap: 2, margin: 0 }}>
+                      <span className="muted small">Category</span>
+                      <select
+                        value={item.category_id ?? ""}
+                        aria-label="Proposed category"
+                        onChange={(e) => updateProposalItem(item.itemId, { category_id: e.target.value })}
+                        style={{ padding: "5px 8px", fontSize: 12.5 }}
+                      >
+                        {catsOfKind.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
+                      <strong>{money(Math.round(Number(item.amount || 0)))}</strong>
+                      <button
+                        type="button"
+                        className="icon-button"
+                        onClick={() => removeProposalItem(item.itemId)}
+                        aria-label={`Remove ${item.note}`}
+                        title="Remove this item"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <strong>{money(item.amount)}</strong>
-                    <button
-                      type="button"
-                      className="icon-button"
-                      onClick={() => removeProposalItem(item.itemId)}
-                      aria-label={`Remove ${item.note}`}
-                      title="Remove this item"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
@@ -304,6 +359,30 @@ export default function LaboView() {
             ask();
           }}
         >
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            hidden
+            aria-label="Upload receipt or bill photo"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file) scanPhoto(file);
+            }}
+          />
+
+          <button
+            type="button"
+            className="btn secondary compact"
+            onClick={() => photoInputRef.current?.click()}
+            disabled={busy}
+            aria-label="Attach bill or receipt photo"
+            title="Attach a photo of a bill or receipt (📷)"
+          >
+            <Camera size={15} />
+          </button>
+
           <button
             type="button"
             className={`btn ${isListening ? "primary" : "secondary"} compact`}

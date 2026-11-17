@@ -17,7 +17,7 @@ const port = Number(process.env.PORT) || 4000;
 app.disable('x-powered-by');
 app.use(securityHeaders);
 app.use(cors(buildCorsOptions()));
-app.use(express.json({ limit: '100kb' }));
+app.use(express.json({ limit: '2mb' }));
 
 // Health Check Endpoint
 app.get('/api/health', (_req, res) => {

@@ -77,6 +77,10 @@ export const apiClient = {
     return request('/labo/parse', { method: 'POST', body: JSON.stringify(body) });
   },
 
+  async laboScan(body) {
+    return request('/labo/scan', { method: 'POST', body: JSON.stringify(body) });
+  },
+
   // Settings & Preferences (SQL-persisted)
   async getSettings() {
     return request('/settings', { method: 'GET' });

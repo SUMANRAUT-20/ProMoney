@@ -4,6 +4,7 @@ import { useFinance } from '../../context/FinanceContext';
 import { makeId, money } from '../../utils/formatters';
 import {
   QUICK_QUESTIONS,
+  compressReceiptImage,
   createSpeechRecognizer,
   isSpeechRecognitionSupported,
   isUndoCommand,
@@ -13,6 +14,7 @@ import {
   parseLaboTransaction,
   saveVoiceLang,
   saveVoiceMuted,
+  scanLaboReceiptPhoto,
   sendLaboQuestion,
   speakLaboReply,
   stopLaboSpeech,
@@ -194,30 +196,121 @@ export function useLaboAgent() {
     setPendingProposals((prev) => prev.filter((item) => item.itemId !== itemId));
   }, []);
 
+  const updateProposalItem = useCallback(
+    (itemId, patch) => {
+      setPendingProposals((prev) =>
+        prev.map((item) => {
+          if (item.itemId !== itemId) return item;
+          const next = { ...item, ...patch };
+          if (patch.kind !== undefined && patch.category_id === undefined) {
+            const firstCat = (finance.categories || []).find((c) => c.kind === patch.kind);
+            if (firstCat) {
+              next.category_id = firstCat.id;
+              next.category_name = firstCat.name;
+            }
+          } else if (patch.category_id !== undefined) {
+            const matchedCat = (finance.categories || []).find(
+              (c) => String(c.id) === String(patch.category_id)
+            );
+            if (matchedCat) {
+              next.category_id = matchedCat.id;
+              next.category_name = matchedCat.name;
+            }
+          }
+          return next;
+        })
+      );
+    },
+    [finance.categories]
+  );
+
+  const scanPhoto = useCallback(
+    async (file) => {
+      if (!file || busy) return null;
+      setError('');
+      const hint = input.trim();
+      setInput('');
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: makeId('msg'),
+          role: 'user',
+          text: `📷 Attached receipt/bill photo: ${file.name || 'photo.jpg'}${hint ? ` (${hint})` : ''}`,
+        },
+      ]);
+      setBusy(true);
+      try {
+        const imageDataUrl = await compressReceiptImage(file);
+        const result = await scanLaboReceiptPhoto({
+          imageDataUrl,
+          categories: finance.categories || [],
+          language: voiceLang,
+          userHint: hint,
+        });
+
+        if (!result.unreadable && result.proposals.length > 0) {
+          setPendingProposals(result.proposals);
+        } else {
+          setPendingProposals([]);
+        }
+        setMessages((prev) => [...prev, { id: makeId('msg'), role: 'ai', text: result.message }]);
+        speak(result.message);
+        return result;
+      } catch (err) {
+        if (err.status === 503) {
+          setError('AI is not switched on yet — the server needs its META_API_KEY in the root .env.');
+        } else {
+          setError(err.message || 'Could not scan that photo right now. Please try again.');
+        }
+        return null;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy, input, finance.categories, voiceLang, speak]
+  );
+
   const confirmProposal = useCallback(async () => {
     if (pendingProposals.length === 0 || busy) return [];
+    for (const item of pendingProposals) {
+      const amt = Math.round(Number(item.amount));
+      if (!Number.isSafeInteger(amt) || amt <= 0) {
+        setError('Every proposed item must have a positive whole-yen JPY amount.');
+        return [];
+      }
+      if (!String(item.note || '').trim()) {
+        setError('Every proposed item needs a short payee or title.');
+        return [];
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(item.transaction_date || ''))) {
+        setError('Every proposed item must have a valid YYYY-MM-DD date.');
+        return [];
+      }
+    }
     setBusy(true);
     setError('');
     try {
       const savedRecords = [];
       const defaultAccId = finance.accounts?.[0]?.id ? String(finance.accounts[0].id) : null;
       for (const item of pendingProposals) {
+        const cleanAmt = Math.round(Number(item.amount));
+        const cleanNote = String(item.note || item.category_name).trim().slice(0, 120);
         const created = await finance.addTransaction({
           kind: item.kind,
-          amount: item.amount,
+          amount: cleanAmt,
           category_id: item.category_id,
           category_name: item.category_name,
           account_id: defaultAccId,
           transaction_date: item.transaction_date,
-          note: item.note,
-          title: item.note || item.category_name,
+          note: cleanNote,
+          title: cleanNote,
         });
         if (created?.id !== undefined) savedRecords.push(created);
       }
-      const totalAmt = pendingProposals.reduce((s, p) => s + Number(p.amount || 0), 0);
+      const totalAmt = pendingProposals.reduce((s, p) => s + Math.round(Number(p.amount || 0)), 0);
       const label =
         pendingProposals.length === 1
-          ? `Added ${money(pendingProposals[0].amount)} ${pendingProposals[0].category_name} (${pendingProposals[0].note})`
+          ? `Added ${money(Math.round(Number(pendingProposals[0].amount)))} ${pendingProposals[0].category_name} (${String(pendingProposals[0].note).trim()})`
           : `Added ${pendingProposals.length} transactions (${money(totalAmt)} total)`;
 
       setPendingProposals([]);
@@ -319,9 +412,12 @@ export function useLaboAgent() {
     toggleListening,
     ask,
     parseEntry,
+    scanPhoto,
+    updateProposalItem,
     removeProposalItem,
     confirmProposal,
     dismissProposal,
     undoSave,
+    categories: finance.categories || [],
   };
 }

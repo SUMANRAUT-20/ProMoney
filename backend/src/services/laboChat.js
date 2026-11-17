@@ -459,3 +459,200 @@ export async function parseTransactionWithLabo({
     model: cfg.model,
   };
 }
+
+// --- Feature Spec F3: Receipt / Bill Photo Scan (Muse Ember Vision, Confirm-Before-Save) ---
+
+const PHOTO_SCAN_RULES = [
+  'You read photos of receipts, bills, or invoices for the ProMoney personal finance app.',
+  'Reply with ONLY a JSON object — no markdown fences, no extra text.',
+  'If the image is a readable receipt, bill, or invoice with a clear JPY amount, reply:',
+  '{"action":"add","kind":"expense","amount":1480,"category_name":"Food & Dining","transaction_date":"2026-11-15","note":"FamilyMart Shinjuku","message":"I read your receipt from FamilyMart Shinjuku for ¥1,480. Check the details on the card below and tap Confirm & Save."}',
+  'If the image is blurry, unreadable, has no clear amount, or is NOT a bill/receipt/invoice, NEVER guess or invent any number — reply:',
+  '{"action":"unreadable","message":"I couldn\'t read a clear bill or receipt from that photo, so I won\'t guess any numbers. Please try a clearer photo or type the details."}',
+  'Rules:',
+  '- amount MUST be the exact positive integer JPY total visible on the bill/receipt. Never guess.',
+  '- transaction_date: YYYY-MM-DD printed on the bill/receipt; if no date is visible, use today\'s date.',
+  '- note: payee / store / bill title from the image (concise, max 100 chars).',
+  '- category_name: MUST be copied from the provided category list; if unsure, use "Other Expense".',
+  '- message: warm, casual, friend-like 1-2 sentence reply in the user\'s language (Japanese if language is ja-JP, Roman Nepali if the user wrote Roman Nepali, otherwise English).'
+].join('\n');
+
+export function buildNonMetaPhotoMessage(language = 'en-US', userHint = '') {
+  const hint = String(userHint || '');
+  if (String(language).startsWith('ja') || /[\u3040-\u30ff\u4e00-\u9faf]/.test(hint)) {
+    return '写真スキャンにはMetaプロバイダー（Muse Ember Vision）が必要です。現在のAI_PROVIDER設定では画像を読み取れません。';
+  }
+  if (/\b(khana|kharcha|paisa|baito|kati|bhayo|bill|photo)\b/i.test(hint)) {
+    return 'Photo scan ko lagi Meta provider (Muse Ember vision) chahincha — ahile ko AI_PROVIDER le photo padhna sakdaina.';
+  }
+  return 'Photo scan requires the Meta provider (Muse Ember vision) — the current AI_PROVIDER cannot read images.';
+}
+
+export function buildUnreadablePhotoMessage(language = 'en-US', userHint = '') {
+  const hint = String(userHint || '');
+  if (String(language).startsWith('ja') || /[\u3040-\u30ff\u4e00-\u9faf]/.test(hint)) {
+    return '写真から請求書やレシートの金額をはっきり読み取れませんでした。数字は推測しないため、もう一度鮮明な写真を撮るか手入力してください。';
+  }
+  if (/\b(khana|kharcha|paisa|baito|kati|bhayo)\b/i.test(hint)) {
+    return 'Yo photo bata bill wa receipt ko amount spasta padhna sakiena — ma kunai number andaaj gardina. Kripaya safa photo pathaunus wa type garnus.';
+  }
+  return "I couldn't read a clear bill or receipt from that photo — I won't guess any numbers. Please try a clearer photo or type the details.";
+}
+
+export function buildPhotoScanMessages({
+  imageDataUrl,
+  categories,
+  today,
+  language = 'en-US',
+  userHint = '',
+}) {
+  const list = categories.map((c) => ({ name: c.name, kind: c.kind }));
+  const hintLine = userHint ? `\nUser note: ${String(userHint).slice(0, 200)}` : '';
+  return [
+    { role: 'system', content: PHOTO_SCAN_RULES },
+    {
+      role: 'user',
+      content: [
+        {
+          type: 'text',
+          text: `Today is ${today}. Preferred language: ${language}. Categories: ${JSON.stringify(list)}${hintLine}\nRead the attached receipt/bill image and return ONLY the JSON object.`,
+        },
+        {
+          type: 'image_url',
+          image_url: { url: String(imageDataUrl) },
+        },
+      ],
+    },
+  ];
+}
+
+export function extractPhotoScanResult(rawContent, categories, today, language = 'en-US', userHint = '') {
+  if (typeof rawContent !== 'string') {
+    return {
+      proposal: null,
+      proposals: [],
+      unreadable: true,
+      message: buildUnreadablePhotoMessage(language, userHint),
+    };
+  }
+  const start = rawContent.indexOf('{');
+  const end = rawContent.lastIndexOf('}');
+  if (start < 0 || end <= start) {
+    return {
+      proposal: null,
+      proposals: [],
+      unreadable: true,
+      message: buildUnreadablePhotoMessage(language, userHint),
+    };
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(rawContent.slice(start, end + 1));
+  } catch {
+    return {
+      proposal: null,
+      proposals: [],
+      unreadable: true,
+      message: buildUnreadablePhotoMessage(language, userHint),
+    };
+  }
+
+  if (!parsed || parsed.action === 'unreadable' || parsed.action === 'none') {
+    const msg =
+      typeof parsed?.message === 'string' && parsed.message.trim()
+        ? parsed.message.trim()
+        : buildUnreadablePhotoMessage(language, userHint);
+    return {
+      proposal: null,
+      proposals: [],
+      unreadable: true,
+      message: msg,
+    };
+  }
+
+  const proposals = extractProposals(rawContent, categories, today);
+  if (proposals.length === 0) {
+    return {
+      proposal: null,
+      proposals: [],
+      unreadable: true,
+      message: buildUnreadablePhotoMessage(language, userHint),
+    };
+  }
+
+  const first = proposals[0];
+  const msg =
+    typeof parsed.message === 'string' && parsed.message.trim()
+      ? parsed.message.trim()
+      : `I read ${first.note} for ¥${first.amount.toLocaleString('ja-JP')} (${first.category_name}, ${first.transaction_date}). Check or edit the fields below before tapping Confirm & Save.`;
+
+  return {
+    proposal: first,
+    proposals,
+    unreadable: false,
+    message: msg,
+  };
+}
+
+/**
+ * Feature Spec F3:
+ * Scans a receipt/bill image through the unified provider layer.
+ * - Requires Meta provider (`muse-ember-1.0` vision). If `AI_PROVIDER` is not `'meta'`,
+ *   returns an honest explanation in the user's language with `proposal: null`.
+ * - Never writes to the database; returns a proposal for the confirm card only (K2).
+ */
+export async function scanReceiptWithLabo({
+  imageDataUrl,
+  categories,
+  today,
+  language = 'en-US',
+  userHint = '',
+  env = process.env,
+  fetchImpl = fetch,
+}) {
+  const cfg = getProviderConfig(env);
+  if (cfg.provider !== 'meta') {
+    return {
+      proposal: null,
+      proposals: [],
+      unreadable: true,
+      requiresMetaProvider: true,
+      message: buildNonMetaPhotoMessage(language, userHint),
+      provider: cfg.provider,
+      model: cfg.model,
+    };
+  }
+
+  if (!cfg.apiKey) {
+    const err = new Error(cfg.missingKeyMessage);
+    err.code = 'LABO_NOT_CONFIGURED';
+    throw err;
+  }
+
+  const messages = buildPhotoScanMessages({
+    imageDataUrl,
+    categories,
+    today,
+    language,
+    userHint,
+  });
+
+  // Note: muse-ember-1.0 uses ~400-600 reasoning tokens on vision inputs,
+  // so maxTokens must be >= 1500 so reasoning does not truncate the JSON output.
+  const rawContent = await metaComplete(messages, {
+    apiKey: cfg.apiKey,
+    model: cfg.model,
+    url: cfg.url,
+    fetchImpl,
+    temperature: 0,
+    maxTokens: 1500,
+  });
+
+  const result = extractPhotoScanResult(rawContent, categories, today, language, userHint);
+  return {
+    ...result,
+    provider: cfg.provider,
+    model: cfg.model,
+  };
+}

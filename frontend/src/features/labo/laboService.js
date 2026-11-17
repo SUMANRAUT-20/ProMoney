@@ -194,3 +194,80 @@ export async function parseLaboTransaction({ text, categories }) {
     model: payload?.data?.model || null,
   };
 }
+
+/**
+ * Downscales and compresses a receipt/bill photo on the client so the
+ * base64 payload sent to `/api/labo/scan` stays compact (~40–120KB).
+ */
+export async function compressReceiptImage(file, { maxDimension = 1024, quality = 0.78 } = {}) {
+  if (!file) throw new Error('Please choose an image file.');
+  if (!String(file.type || '').startsWith('image/')) {
+    throw new Error('Please select a valid image file (JPEG, PNG, or WebP).');
+  }
+
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = new Image();
+    await new Promise((resolve, reject) => {
+      img.onload = resolve;
+      img.onerror = () => reject(new Error('Could not decode the selected image.'));
+      img.src = objectUrl;
+    });
+
+    const srcW = img.naturalWidth || img.width || 800;
+    const srcH = img.naturalHeight || img.height || 600;
+    const scale = Math.min(1, maxDimension / Math.max(srcW, srcH, 1));
+    const targetW = Math.max(1, Math.round(srcW * scale));
+    const targetH = Math.max(1, Math.round(srcH * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, targetW, targetH);
+    ctx.drawImage(img, 0, 0, targetW, targetH);
+
+    return canvas.toDataURL('image/jpeg', quality);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+export async function scanLaboReceiptPhoto({
+  imageDataUrl,
+  categories,
+  language = 'en-US',
+  userHint = '',
+}) {
+  const payload = await apiClient.laboScan({
+    image: imageDataUrl,
+    categories,
+    today: todayISO(),
+    language,
+    userHint,
+  });
+  const data = payload?.data || {};
+  const rawList = Array.isArray(data.proposals)
+    ? data.proposals
+    : data.proposal
+      ? [data.proposal]
+      : [];
+  const proposals = rawList.map((item) => ({
+    ...item,
+    itemId: item.itemId || makeId('prop'),
+  }));
+  return {
+    proposal: proposals[0] || null,
+    proposals,
+    unreadable: Boolean(data.unreadable || proposals.length === 0),
+    requiresMetaProvider: Boolean(data.requiresMetaProvider),
+    message:
+      data.message ||
+      (proposals.length > 0
+        ? `I read ${proposals[0].note} for ¥${Number(proposals[0].amount).toLocaleString('ja-JP')}.`
+        : "I couldn't read a clear receipt or bill from that photo."),
+    provider: data.provider || 'meta',
+    model: data.model || null,
+  };
+}

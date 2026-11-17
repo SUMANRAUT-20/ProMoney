@@ -6,5 +6,6 @@ const router = Router();
 
 router.post('/chat', requireAuth, laboController.chat);
 router.post('/parse', requireAuth, laboController.parse);
+router.post('/scan', requireAuth, laboController.scan);
 
 export default router;
