@@ -4,8 +4,10 @@ import { once } from 'node:events';
 import test from 'node:test';
 import express from 'express';
 import { signToken } from '../src/middleware/authMiddleware.js';
+import { AccountModel } from '../src/models/accountModel.js';
 import { BillModel } from '../src/models/billModel.js';
 import { CategoryModel } from '../src/models/categoryModel.js';
+import { GoalModel } from '../src/models/goalModel.js';
 import { SettingsModel } from '../src/models/settingsModel.js';
 import { TransactionModel } from '../src/models/transactionModel.js';
 import { UserModel } from '../src/models/userModel.js';
@@ -90,4 +92,22 @@ test('F8: chat returns the current Home warnings verbatim in engine order', asyn
   assert.equal(response.status, 200);
   const { data } = await response.json();
   assert.deepEqual(data.warnings, expected);
+});
+
+test('LA-BO simulation responses leave finances unchanged', async (t) => {
+  const { userId, post } = await fixture(t);
+  const account = await AccountModel.create({ userId, name: 'Bank', kind: 'bank', manualBalance: 6000 });
+  const goal = await GoalModel.create({ userId, title: 'Trip', targetAmount: 3000, monthlyPlan: 1000 });
+  const purchase = await post('/chat', { question: 'Can I buy a ¥1,000 jacket?' });
+  assert.equal(purchase.status, 200);
+  assert.equal((await purchase.json()).data.purchase.amount, 1000);
+  const allocation = await post('/chat', { question: 'What can I do with my money?' });
+  assert.equal(allocation.status, 200);
+  assert.equal((await allocation.json()).data.allocation.proposals[0].kind, 'goal');
+  const scenario = await post('/what-if', { moreIncome: 500, lessSpending: 0 });
+  assert.equal(scenario.status, 200);
+  assert.equal((await scenario.json()).data.scenarioTrend.length, 3);
+  assert.deepEqual(await TransactionModel.findByUser(userId), []);
+  assert.equal((await GoalModel.findByIdAndUser(goal.id, userId)).saved_amount, 0);
+  assert.equal((await AccountModel.findByIdAndUser(account.id, userId)).manual_balance, 6000);
 });

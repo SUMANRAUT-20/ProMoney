@@ -46,6 +46,13 @@ export const accountGroups = [
     providers: [],
     ruleHint: "DEBT (counts in money-you-owe; paying it off is a transfer).",
   },
+  {
+    id: "loan",
+    label: "Loan",
+    kind: "loan",
+    providers: [],
+    ruleHint: "Counts in money you owe. Use Loans to compare payoff plans.",
+  },
 ];
 
 export function accountGroup(account) {
@@ -128,7 +135,7 @@ export function findCloselyMatchingAccount(inputName, inputProvider, existingAcc
   return null;
 }
 
-const VALID_KINDS = ["cash", "bank", "digital", "prepaid", "debit_card", "credit_card"];
+const VALID_KINDS = accountGroups.map(({ kind }) => kind);
 
 function validateAccount(values, isDebit, parentAccountId) {
   const errors = {};
@@ -182,6 +189,7 @@ export default function AccountFormModal({ account, initialGroup = "bank", onClo
 
   const group = accountGroups.find((item) => item.id === groupId) || accountGroups[0];
   const isDebit = groupId === "debit";
+  const isDebt = groupId === "credit" || groupId === "loan";
 
   const providerOptions = [
     ...new Set([
@@ -242,6 +250,7 @@ export default function AccountFormModal({ account, initialGroup = "bank", onClo
         parent_account_id: finalParentId,
       },
       {
+        ...account?.ui_details,
         group: groupId,
         provider: chosenProvider,
         parent_account_id: finalParentId,
@@ -322,12 +331,12 @@ export default function AccountFormModal({ account, initialGroup = "bank", onClo
             groupId !== "cash" && (
               <label htmlFor="account-provider">
                 2. What does it belong to? (Provider)
-                {groupId === "credit" ? (
+                {isDebt ? (
                   <input
                     id="account-provider"
                     value={provider}
                     maxLength={80}
-                    placeholder="e.g. Rakuten Card"
+                    placeholder={groupId === "loan" ? "Name of lender" : "e.g. Rakuten Card"}
                     onChange={(e) => {
                       setProvider(e.target.value);
                       setErrors((c) => ({ ...c, provider: undefined }));
@@ -362,7 +371,7 @@ export default function AccountFormModal({ account, initialGroup = "bank", onClo
           )}
         </div>
 
-        {addingProvider && !isDebit && groupId !== "cash" && groupId !== "credit" && (
+        {addingProvider && !isDebit && groupId !== "cash" && !isDebt && (
           <label htmlFor="custom-provider">
             Add {providerLabel}
             <input
@@ -436,7 +445,7 @@ export default function AccountFormModal({ account, initialGroup = "bank", onClo
         <div className="form-row">
           {!isDebit ? (
             <label htmlFor="account-balance">
-              {groupId === "credit" ? "Opening amount owed (JPY)" : "Opening balance (JPY)"}
+              {isDebt ? "Opening amount owed (JPY)" : "Opening balance (JPY)"}
               <input
                 id="account-balance"
                 name="manual_balance"

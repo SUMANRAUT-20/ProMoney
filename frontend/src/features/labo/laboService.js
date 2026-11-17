@@ -18,6 +18,7 @@ export const QUICK_QUESTIONS = [
   'Spending by category this month',
   'Last month vs this month',
   'Show my income vs expenses',
+  'What can I do with my money?',
 ];
 
 const VOICE_MUTE_STORAGE_KEY = 'pm_labo_voice_muted_v1';
@@ -150,7 +151,7 @@ export function looksLikeAddIntent(text) {
   if (!str || str.endsWith('?') || str.endsWith('？')) return false;
   if (!/\d{2,}/.test(str)) return false;
   const lower = str.toLowerCase();
-  if (/^(how|what|why|when|where|am i|can i|do i|show|tell)\b/.test(lower)) return false;
+  if (/^(how|what|why|when|where|am i|can i|could i|do i|show|tell|check before)\b/.test(lower)) return false;
   if (/\b(by category|category breakdown|category spending|report|monthly comparison)\b|\bincome\b.*\bexpenses?\b|\bexpenses?\b.*\bincome\b|カテゴリ別|レポート|収入.*支出/.test(lower)) return false;
   if (
     /\b(spent|spend|paid|pay|bought|buy|add|record|received|got|salary|baito|khana|kharcha|aayo|lunch|dinner|coffee|bus|train|groceries|rent)\b/i.test(
@@ -176,6 +177,8 @@ export async function sendLaboQuestion({ question, finance }) {
     report: payload?.data?.report,
     signature: payload?.data?.signature,
     warnings: payload?.data?.warnings,
+    purchase: payload?.data?.purchase,
+    allocation: payload?.data?.allocation,
   };
 }
 

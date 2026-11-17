@@ -1,21 +1,16 @@
-import { AccountModel } from '../models/accountModel.js';
-import { BillModel } from '../models/billModel.js';
 import { BudgetModel } from '../models/budgetModel.js';
 import { CategoryModel } from '../models/categoryModel.js';
-import { GoalModel } from '../models/goalModel.js';
-import { SettingsModel } from '../models/settingsModel.js';
 import { TransactionModel } from '../models/transactionModel.js';
 import { buildHomeSummary } from '../services/financeMath.js';
 import { buildFinanceReport, reportRequest } from '../services/financeReport.js';
 import { reportCsv, reportPdf, signReport, verifyReport } from '../services/reportExport.js';
+import { getSimulatorInsight, loadLaboPlan } from './laboSimulators.js';
 
 async function currentAlerts(userId, japanese) {
-  const [accounts, transactions, budgets, bills, goals, preferences] = await Promise.all([
-    AccountModel.findByUser(userId), TransactionModel.findByUser(userId),
-    BudgetModel.findByUser(userId), BillModel.findByUser(userId),
-    GoalModel.findByUser(userId), SettingsModel.getPreferences(userId),
+  const [data, budgets] = await Promise.all([
+    loadLaboPlan(userId), BudgetModel.findByUser(userId),
   ]);
-  const home = buildHomeSummary({ accounts, transactions, budgets, bills, goals, preferences });
+  const home = buildHomeSummary({ ...data, budgets });
   const warnings = home.warnings.map(({ title }) => title);
   const answer = japanese
     ? (warnings.length ? '最新のアラートをお伝えします。' : '現在、アラートはありません。')
@@ -28,6 +23,8 @@ export async function getLaboInsight(question, userId) {
     || /^(?:アラート|警告)(?:を聞く|はある|はありますか)?[？?。\s]*$/.test(question)) {
     return currentAlerts(userId, /[\u3040-\u30ff\u4e00-\u9faf]/.test(question));
   }
+  const simulation = await getSimulatorInsight(question, userId);
+  if (simulation) return simulation;
   const request = reportRequest(question);
   if (!request) return null;
   if (!request.months) {

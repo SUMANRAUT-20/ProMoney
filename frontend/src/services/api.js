@@ -76,6 +76,15 @@ export const apiClient = {
   async laboReportExport(body) {
     return request('/labo/report/export', { method: 'POST', body: JSON.stringify(body) }, 'blob');
   },
+  async laboWhatIf(body) {
+    return request('/labo/what-if', { method: 'POST', body: JSON.stringify(body) });
+  },
+  async getLoans() {
+    return request('/labo/loans');
+  },
+  async calculateLoanPayoff(body) {
+    return request('/labo/loans', { method: 'POST', body: JSON.stringify(body) });
+  },
 
   async laboParse(body) {
     return request('/labo/parse', { method: 'POST', body: JSON.stringify(body) });

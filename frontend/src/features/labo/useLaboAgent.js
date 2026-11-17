@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useFinance } from '../../context/FinanceContext';
 import { makeId, money } from '../../utils/formatters';
 import { useStatementImport } from './useStatementImport';
+import { useAllocationConfirmation } from './useAllocationConfirmation';
 import {
   QUICK_QUESTIONS,
   compressReceiptImage,
@@ -40,6 +41,7 @@ export function useLaboAgent() {
   const [error, setError] = useState('');
   const [pendingProposals, setPendingProposals] = useState([]);
   const statement = useStatementImport({ busy, setBusy, setError, setMessages, finance });
+  const confirmAllocation = useAllocationConfirmation({ finance, busy, setBusy, setError, setMessages });
 
   const [voiceMuted, setVoiceMuted] = useState(loadVoiceMuted);
   const [voiceLang, setVoiceLangState] = useState(loadVoiceLang);
@@ -154,9 +156,9 @@ export function useLaboAgent() {
           }
         }
 
-        const { answer, report, signature, warnings } = await sendLaboQuestion({ question, finance });
+        const { answer, report, signature, warnings, purchase, allocation } = await sendLaboQuestion({ question, finance });
         setMessages((prev) => [...prev, {
-          id: makeId('msg'), role: 'ai', text: answer, report, signature, warnings,
+          id: makeId('msg'), role: 'ai', text: answer, report, signature, warnings, purchase, allocation,
         }]);
         if (warnings) speak([answer, ...warnings].join('\n'), true);
         else speak(answer);
@@ -426,5 +428,6 @@ export function useLaboAgent() {
     undoSave,
     categories: finance.categories || [],
     statement,
+    confirmAllocation,
   };
 }

@@ -23,6 +23,8 @@ import { PageHeading } from "../../components/ui";
 import { money } from "../../utils/formatters";
 import { StatementAttachment, StatementReview } from "./StatementImport";
 import { ReportCard } from "./ReportCard";
+import { AllocationCard, PurchaseCard } from "./SimulatorCards";
+import { WhatIfPanel } from "./WhatIfPanel";
 import { useLaboAgent } from "./useLaboAgent";
 
 const futureModules = [
@@ -105,6 +107,7 @@ export default function LaboView() {
     undoSave,
     categories,
     statement,
+    confirmAllocation,
   } = useLaboAgent();
 
   const photoInputRef = useRef(null);
@@ -205,6 +208,9 @@ export default function LaboView() {
             >
               <div>{m.text}</div>
               {m.report && <ReportCard report={m.report} signature={m.signature} />}
+              {m.purchase && <PurchaseCard plan={m.purchase} />}
+              {m.allocation && <AllocationCard plan={m.allocation} closed={m.allocationClosed} busy={busy}
+                onConfirm={(proposal) => confirmAllocation(m.id, proposal)} />}
               {m.warnings?.length > 0 && (
                 <ul>{m.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>
               )}
@@ -440,6 +446,7 @@ export default function LaboView() {
         <StatementAttachment onAttach={statement.attach} disabled={busy || statement.rows.length > 0} />
       </section>
 
+      <WhatIfPanel categories={categories} />
       <section className="section-card card">
         <div className="section-title">
           <h2>ProMoney Lab Capabilities</h2>
@@ -478,7 +485,7 @@ export default function LaboView() {
           that snapshot only.
         </p>
         <p className="muted">
-          2. <strong>Coming next:</strong> What-if simulators.
+          2. <strong>Planning:</strong> Ask “Can I buy a ¥30,000 jacket?” for a purchase simulation.
         </p>
         <p className="muted" style={{ marginBottom: 0 }}>
           3. <strong>Strict Human-in-the-Loop Rule:</strong> AI suggestions
