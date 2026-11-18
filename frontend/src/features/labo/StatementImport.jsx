@@ -11,7 +11,7 @@ export function StatementAttachment({ onAttach, disabled }) {
       <input
         ref={inputRef}
         type="file"
-        accept=".csv,.pdf,text/csv,application/pdf"
+        accept=".csv,.pdf,.xlsx,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         hidden
         aria-label="Upload bank statement"
         onChange={(event) => {
@@ -24,7 +24,7 @@ export function StatementAttachment({ onAttach, disabled }) {
         <Paperclip size={15} /> Attach statement
       </button>
       <span className="muted small">
-        Drop a CSV or PDF here. PDFs with unreadable text may be sent to Meta for extraction.
+        Drop a CSV, PDF, or XLSX here. PDFs with unreadable text may be sent to Meta for extraction.
       </span>
     </div>
   );

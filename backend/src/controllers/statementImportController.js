@@ -2,6 +2,7 @@ import { CategoryModel } from '../models/categoryModel.js';
 import { TransactionModel } from '../models/transactionModel.js';
 import { parseStatementCsv } from '../services/statementCsv.js';
 import { parseStatementPdf } from '../services/statementPdf.js';
+import { parseStatementXlsx } from '../services/statementXlsx.js';
 import { buildStatementReview } from '../services/statementReview.js';
 
 function decodeCsv(bytes) {
@@ -19,8 +20,8 @@ function decodeCsv(bytes) {
 export async function previewStatement(req, res, next) {
   const format = req.get('X-Statement-Format');
   const bytes = req.body;
-  if (!['csv', 'pdf'].includes(format) || !Buffer.isBuffer(bytes) || bytes.length === 0) {
-    return res.status(400).json({ error: 'Attach a CSV or PDF statement file.', status: 400 });
+  if (!['csv', 'pdf', 'xlsx'].includes(format) || !Buffer.isBuffer(bytes) || bytes.length === 0) {
+    return res.status(400).json({ error: 'Attach a CSV, PDF, or XLSX statement. Older XLS files are unsupported.', status: 400 });
   }
 
   try {
@@ -28,7 +29,8 @@ export async function previewStatement(req, res, next) {
     if (format === 'csv' && text === null) {
       return res.status(422).json({ error: 'The CSV must be encoded as UTF-8 or Shift JIS.', status: 422 });
     }
-    const rows = format === 'csv' ? parseStatementCsv(text) : await parseStatementPdf(bytes);
+    const rows = format === 'csv' ? parseStatementCsv(text)
+      : format === 'xlsx' ? await parseStatementXlsx(bytes) : await parseStatementPdf(bytes);
     if (rows.length > 1000) {
       return res.status(422).json({ error: 'Split this statement into files of at most 1,000 transactions.', status: 422 });
     }

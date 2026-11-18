@@ -19,8 +19,8 @@ export function useStatementImport({ busy, setBusy, setError, setMessages, finan
     if (busy || !files.length) return;
     if (rows.length) return setError('Finish or cancel the current statement review first.');
     const file = files[0];
-    const format = /\.(csv|pdf)$/i.exec(file.name)?.[1].toLowerCase();
-    if (files.length !== 1 || !format) return setError('Choose one CSV or PDF statement.');
+    const format = /\.(csv|pdf|xlsx)$/i.exec(file.name)?.[1].toLowerCase();
+    if (files.length !== 1 || !format) return setError('Choose one CSV, PDF, or XLSX statement. Older XLS files are unsupported.');
     if (file.size === 0) return setError('This statement file is empty.');
     if (file.size > MAX_STATEMENT_BYTES) return setError('Choose a statement no larger than 8 MB.');
 
