@@ -125,13 +125,33 @@ export function verifyAnswerNumbers(answer, snapshot) {
 
 // --- Groq Provider (Fallback — KEPT intact) ---
 
+function logProviderFailure(provider, status, body, apiKey) {
+  const text = String(body);
+  console.error('[LA-BO provider error]', provider, status, apiKey ? text.replaceAll(apiKey, '[REDACTED]') : text);
+}
+
+async function logProviderHttpError(provider, response, apiKey) {
+  const body = await response.text().catch(() => '(response body could not be read)');
+  logProviderFailure(provider, response.status, body, apiKey);
+}
+
+async function fetchProvider(provider, fetchImpl, url, options) {
+  try {
+    return await fetchImpl(url, options);
+  } catch (error) {
+    console.error('[LA-BO provider error]', provider, 'HTTP status unavailable',
+      error.cause?.code || error.code || error.name, '(no HTTP response body)');
+    throw error;
+  }
+}
+
 async function groqComplete(messages, { apiKey, fetchImpl = fetch, temperature = 0.2, maxTokens = 800 }) {
   if (!apiKey) {
     const err = new Error('GROQ_API_KEY is not configured on the server.');
     err.code = 'LABO_NOT_CONFIGURED';
     throw err;
   }
-  const response = await fetchImpl(GROQ_URL, {
+  const response = await fetchProvider('groq', fetchImpl, GROQ_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -145,6 +165,7 @@ async function groqComplete(messages, { apiKey, fetchImpl = fetch, temperature =
     })
   });
   if (!response.ok) {
+    await logProviderHttpError('groq', response, apiKey);
     const err = new Error(`Groq request failed with status ${response.status}`);
     err.code = 'GROQ_UPSTREAM';
     err.status = response.status;
@@ -153,6 +174,7 @@ async function groqComplete(messages, { apiKey, fetchImpl = fetch, temperature =
   const payload = await response.json();
   const answer = extractCompletionText(payload);
   if (!answer) {
+    logProviderFailure('groq', response.status, JSON.stringify(payload), apiKey);
     const err = new Error('Groq returned an empty answer.');
     err.code = 'GROQ_UPSTREAM';
     throw err;
@@ -183,7 +205,7 @@ export async function metaComplete(
     err.code = 'LABO_NOT_CONFIGURED';
     throw err;
   }
-  const response = await fetchImpl(url, {
+  const response = await fetchProvider('meta', fetchImpl, url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -197,6 +219,7 @@ export async function metaComplete(
     }),
   });
   if (!response.ok) {
+    await logProviderHttpError('meta', response, cleanKey);
     const err = new Error(`Meta API request failed with status ${response.status}`);
     err.code = 'META_UPSTREAM';
     err.status = response.status;
@@ -205,6 +228,7 @@ export async function metaComplete(
   const payload = await response.json();
   const answer = extractCompletionText(payload);
   if (!answer) {
+    logProviderFailure('meta', response.status, JSON.stringify(payload), cleanKey);
     const err = new Error('Meta API returned an empty answer.');
     err.code = 'META_UPSTREAM';
     throw err;

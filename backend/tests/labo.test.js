@@ -71,12 +71,29 @@ test('askGroq posts to Groq with the labo model and returns the answer text', as
   assert.equal(JSON.parse(seenInit.body).model, LABO_MODEL);
 });
 
-test('askGroq rejects clearly when Groq answers with an error status', async () => {
-  const fakeFetch = async () => ({ ok: false, status: 429, json: async () => ({}) });
-  await assert.rejects(
-    () => askGroq({ question: 'Hi', snapshot, apiKey: 'k', fetchImpl: fakeFetch }),
-    (err) => err.code === 'GROQ_UPSTREAM' && err.status === 429
-  );
+test('providers log the upstream status and error body while masking their API key', async (t) => {
+  const logging = t.mock.method(console, 'error', () => {});
+  const apiKey = 'fixture-api-key';
+  const fakeFetch = async () => ({
+    ok: false, status: 429, text: async () => `{"error":"rate limited","echo":"${apiKey}"}`,
+  });
+  for (const [provider, ask] of [['groq', askGroq], ['meta', askMeta]]) {
+    await assert.rejects(
+      () => ask({ question: 'Hi', snapshot, apiKey, fetchImpl: fakeFetch }),
+      (err) => err.code === provider.toUpperCase() + '_UPSTREAM' && err.status === 429,
+    );
+    assert.deepEqual(logging.mock.calls.at(-1).arguments, [
+      '[LA-BO provider error]', provider, 429, '{"error":"rate limited","echo":"[REDACTED]"}',
+    ]);
+    const networkError = new TypeError('fetch failed');
+    await assert.rejects(
+      () => ask({ question: 'Hi', snapshot, apiKey, fetchImpl: async () => { throw networkError; } }),
+      (error) => error === networkError,
+    );
+    assert.deepEqual(logging.mock.calls.at(-1).arguments, [
+      '[LA-BO provider error]', provider, 'HTTP status unavailable', 'TypeError', '(no HTTP response body)',
+    ]);
+  }
 });
 
 test('askMeta posts to Meta Model API (Llama 4) and askLabo routes by AI_PROVIDER + enforces Q1', async () => {
