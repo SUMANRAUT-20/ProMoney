@@ -21,7 +21,7 @@ function normalized(value) {
   return String(value ?? '').normalize('NFKC').trim();
 }
 
-function findColumns(headers) {
+export function findStatementColumns(headers) {
   const labels = headers.map((header) =>
     normalized(header).toLowerCase().replace(/[^\p{L}\p{N}]/gu, '').replace(/(?:jpy|円)$/, ''),
   );
@@ -42,7 +42,7 @@ function findColumns(headers) {
 }
 
 export function isStatementHeader(cells) {
-  return findColumns(cells) !== null;
+  return findStatementColumns(cells) !== null;
 }
 
 function readRecords(text, delimiter) {
@@ -153,8 +153,8 @@ function readTransaction(record, columns, dateOrder) {
   };
 }
 
-export function parseStatementTable([headers, ...records]) {
-  const columns = headers && findColumns(headers);
+export function parseStatementTable([headers, ...records], { onInvalidRow } = {}) {
+  const columns = headers && findStatementColumns(headers);
   if (!columns) throw new StatementCsvError(UNSUPPORTED_HEADER);
   if (records.length === 0) throw new StatementCsvError('The statement contains no transaction rows.');
   const order = statementDateOrder(records, columns.date);
@@ -163,9 +163,13 @@ export function parseStatementTable([headers, ...records]) {
       if (record.length !== headers.length) throw new Error('column count differs from the header');
       return readTransaction(record, columns, order);
     } catch (error) {
+      if (onInvalidRow) {
+        onInvalidRow(index, error.message);
+        return null;
+      }
       throw new StatementCsvError(`I could not import data row ${index + 1}: ${error.message}.`);
     }
-  });
+  }).filter(Boolean);
 }
 
 export function parseStatementCsv(text) {

@@ -14,15 +14,19 @@ export function useStatementImport({ busy, setBusy, setError, setMessages, finan
   const addMessage = (role, text, extra) => {
     setMessages((previous) => [...previous, { id: makeId('msg'), role, text, ...extra }]);
   };
+  const showFailure = (message) => {
+    setError(message);
+    addMessage('ai', message);
+  };
 
   const attach = async (files) => {
     if (busy || !files.length) return;
-    if (rows.length) return setError('Finish or cancel the current statement review first.');
+    if (rows.length) return showFailure('Finish or cancel the current statement review first.');
     const file = files[0];
     const format = /\.(csv|pdf|xlsx)$/i.exec(file.name)?.[1].toLowerCase();
-    if (files.length !== 1 || !format) return setError('Choose one CSV, PDF, or XLSX statement. Older XLS files are unsupported.');
-    if (file.size === 0) return setError('This statement file is empty.');
-    if (file.size > MAX_STATEMENT_BYTES) return setError('Choose a statement no larger than 8 MB.');
+    if (files.length !== 1 || !format) return showFailure('Choose one CSV, PDF, or XLSX statement. Older XLS files are unsupported.');
+    if (file.size === 0) return showFailure('This statement file is empty.');
+    if (file.size > MAX_STATEMENT_BYTES) return showFailure('Choose a statement no larger than 8 MB.');
 
     setBusy(true);
     setError('');
@@ -35,8 +39,10 @@ export function useStatementImport({ busy, setBusy, setError, setMessages, finan
         ...row,
         selected: row.selected === true && !row.possibleDuplicate && !row.uncertain,
       })));
+      addMessage('ai', ['Your statement is ready to review.', ...(data.warnings || [])].join('\n'));
     } catch (error) {
-      setError(error.message || 'Could not read this statement.');
+      showFailure(error.name === 'TimeoutError' ? 'Reading this statement timed out. Please try again.'
+        : error.message || 'Could not read this statement.');
     } finally {
       setBusy(false);
     }

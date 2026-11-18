@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs';
-import { isStatementHeader, parseStatementTable, StatementCsvError } from './statementCsv.js';
+import { findStatementColumns, parseStatementTable, StatementCsvError } from './statementCsv.js';
 
 function cellText(cell) {
   const value = cell.value;
@@ -13,27 +13,41 @@ function cellText(cell) {
   return cell.text;
 }
 
-function firstSheetTable(sheet) {
-  if (!sheet) throw new StatementCsvError('The XLSX statement has no first worksheet.');
+function worksheetTable(sheet, onWarning) {
   const table = [];
+  const rowNumbers = [];
+  let matched;
   sheet.eachRow((row) => {
-    const cells = Array.from({ length: row.cellCount }, (_, index) => cellText(row.getCell(index + 1)));
-    while (cells.length && !cells.at(-1).trim()) cells.pop();
-    if (!cells.some((cell) => cell.trim())) return;
-    if (!table.length) {
-      if (isStatementHeader(cells)) table.push(cells);
+    if (!matched) {
+      const headers = Array.from({ length: row.cellCount }, (_, index) => row.getCell(index + 1).text);
+      const columns = findStatementColumns(headers);
+      if (columns) {
+        matched = Object.entries(columns).filter(([, index]) => index !== undefined);
+        table.push(matched.map(([, index]) => headers[index]));
+      }
       return;
     }
+    const cells = matched.map(([, index]) => cellText(row.getCell(index + 1)));
+    if (!cells.some((cell) => cell.trim())) return;
     if (table.length > 1000) {
       throw new StatementCsvError('Split this statement into files of at most 1,000 transactions.');
     }
-    while (cells.length < table[0].length) cells.push('');
     table.push(cells);
+    rowNumbers.push(row.number);
   });
-  return parseStatementTable(table);
+  console.info('[LA-BO XLSX]', {
+    sheet: sheet.name,
+    headersMatched: matched?.map(([field, column], index) => ({
+      field, column: column + 1, header: table[0][index],
+    })) ?? [],
+    rowsFound: Math.max(0, table.length - 1),
+  });
+  return table.length > 1 ? parseStatementTable(table, {
+    onInvalidRow: (index, reason) => onWarning(`${sheet.name}, row ${rowNumbers[index]} was excluded: ${reason}.`),
+  }) : [];
 }
 
-export async function parseStatementXlsx(bytes) {
+export async function parseStatementXlsx(bytes, { onWarning = () => {} } = {}) {
   if (!Buffer.isBuffer(bytes) || bytes.subarray(0, 4).toString('hex') !== '504b0304') {
     throw new StatementCsvError('Upload an XLSX workbook. Older XLS files are unsupported. Save the file as .xlsx first.');
   }
@@ -45,5 +59,16 @@ export async function parseStatementXlsx(bytes) {
   } catch {
     throw new StatementCsvError('I could not read this XLSX workbook. Upload an unlocked .xlsx file or export it as CSV.');
   }
-  return firstSheetTable(workbook.worksheets[0]);
+  const warnings = [];
+  const rows = workbook.worksheets.flatMap((sheet) => worksheetTable(sheet, (message) => {
+    warnings.push(message);
+    onWarning(message);
+  }));
+  if (!rows.length) {
+    throw new StatementCsvError(warnings.length
+      ? 'I couldn’t read any valid transactions. ' + warnings.join('\n')
+      : 'I couldn’t read any transactions from this workbook. No populated table with Date, Description, and Amount columns was found.');
+  }
+  if (rows.length > 1000) throw new StatementCsvError('Split this statement into files of at most 1,000 transactions.');
+  return rows;
 }

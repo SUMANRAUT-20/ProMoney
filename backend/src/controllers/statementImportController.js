@@ -25,12 +25,17 @@ export async function previewStatement(req, res, next) {
   }
 
   try {
+    const warnings = [];
     const text = format === 'csv' ? decodeCsv(bytes) : null;
     if (format === 'csv' && text === null) {
       return res.status(422).json({ error: 'The CSV must be encoded as UTF-8 or Shift JIS.', status: 422 });
     }
     const rows = format === 'csv' ? parseStatementCsv(text)
-      : format === 'xlsx' ? await parseStatementXlsx(bytes) : await parseStatementPdf(bytes);
+      : format === 'xlsx' ? await parseStatementXlsx(bytes, { onWarning: (message) => warnings.push(message) })
+        : await parseStatementPdf(bytes);
+    if (!rows.length) {
+      return res.status(422).json({ error: 'I couldn’t read any transactions from this file. Check its date, description, and amount columns.', status: 422 });
+    }
     if (rows.length > 1000) {
       return res.status(422).json({ error: 'Split this statement into files of at most 1,000 transactions.', status: 422 });
     }
@@ -38,7 +43,8 @@ export async function previewStatement(req, res, next) {
       CategoryModel.findByUser(req.user.id, { seedDefaults: false }),
       TransactionModel.findByUser(req.user.id),
     ]);
-    return res.json({ status: 'ok', data: { rows: buildStatementReview(rows, categories, transactions) } });
+    console.info('[LA-BO import]', { format, rowsFound: rows.length, status: 200 });
+    return res.json({ status: 'ok', data: { rows: buildStatementReview(rows, categories, transactions), warnings } });
   } catch (err) {
     if (err.code === 'STATEMENT_UNREADABLE') {
       return res.status(422).json({ error: err.message, status: 422 });

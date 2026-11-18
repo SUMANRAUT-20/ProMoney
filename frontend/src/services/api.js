@@ -98,6 +98,7 @@ export const apiClient = {
       method: 'POST',
       headers: { 'Content-Type': 'application/octet-stream', 'X-Statement-Format': format },
       body: file,
+      signal: AbortSignal.timeout(120_000),
     });
   },
 

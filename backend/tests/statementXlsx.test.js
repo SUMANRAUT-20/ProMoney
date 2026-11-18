@@ -10,6 +10,8 @@ import { TransactionModel } from '../src/models/transactionModel.js';
 import { parseStatementXlsx } from '../src/services/statementXlsx.js';
 import { parseStatementCsv } from '../src/services/statementCsv.js';
 import { saveSelectedStatementRows } from '../../frontend/src/features/labo/saveSelectedStatementRows.js';
+import { dummyTemplateBytes } from './fixtures/dummyTemplate.js';
+import { buildStatementReview } from '../src/services/statementReview.js';
 
 after(() => getDbPool().end());
 
@@ -61,6 +63,22 @@ test('XLSX rejects old XLS, malformed workbooks and unrecognized first-sheet col
   ]) {
     await assert.rejects(parseStatementXlsx(bytes), { code: 'STATEMENT_UNREADABLE' });
   }
+});
+
+test('team dummy template reads transaction tabs past instruction sheets and excludes invalid dates with a warning', async () => {
+  const warnings = [];
+  const parsed = await parseStatementXlsx(await dummyTemplateBytes(), { onWarning: (message) => warnings.push(message) });
+  const categories = [{ id: 1, name: 'Housing', kind: 'expense' }, { id: 2, name: 'Salary', kind: 'income' }];
+  const review = buildStatementReview(parsed, categories, [
+    { transaction_date: '2026-01-01', amount: 40000, title: 'Monthly rent' },
+  ]);
+  assert.deepEqual(review.map(({ transaction_date, note, amount, kind, possibleDuplicate, selected }) => [
+    transaction_date, note, amount, kind, possibleDuplicate, selected,
+  ]), [
+    ['2026-01-01', 'Monthly rent', 40000, 'expense', true, false],
+    ['2026-02-25', 'Salary', 75000, 'income', false, true],
+  ]);
+  assert.deepEqual(warnings, ['02 Feb, row 16 was excluded: Invalid calendar date.']);
 });
 
 test('XLSX review marks duplicates unticked and saves only selected rows through transaction creation', async () => {
