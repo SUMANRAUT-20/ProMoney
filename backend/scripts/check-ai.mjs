@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 
 dotenv.config({ path: new URL('../../.env', import.meta.url) });
-const { getProviderConfig } = await import('../src/services/laboChat.js');
+const { getProviderConfig, META_MAX_COMPLETION_TOKENS } = await import('../src/services/laboChat.js');
 const config = getProviderConfig();
 const maskedKey = config.apiKey.length > 6
   ? config.apiKey.slice(0, 4) + '…' + config.apiKey.slice(-2)
@@ -17,7 +17,7 @@ try {
     body: JSON.stringify({
       model: config.model,
       messages: [{ role: 'user', content: 'Say hello.' }],
-      max_tokens: 800,
+      max_tokens: config.provider === 'meta' ? META_MAX_COMPLETION_TOKENS : 800,
       temperature: 0.2,
     }),
     signal: AbortSignal.timeout(60_000),

@@ -17,6 +17,7 @@ import {
   verifyAnswerNumbers,
   LABO_MODEL,
   META_MODEL,
+  META_MAX_COMPLETION_TOKENS,
 } from '../src/services/laboChat.js';
 import { laboController } from '../src/controllers/laboController.js';
 import { transactionsController } from '../src/controllers/transactionsController.js';
@@ -69,6 +70,7 @@ test('askGroq posts to Groq with the labo model and returns the answer text', as
   assert.match(seenUrl, /api\.groq\.com/);
   assert.equal(seenInit.headers.Authorization, 'Bearer test-key');
   assert.equal(JSON.parse(seenInit.body).model, LABO_MODEL);
+  assert.equal(JSON.parse(seenInit.body).max_tokens, 800);
 });
 
 test('providers log the upstream status and error body while masking their API key', async (t) => {
@@ -124,6 +126,7 @@ test('askMeta posts to Meta Model API (Llama 4) and askLabo routes by AI_PROVIDE
   assert.equal(metaRes.model, META_MODEL);
   assert.match(seenUrl, /api\.meta\.ai\/v1\/chat\/completions/);
   assert.equal(seenBody.model, META_MODEL);
+  assert.equal(seenBody.max_tokens, META_MAX_COMPLETION_TOKENS);
   assert.match(metaRes.answer, /¥48,500/);
 
   // Constitution Q1: fabricated JPY amount not in snapshot is refused
@@ -363,7 +366,7 @@ test('Phase 6 F3 (a): photo scan extraction result becomes a proposal in the con
 
   // Verify multimodal image_url request structure sent to Muse Ember
   assert.equal(seenBody.model, META_MODEL);
-  assert.equal(seenBody.max_tokens, 1500);
+  assert.equal(seenBody.max_tokens, META_MAX_COMPLETION_TOKENS);
   const userContent = seenBody.messages[1].content;
   assert.ok(Array.isArray(userContent));
   assert.equal(userContent[1].type, 'image_url');

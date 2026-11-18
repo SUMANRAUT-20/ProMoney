@@ -16,6 +16,7 @@ export const META_URL =
   process.env.META_API_URL || 'https://api.meta.ai/v1/chat/completions';
 export const META_MODEL =
   process.env.META_MODEL || 'muse-ember-1.0';
+export const META_MAX_COMPLETION_TOKENS = 3000;
 
 const SYSTEM_RULES = [
   'You are ProMoney LA-BO, a warm, casual, friend-like personal finance assistant inside the ProMoney app.',
@@ -188,28 +189,12 @@ export async function askGroq({ question, snapshot, apiKey, fetchImpl = fetch })
 
 // --- Meta Model API Provider (Muse Ember — Primary) ---
 
-export async function metaComplete(
-  messages,
-  {
-    apiKey,
-    model = META_MODEL,
-    url = META_URL,
-    fetchImpl = fetch,
-    temperature = 0.2,
-    maxTokens = 800,
-  }
-) {
-  const cleanKey = normalizeMetaApiKey(apiKey);
-  if (!cleanKey) {
-    const err = new Error('META_API_KEY is not configured on the server.');
-    err.code = 'LABO_NOT_CONFIGURED';
-    throw err;
-  }
+async function metaAttempt(messages, { apiKey, model, url, fetchImpl, temperature, maxTokens }) {
   const response = await fetchProvider('meta', fetchImpl, url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${cleanKey}`,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model,
@@ -219,21 +204,41 @@ export async function metaComplete(
     }),
   });
   if (!response.ok) {
-    await logProviderHttpError('meta', response, cleanKey);
+    await logProviderHttpError('meta', response, apiKey);
     const err = new Error(`Meta API request failed with status ${response.status}`);
     err.code = 'META_UPSTREAM';
     err.status = response.status;
     throw err;
   }
-  const payload = await response.json();
-  const answer = extractCompletionText(payload);
-  if (!answer) {
-    logProviderFailure('meta', response.status, JSON.stringify(payload), cleanKey);
+  return { payload: await response.json(), status: response.status };
+}
+
+export async function metaComplete(messages, {
+  apiKey, model = META_MODEL, url = META_URL, fetchImpl = fetch,
+  temperature = 0.2, maxTokens = META_MAX_COMPLETION_TOKENS,
+}) {
+  const cleanKey = normalizeMetaApiKey(apiKey);
+  if (!cleanKey) {
+    const err = new Error('META_API_KEY is not configured on the server.');
+    err.code = 'LABO_NOT_CONFIGURED';
+    throw err;
+  }
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const { payload, status } = await metaAttempt(messages, {
+      apiKey: cleanKey, model, url, fetchImpl, temperature, maxTokens,
+    });
+    const answer = extractCompletionText(payload);
+    if (answer) return answer;
+    if (attempt === 0 && payload?.choices?.[0]?.finish_reason === 'length') {
+      maxTokens *= 2;
+      console.warn('[LA-BO provider retry]', 'meta', status, 'Empty length-truncated completion. Retrying once with max_tokens', maxTokens);
+      continue;
+    }
+    logProviderFailure('meta', status, JSON.stringify(payload), cleanKey);
     const err = new Error('Meta API returned an empty answer.');
     err.code = 'META_UPSTREAM';
     throw err;
   }
-  return answer;
 }
 
 export async function askMeta({
@@ -379,7 +384,7 @@ export async function parseTransactionWithMeta({
     url,
     fetchImpl,
     temperature: 0,
-    maxTokens: 500,
+    maxTokens: META_MAX_COMPLETION_TOKENS,
   });
   return extractProposal(content, categories, today);
 }
@@ -399,7 +404,7 @@ export async function parseTransactionsWithMeta({
     url,
     fetchImpl,
     temperature: 0,
-    maxTokens: 500,
+    maxTokens: META_MAX_COMPLETION_TOKENS,
   });
   return extractProposals(content, categories, today);
 }
@@ -662,15 +667,14 @@ export async function scanReceiptWithLabo({
     userHint,
   });
 
-  // Note: muse-ember-1.0 uses ~400-600 reasoning tokens on vision inputs,
-  // so maxTokens must be >= 1500 so reasoning does not truncate the JSON output.
+  // Ember's completion budget includes reasoning before the visible answer.
   const rawContent = await metaComplete(messages, {
     apiKey: cfg.apiKey,
     model: cfg.model,
     url: cfg.url,
     fetchImpl,
     temperature: 0,
-    maxTokens: 1500,
+    maxTokens: META_MAX_COMPLETION_TOKENS,
   });
 
   const result = extractPhotoScanResult(rawContent, categories, today, language, userHint);
