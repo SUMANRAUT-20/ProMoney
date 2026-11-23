@@ -16,9 +16,10 @@
 }
 
 .nav-group-toggle.group-active {
-  color: var(--green-dark);
+  color: var(--pm-bg);
   font-weight: 600;
 }
+.nav-group-toggle.group-active:hover { color: var(--pm-ink); }
 
 .nav-group-chevron {
   margin-left: auto;
@@ -49,14 +50,14 @@
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.4px;
-  background: var(--green);
-  color: #fff;
+  background: var(--pm-accent);
+  color: var(--pm-ink);
   line-height: 1.2;
 }
 
 .nav-item.active .nav-ai-badge {
-  background: #fff;
-  color: var(--green-dark);
+  background: var(--pm-accent-soft);
+  color: var(--pm-ink);
 }
 
 .sidebar-settings-link {
@@ -128,6 +129,10 @@
 }
 
 .sidebar-profile-menu {
+  --text: var(--pm-ink);
+  --muted: var(--pm-ink);
+  --border: var(--pm-border);
+  color: var(--pm-ink);
   display: flex;
   flex-direction: column;
   gap: 3px;

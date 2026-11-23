@@ -11,7 +11,7 @@
 .pm-auth-clock small { display: block; color: var(--muted); font-size: 10px; margin-top: 3px; }
 .pm-auth-main { flex: 1; width: 100%; padding: 36px 20px; }
 .pm-auth .pm-auth-card { width: min(520px, 100%); margin: 0 auto; padding: 28px 32px; }
-.pm-auth-back { display: inline-flex; align-items: center; gap: 6px; color: var(--green-dark); font-size: 12px; font-weight: 600; margin-bottom: 24px; }
+.pm-auth-back { display: inline-flex; align-items: center; gap: 6px; color: var(--pm-accent); font-size: 12px; font-weight: 600; margin-bottom: 24px; }
 .pm-auth .auth-header { align-items: flex-start; text-align: left; }
 .pm-auth .auth-header h1 { font-size: 24px; margin-bottom: 8px; }
 .pm-auth .auth-header p { line-height: 1.6; }
@@ -22,7 +22,7 @@
 .pm-auth .form input { min-height: 42px; }
 .pm-auth-password button:hover { color: var(--green-dark); background: var(--mint-soft); }
 .pm-auth-help { display: flex; justify-content: flex-end; }
-.pm-auth-text-button { padding: 0; border: 0; background: transparent; color: var(--green-dark); font-size: 12px; font-weight: 600; }
+.pm-auth-text-button { padding: 0; border: 0; background: transparent; color: var(--pm-accent); font-size: 12px; font-weight: 600; }
 .pm-auth .pm-auth-submit { min-height: 42px; width: 100%; }
 .pm-auth-divider { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 11px; margin: 23px 0 16px; }
 .pm-auth-divider::before, .pm-auth-divider::after { content: ''; height: 1px; flex: 1; background: var(--border); }

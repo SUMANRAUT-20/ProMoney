@@ -83,13 +83,13 @@
 }
 
 .home-bill-item.overdue {
-  background: rgba(196, 56, 56, 0.08);
-  border-color: var(--red);
+  background: var(--pm-surface);
+  border-color: var(--pm-overdue);
 }
 
 .home-bill-item.overdue strong,
 .home-bill-item.overdue .home-bill-due-tag {
-  color: var(--red);
+  color: var(--pm-overdue);
 }
 
 .home-bill-due-tag {
@@ -127,14 +127,14 @@
 }
 
 .home-warning-item.danger {
-  background: rgba(196, 56, 56, 0.09);
-  border-color: var(--red);
-  color: var(--red);
+  background: var(--pm-surface);
+  border-color: var(--pm-overdue);
+  color: var(--pm-overdue);
 }
 
 .home-warning-item.warning {
-  background: rgba(217, 130, 43, 0.1);
-  border-color: #d9822b;
+  background: var(--pm-bg);
+  border-color: var(--pm-near-due);
 }
 
 .home-goals-rings-grid {
