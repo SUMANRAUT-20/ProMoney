@@ -58,16 +58,14 @@ export const budgetsController = {
         }
       }
       if (!category && typeof category_name === 'string' && category_name.trim()) {
-        category = await CategoryModel.findByNameAndUser(category_name.trim(), 'expense', userId);
-        if (!category) {
-          category = await CategoryModel.create({
-            userId,
-            name: category_name.trim(),
-            kind: 'expense',
-          });
-        }
+        category = await CategoryModel.create({
+          userId,
+          name: category_name.trim(),
+          kind: 'expense',
+          reuseExisting: true,
+        });
       }
-      if (!category) {
+      if (category?.kind !== 'expense') {
         return res.status(400).json({ error: 'Valid expense category is required', status: 400 });
       }
 

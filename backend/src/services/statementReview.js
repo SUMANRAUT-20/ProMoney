@@ -1,3 +1,5 @@
+const HEALTH_KEYWORDS = /\b(?:hospital|medical|pharmacy|clinic)\b|病院|薬局|医療/;
+
 const CATEGORY_RULES = [
   [/\b(?:salary|payroll|wages)\b|給与|給料/, /^(?:salary|part time salary|給与|給料)$/],
   [/\b(?:freelance|contract work)\b|業務委託/, /^(?:freelance|フリーランス)$/],
@@ -8,7 +10,7 @@ const CATEGORY_RULES = [
   [/\b(?:electric|electricity|power|water|gas bill|utilities)\b|電気|水道|ガス/, /^(?:utilities|utility|光熱費|水道光熱費)$/],
   [/\b(?:phone|mobile|internet|broadband)\b|携帯|通信料/, /^(?:phone internet|phone and internet|通信費)$/],
   [/\b(?:tuition|school)\b|授業料|学費/, /^(?:education|学費|教育費)$/],
-  [/\b(?:pharmacy|clinic|hospital)\b|薬局|病院/, /^(?:healthcare|health care|医療費)$/],
+  [HEALTH_KEYWORDS, /^(?:healthcare|health care|医療費)$/],
   [/\b(?:cinema|theatre|theater|netflix|spotify)\b|映画/, /^(?:entertainment|娯楽)$/],
   [/\b(?:amazon|shopping|rakuten)\b|楽天市場/, /^(?:shopping|買い物)$/],
 ];
@@ -29,6 +31,10 @@ function similarTitle(first, second) {
 function suggestCategory(row, categories) {
   const title = titleKey(row.note);
   const choices = categories.filter((category) => category.kind === row.kind);
+  if (row.kind === 'expense' && HEALTH_KEYWORDS.test(title)) {
+    const health = choices.find((category) => titleKey(category.name) === 'health');
+    if (health) return health;
+  }
   const named = choices.find((category) => {
     const label = titleKey(category.name);
     return label.length >= 3 && (' ' + title + ' ').includes(' ' + label + ' ');

@@ -12,11 +12,11 @@ const { UserModel, hashPassword, verifyPassword, getCategoryCount } = await impo
   '../src/models/userModel.js'
 );
 
-test('memory store: create seeds the 8 default categories and findByEmail returns the hash', async () => {
+test('memory store: create seeds the 9 default categories and findByEmail returns the hash', async () => {
   const passwordHash = hashPassword('testpass123');
   const user = await UserModel.create({ displayName: 'Memory User', email: `memory+${run}@example.com`, passwordHash });
   assert.equal(user.display_name, 'Memory User');
-  assert.equal(await getCategoryCount(user.id), 8);
+  assert.equal(await getCategoryCount(user.id), 9);
 
   const row = await UserModel.findByEmail(`memory+${run}@example.com`);
   assert.equal(row.id, user.id);
@@ -40,7 +40,7 @@ test('memory store: duplicate email is rejected like MySQL (ER_DUP_ENTRY)', asyn
 
 test('memory store: Google create, lookup by google_sub, and linking', async () => {
   const googleUser = await UserModel.createGoogleUser({ displayName: 'Google User', email: `google+${run}@example.com`, googleSub: `sub-${run}` });
-  assert.equal(await getCategoryCount(googleUser.id), 8);
+  assert.equal(await getCategoryCount(googleUser.id), 9);
   assert.deepEqual(await UserModel.findByGoogleSub(`sub-${run}`), googleUser);
   assert.equal(await UserModel.findByGoogleSub('unknown-sub'), null);
 

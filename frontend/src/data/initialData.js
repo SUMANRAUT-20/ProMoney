@@ -15,9 +15,10 @@ export const categories = [
   { id: "education", name: "Education", kind: "expense" },
   { id: "shopping", name: "Shopping", kind: "expense" },
   { id: "healthcare", name: "Healthcare", kind: "expense" },
+  { id: "health", name: "Health", kind: "expense" },
   { id: "entertainment", name: "Entertainment", kind: "expense" },
   { id: "other-expense", name: "Other Expense", kind: "expense" },
-];
+].map((category) => ({ ...category, is_default: true }));
 
 const padDay = (month, day) => `${month}-${String(day).padStart(2, "0")}`;
 

@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { PageHeading } from '../../components/ui';
 import { apiClient } from '../../services/api';
 import { isLiabilityAccount } from '../../utils/financeMath';
+import CategoriesSettings from './CategoriesSettings';
 import './settings.css';
 
 const CURRENCIES = [
@@ -304,6 +305,8 @@ export default function SettingsView() {
           <p className="settings-message error">{loadError}</p>
         </section>
       )}
+
+      <CategoriesSettings />
 
       {/* Set-once Home & Engine Settings (Phase 5 Feature Spec) */}
       <section className="section-card card settings-card" aria-label="Home and engine set-once rules">

@@ -3,6 +3,7 @@ import { Modal } from '../../components/ui';
 import { useFinance } from '../../context/FinanceContext';
 import { isCardPaymentDestination, isCardPaymentSource } from '../../utils/financeMath';
 import { isValidISODate, parseWholeYen, todayISO } from '../../utils/formatters';
+import TransactionCategoryPicker from './TransactionCategoryPicker';
 
 export default function TransactionFormModal({ transaction, onClose }) {
   const { accounts, categories, addTransaction, editTransaction } = useFinance();
@@ -10,7 +11,7 @@ export default function TransactionFormModal({ transaction, onClose }) {
   const [form, setForm] = useState(() => ({
     kind: transaction?.kind ?? 'expense',
     amount: transaction ? String(transaction.amount) : '',
-    category_id: String(transaction?.category_id ?? firstCategory(transaction?.kind ?? 'expense')),
+    category_id: String(transaction ? transaction.category_id ?? '' : firstCategory('expense')),
     account_id: String(transaction?.account_id ?? accounts[0]?.id ?? ''),
     to_account_id: String(transaction?.to_account_id ?? ''),
     transaction_date: transaction?.transaction_date ?? todayISO(),
@@ -23,6 +24,7 @@ export default function TransactionFormModal({ transaction, onClose }) {
   const cards = accounts.filter(isCardPaymentDestination);
   const accountChoices = isPayment ? sources : accounts;
   const kinds = transaction?.kind === 'card_payment' ? [] : ['expense', 'income', 'card_payment'];
+  const allowUncategorized = Boolean(transaction && !transaction.category_id);
 
   function change(patch) {
     setForm((current) => ({ ...current, ...patch }));
@@ -45,7 +47,9 @@ export default function TransactionFormModal({ transaction, onClose }) {
     if (amount === null) return setError('Amount must be a whole number greater than ¥0.');
     if (!isValidISODate(form.transaction_date)) return setError('Please select a valid date (YYYY-MM-DD).');
     const category = categories.find((item) => String(item.id) === form.category_id && item.kind === form.kind);
-    if (!isPayment && !category) return setError('Please select a valid category.');
+    if (!isPayment && !category && !(allowUncategorized && form.category_id === '')) {
+      return setError('Please select or create a category.');
+    }
     if ((isPayment || accounts.length > 0) && !accountChoices.some((item) => String(item.id) === form.account_id)) {
       return setError(isPayment ? 'Choose an account to pay from.' : 'Please select a valid account.');
     }
@@ -59,8 +63,8 @@ export default function TransactionFormModal({ transaction, onClose }) {
     try {
       const payload = {
         kind: form.kind, amount, transaction_date: form.transaction_date, note,
-        category_id: isPayment ? null : category.id,
-        category_name: isPayment ? null : category.name,
+        category_id: isPayment ? null : category?.id ?? null,
+        category_name: isPayment ? null : category?.name ?? null,
         account_id: form.account_id || null,
         to_account_id: isPayment ? form.to_account_id : null,
       };
@@ -106,12 +110,13 @@ export default function TransactionFormModal({ transaction, onClose }) {
               </select>
             </label>
           ) : (
-            <label>
-              Category
-              <select value={form.category_id} onChange={(event) => change({ category_id: event.target.value })}>
-                {categories.filter((category) => category.kind === form.kind).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-              </select>
-            </label>
+            <TransactionCategoryPicker key={form.kind} kind={form.kind} value={form.category_id}
+              allowUncategorized={allowUncategorized}
+              onChange={(categoryId) => {
+                setForm((current) => current.kind === form.kind ? { ...current, category_id: categoryId } : current);
+                setError('');
+              }}
+            />
           )}
           <label>
             {isPayment ? 'Pay from' : 'Account'}

@@ -1,5 +1,8 @@
 import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { getDbPool } from '../db.js';
+import { DEFAULT_CATEGORIES } from './defaultCategories.js';
+
+export { DEFAULT_CATEGORIES } from './defaultCategories.js';
 
 /**
  * User Model + password hashing — DATABASE STORE (MySQL / TiDB Cloud)
@@ -58,18 +61,6 @@ export function validatePasswordPolicy(password, fieldName = 'password') {
   }
   return null;
 }
-
-// Default JPY categories seeded for every new user.
-export const DEFAULT_CATEGORIES = [
-  { name: 'Salary', kind: 'income' },
-  { name: 'Freelance', kind: 'income' },
-  { name: 'Housing', kind: 'expense' },
-  { name: 'Food & Dining', kind: 'expense' },
-  { name: 'Transportation', kind: 'expense' },
-  { name: 'Utilities', kind: 'expense' },
-  { name: 'Shopping', kind: 'expense' },
-  { name: 'Entertainment', kind: 'expense' },
-];
 
 const pool = getDbPool();
 
