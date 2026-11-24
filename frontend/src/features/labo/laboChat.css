@@ -1,0 +1,96 @@
+.app-main:has(.labo-page) {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+
+.app-main:has(.labo-page) > .topbar {
+  flex: none;
+}
+
+.content:has(> .labo-page) {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+  padding-bottom: 16px;
+}
+
+.labo-page,
+.labo-chat.section-card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.labo-chat.section-card {
+  margin-bottom: 0;
+}
+
+.labo-log-frame {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.labo-chat-log {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  overflow-anchor: none;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding: 4px 0 8px;
+}
+
+.labo-chat-log > * {
+  flex-shrink: 0;
+}
+
+.labo-chat-log .labo-msg {
+  overflow-wrap: anywhere;
+}
+
+.labo-new-answer {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.labo-resources summary {
+  width: fit-content;
+  padding: 6px 0;
+  cursor: pointer;
+}
+
+.labo-thinking {
+  width: 58px;
+  height: 3px;
+  margin: 6px 4px;
+  border-radius: 999px;
+  background: var(--green);
+  box-shadow: 0 0 9px var(--green);
+  animation: labo-thinking-glow 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes labo-thinking-glow {
+  from { opacity: 0.45; transform: scaleX(0.7); }
+  to { opacity: 1; transform: scaleX(1); }
+}
+
+@media (max-width: 700px) {
+  .labo-chat.section-card { padding: 12px; }
+  .labo-chat .labo-quick { flex-wrap: nowrap; overflow-x: auto; }
+  .labo-chat .labo-chip { flex: 0 0 auto; }
+  .labo-chat-log .labo-msg { max-width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .labo-thinking { animation: none; }
+}
