@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Modal } from '../../components/ui';
 import { useFinance } from '../../context/FinanceContext';
 import { isCardPaymentDestination, isCardPaymentSource } from '../../utils/financeMath';
 import { isValidISODate, parseWholeYen, todayISO } from '../../utils/formatters';
+import AccountFormModal from '../accounts/AccountFormModal';
 import TransactionCategoryPicker from './TransactionCategoryPicker';
 
 export default function TransactionFormModal({ transaction, onClose }) {
-  const { accounts, categories, addTransaction, editTransaction } = useFinance();
+  const { accounts, categories, addAccount, addTransaction, editTransaction } = useFinance();
   const firstCategory = (kind) => categories.find((category) => category.kind === kind)?.id ?? '';
   const [form, setForm] = useState(() => ({
     kind: transaction?.kind ?? 'expense',
@@ -19,16 +20,24 @@ export default function TransactionFormModal({ transaction, onClose }) {
   }));
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [accountFormOpen, setAccountFormOpen] = useState(false);
+  const accountPicker = useRef(null);
   const isPayment = form.kind === 'card_payment';
   const sources = accounts.filter(isCardPaymentSource);
   const cards = accounts.filter(isCardPaymentDestination);
   const accountChoices = isPayment ? sources : accounts;
   const kinds = transaction?.kind === 'card_payment' ? [] : ['expense', 'income', 'card_payment'];
   const allowUncategorized = Boolean(transaction && !transaction.category_id);
+  const canAddAccount = !transaction && !isPayment;
 
   function change(patch) {
     setForm((current) => ({ ...current, ...patch }));
     setError('');
+  }
+
+  function closeAccountForm() {
+    setAccountFormOpen(false);
+    requestAnimationFrame(() => accountPicker.current?.focus());
   }
 
   function selectKind(kind) {
@@ -79,63 +88,79 @@ export default function TransactionFormModal({ transaction, onClose }) {
   }
 
   return (
-    <Modal title={transaction ? 'Edit Transaction' : 'Add Transaction'} onClose={() => !saving && onClose()}>
-      <form className="form" onSubmit={handleSave} noValidate>
-        {kinds.length > 0 && (
-          <div className="segmented">
-            {kinds.map((kind) => (
-              <button key={kind} type="button" aria-pressed={form.kind === kind} style={{ flex: 1 }} className={form.kind === kind ? 'selected' : ''} onClick={() => selectKind(kind)}>
-                {{ expense: 'Expense', income: 'Income', card_payment: 'Card payment' }[kind]}
-              </button>
-            ))}
-          </div>
-        )}
-        <div className="form-row">
-          <label>
-            Amount (JPY)
-            <input type="number" min="1" step="1" value={form.amount} placeholder="e.g. 3200" onChange={(event) => change({ amount: event.target.value })} required />
-          </label>
-          <label>
-            Date
-            <input type="date" value={form.transaction_date} onChange={(event) => change({ transaction_date: event.target.value })} required />
-          </label>
-        </div>
-        <div className="form-row">
-          {isPayment ? (
+    <>
+      <Modal title={transaction ? 'Edit Transaction' : 'Add Transaction'} inactive={accountFormOpen} onClose={() => !saving && onClose()}>
+        <form className="form" onSubmit={handleSave} noValidate>
+          {kinds.length > 0 && (
+            <div className="segmented">
+              {kinds.map((kind) => (
+                <button key={kind} type="button" aria-pressed={form.kind === kind} style={{ flex: 1 }} className={form.kind === kind ? 'selected' : ''} onClick={() => selectKind(kind)}>
+                  {{ expense: 'Expense', income: 'Income', card_payment: 'Card payment' }[kind]}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="form-row">
             <label>
-              Pay to
-              <select name="to_account_id" value={form.to_account_id} onChange={(event) => change({ to_account_id: event.target.value })} required>
-                <option value="">Select a credit card or BNPL account</option>
-                {cards.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+              Amount (JPY)
+              <input type="number" min="1" step="1" value={form.amount} placeholder="e.g. 3200" onChange={(event) => change({ amount: event.target.value })} required />
+            </label>
+            <label>
+              Date
+              <input type="date" value={form.transaction_date} onChange={(event) => change({ transaction_date: event.target.value })} required />
+            </label>
+          </div>
+          <div className="form-row">
+            {isPayment ? (
+              <label>
+                Pay to
+                <select name="to_account_id" value={form.to_account_id} onChange={(event) => change({ to_account_id: event.target.value })} required>
+                  <option value="">Select a credit card or BNPL account</option>
+                  {cards.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                </select>
+              </label>
+            ) : (
+              <TransactionCategoryPicker key={form.kind} kind={form.kind} value={form.category_id}
+                allowUncategorized={allowUncategorized}
+                onChange={(categoryId) => {
+                  setForm((current) => current.kind === form.kind ? { ...current, category_id: categoryId } : current);
+                  setError('');
+                }}
+              />
+            )}
+            <label>
+              {isPayment ? 'Pay from' : 'Account'}
+              <select ref={accountPicker} name="account_id" value={form.account_id} disabled={!canAddAccount && accountChoices.length === 0}
+                onChange={(event) => {
+                  const accountId = event.target.value;
+                  if (accountId === '__new__') return setAccountFormOpen(true);
+                  change({ account_id: accountId });
+                }}
+              >
+                {accountChoices.length === 0 && <option value="">{isPayment ? 'Add an asset account first' : 'Unassigned (add account first)'}</option>}
+                {accountChoices.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                {canAddAccount && <option value="__new__">+ New account</option>}
               </select>
             </label>
-          ) : (
-            <TransactionCategoryPicker key={form.kind} kind={form.kind} value={form.category_id}
-              allowUncategorized={allowUncategorized}
-              onChange={(categoryId) => {
-                setForm((current) => current.kind === form.kind ? { ...current, category_id: categoryId } : current);
-                setError('');
-              }}
-            />
-          )}
+          </div>
           <label>
-            {isPayment ? 'Pay from' : 'Account'}
-            <select name="account_id" value={form.account_id} onChange={(event) => change({ account_id: event.target.value })} disabled={accountChoices.length === 0}>
-              {accountChoices.length === 0 && <option value="">{isPayment ? 'Add an asset account first' : 'Unassigned (add account first)'}</option>}
-              {accountChoices.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-            </select>
+            Note
+            <input type="text" value={form.note} maxLength={120} placeholder={isPayment ? 'Card payment' : 'e.g. Supermarket groceries'} onChange={(event) => change({ note: event.target.value })} required={!isPayment} />
           </label>
-        </div>
-        <label>
-          Note
-          <input type="text" value={form.note} maxLength={120} placeholder={isPayment ? 'Card payment' : 'e.g. Supermarket groceries'} onChange={(event) => change({ note: event.target.value })} required={!isPayment} />
-        </label>
-        {error && <p className="negative" role="alert" style={{ margin: 0 }}>{error}</p>}
-        <div className="form-actions">
-          <button className="btn secondary" type="button" onClick={onClose} disabled={saving}>Cancel</button>
-          <button className="btn primary" type="submit" disabled={saving}>{transaction ? 'Save Changes' : 'Add Transaction'}</button>
-        </div>
-      </form>
-    </Modal>
+          {error && <p className="negative" role="alert" style={{ margin: 0 }}>{error}</p>}
+          <div className="form-actions">
+            <button className="btn secondary" type="button" onClick={onClose} disabled={saving}>Cancel</button>
+            <button className="btn primary" type="submit" disabled={saving}>{transaction ? 'Save Changes' : 'Add Transaction'}</button>
+          </div>
+        </form>
+      </Modal>
+      {accountFormOpen && (
+        <AccountFormModal focusKind onClose={closeAccountForm} onSave={async (values, uiDetails) => {
+          const account = await addAccount(values, uiDetails);
+          change({ account_id: String(account.id) });
+          closeAccountForm();
+        }} />
+      )}
+    </>
   );
 }
