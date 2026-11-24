@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { PageHeading } from "../../components/ui";
 import { money } from "../../utils/formatters";
-import { StatementAttachment, StatementReview } from "./StatementImport";
+import { StatementAccountPicker, StatementAttachment, StatementReview } from "./StatementImport";
 import { ReportCard } from "./ReportCard";
 import { AllocationCard, PurchaseCard } from "./SimulatorCards";
 import { WhatIfPanel } from "./WhatIfPanel";
@@ -235,6 +235,9 @@ export default function LaboView() {
               )}
             </div>
           ))}
+          {statement.rows.length > 0 && (statement.account
+            ? <StatementReview statement={statement} categories={categories} busy={busy} />
+            : <StatementAccountPicker statement={statement} busy={busy} />)}
           {busy && <div className="labo-msg labo-msg-ai">Thinking…</div>}
         </div>
 
@@ -364,8 +367,6 @@ export default function LaboView() {
             </div>
           </div>
         )}
-
-        {statement.rows.length > 0 && <StatementReview statement={statement} categories={categories} busy={busy} />}
 
         <div className="labo-quick">
           {quickQuestions.map((q) => (

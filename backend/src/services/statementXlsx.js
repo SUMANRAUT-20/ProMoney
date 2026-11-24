@@ -13,7 +13,7 @@ function cellText(cell) {
   return cell.text;
 }
 
-function worksheetTable(sheet, onWarning) {
+function worksheetTable(sheet, { onWarning, onSheet }) {
   const table = [];
   const rowNumbers = [];
   let matched;
@@ -42,12 +42,23 @@ function worksheetTable(sheet, onWarning) {
     })) ?? [],
     rowsFound: Math.max(0, table.length - 1),
   });
-  return table.length > 1 ? parseStatementTable(table, {
-    onInvalidRow: (index, reason) => onWarning(`${sheet.name}, row ${rowNumbers[index]} was excluded: ${reason}.`),
+  const reasons = new Map();
+  const found = Math.max(0, table.length - 1);
+  const rows = found ? parseStatementTable(table, {
+    onInvalidRow: (index, reason) => {
+      reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
+      onWarning(`${sheet.name}, row ${rowNumbers[index]} was excluded: ${reason}.`);
+    },
   }) : [];
+  onSheet({
+    name: sheet.name, found, skipped: found - rows.length,
+    reasons: [...reasons].map(([reason, count]) => ({ reason, count })),
+    note: !matched ? 'No transaction table' : !found ? 'No transaction rows' : null,
+  });
+  return rows;
 }
 
-export async function parseStatementXlsx(bytes, { onWarning = () => {} } = {}) {
+export async function parseStatementXlsx(bytes, { onWarning = () => {}, onSheet = () => {} } = {}) {
   if (!Buffer.isBuffer(bytes) || bytes.subarray(0, 4).toString('hex') !== '504b0304') {
     throw new StatementCsvError('Upload an XLSX workbook. Older XLS files are unsupported. Save the file as .xlsx first.');
   }
@@ -60,9 +71,12 @@ export async function parseStatementXlsx(bytes, { onWarning = () => {} } = {}) {
     throw new StatementCsvError('I could not read this XLSX workbook. Upload an unlocked .xlsx file or export it as CSV.');
   }
   const warnings = [];
-  const rows = workbook.worksheets.flatMap((sheet) => worksheetTable(sheet, (message) => {
-    warnings.push(message);
-    onWarning(message);
+  const rows = workbook.worksheets.flatMap((sheet) => worksheetTable(sheet, {
+    onSheet,
+    onWarning: (message) => {
+      warnings.push(message);
+      onWarning(message);
+    },
   }));
   if (!rows.length) {
     throw new StatementCsvError(warnings.length
