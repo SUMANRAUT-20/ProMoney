@@ -171,7 +171,7 @@ export default function DashboardView() {
                     <span>
                       {acc.name} <small className="muted">({acc.kind})</small>
                     </span>
-                    <strong>{money(acc.liveBalance)}</strong>
+                    <strong>{acc.cardCredit ? `${money(acc.cardCredit)} credit` : money(acc.liveBalance)}</strong>
                   </div>
                 ))
               )}

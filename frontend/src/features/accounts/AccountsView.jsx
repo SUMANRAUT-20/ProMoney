@@ -4,10 +4,11 @@ import { EmptyState, Metric, Modal, PageHeading } from "../../components/ui";
 import { useFinance } from "../../context/FinanceContext";
 import { money, todayISO } from "../../utils/formatters";
 import {
-  getAccountBalance,
+  getAccountPosition,
   getAccountTotals,
   getParentAccountId,
   isDebitCardAccount,
+  isCardPaymentDestination,
   isLiabilityAccount,
 } from "../../utils/financeMath";
 import AccountFormModal, { accountGroup, accountGroups } from "./AccountFormModal";
@@ -91,8 +92,9 @@ export default function AccountsView() {
       );
     }
 
-    const liveBalance = getAccountBalance(account, transactions, today, accounts);
-    const txDelta = liveBalance - Number(account.manual_balance || 0);
+    const position = getAccountPosition(account, transactions, today, accounts);
+    const cardCredit = position < 0 && isCardPaymentDestination(account);
+    const txDelta = position - Number(account.manual_balance || 0);
     const linkedDebitCards = accounts.filter(
       (item) => isDebitCardAccount(item) && String(getParentAccountId(item)) === String(account.id)
     );
@@ -107,9 +109,9 @@ export default function AccountsView() {
           <span className="neutral-badge">{group.label}</span>
         </div>
         <div style={{ margin: "14px 0 8px" }}>
-          <strong>{money(liveBalance)}</strong>
+          <strong>{money(cardCredit ? -position : position)}</strong>
           <p style={{ margin: "4px 0 0" }}>
-            {isLiabilityAccount(account) ? "Current amount owed" : "Live balance"} · Opening {money(account.manual_balance)}
+            {cardCredit ? "Card credit" : isLiabilityAccount(account) ? "Current amount owed" : "Live balance"} · Opening {money(account.manual_balance)}
             {txDelta !== 0 ? ` (${txDelta > 0 ? "+" : ""}${money(txDelta)} from tx)` : ""}
           </p>
         </div>
@@ -196,7 +198,7 @@ export default function AccountsView() {
       />
 
       <section className="metrics-grid" aria-label="Accounts summary" style={{ marginBottom: 14 }}>
-        <Metric icon={Wallet} label="Money you hold" value={money(held)} small="Cash, bank & prepaid" />
+        <Metric icon={Wallet} label="Money you hold" value={money(held)} />
         <Metric icon={CreditCard} label="Money you owe" value={money(owed)} small="Credit card balances" />
         <Metric icon={Scale} label="Net balance" value={money(net)} small="Matches Home total" />
       </section>
