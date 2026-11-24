@@ -111,6 +111,18 @@ export function isLiabilityAccount(account) {
   return LIABILITY_ACCOUNT_KINDS.includes(kind) || ['credit', 'bnpl', 'loan'].includes(group);
 }
 
+export function isCardPaymentDestination(account) {
+  const kind = String(account?.kind || '').toLowerCase();
+  const group = String(account?.ui_details?.group || '').toLowerCase();
+  return !isDebitCardAccount(account) &&
+    (['credit_card', 'card', 'bnpl'].includes(kind) || ['credit', 'bnpl'].includes(group));
+}
+
+export function isCardPaymentSource(account) {
+  return ASSET_ACCOUNT_KINDS.includes(account?.kind) &&
+    !isLiabilityAccount(account) && !isDebitCardAccount(account);
+}
+
 export function isSpendableAccount(account) {
   if (isDebitCardAccount(account) || isLiabilityAccount(account)) return false;
   const kind = String(account?.kind || 'cash').toLowerCase();
@@ -137,6 +149,11 @@ export function resolvePaymentAccountId(txOrInput, accounts = []) {
 }
 
 export function getAccountBalance(account, transactions = [], asOfDate = null, accounts = []) {
+  const position = getAccountPosition(account, transactions, asOfDate, accounts);
+  return isCardPaymentDestination(account) ? Math.max(0, position) : position;
+}
+
+export function getAccountPosition(account, transactions = [], asOfDate = null, accounts = []) {
   if (isDebitCardAccount(account)) return 0;
 
   const base = Number(account?.manual_balance ?? account?.opening_balance ?? 0);
@@ -203,9 +220,11 @@ export function getAccountTotals(accounts = [], transactions = [], asOfDate = nu
   let spendable = 0;
   for (const acc of accounts) {
     if (isDebitCardAccount(acc)) continue;
-    const bal = getAccountBalance(acc, transactions, asOfDate, accounts);
+    const bal = getAccountPosition(acc, transactions, asOfDate, accounts);
     if (isLiabilityAccount(acc)) {
-      owed += bal;
+      // Overpayments leave credit with the card issuer and preserve net worth.
+      if (bal < 0 && isCardPaymentDestination(acc)) held -= bal;
+      else owed += bal;
     } else {
       held += bal;
       if (isSpendableAccount(acc)) spendable += bal;
@@ -868,7 +887,9 @@ export function buildHomeSummary({
   const accountBreakdown = accounts
     .filter((acc) => !isDebitCardAccount(acc))
     .map((acc) => {
-      const liveBalance = getAccountBalance(acc, transactions, today, accounts);
+      const position = getAccountPosition(acc, transactions, today, accounts);
+      const cardCredit = isCardPaymentDestination(acc) ? Math.max(0, -position) : 0;
+      const liveBalance = cardCredit ? 0 : position;
       const openingBalance = Number(acc?.manual_balance ?? 0);
       return {
         id: acc.id,
@@ -876,6 +897,7 @@ export function buildHomeSummary({
         kind: acc.kind,
         openingBalance,
         liveBalance,
+        cardCredit,
         deltaFromTx: liveBalance - openingBalance,
         isLiability: isLiabilityAccount(acc),
         isSpendable: isSpendableAccount(acc),

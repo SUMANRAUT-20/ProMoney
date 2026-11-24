@@ -4,6 +4,8 @@ import { CategoryModel } from '../models/categoryModel.js';
 import {
   REFUND_KINDS,
   TRANSFER_KINDS,
+  isCardPaymentDestination,
+  isCardPaymentSource,
   iso,
   normalizeSalaryAmount,
   positiveYen,
@@ -19,6 +21,7 @@ const VALID_TX_KINDS = [
 ];
 
 async function resolveUserCategory(userId, { category_id, category_name, kind }) {
+  if (kind === 'card_payment') return { category: null };
   const catKind = kind === 'income' ? 'income' : 'expense';
   if (category_id !== undefined && category_id !== null && category_id !== '') {
     const numId = Number(category_id);
@@ -39,6 +42,12 @@ async function resolveUserCategory(userId, { category_id, category_name, kind })
     return { category: created };
   }
   return { category: null };
+}
+
+async function resolveSourceAccount(accountId, userId) {
+  const account = await AccountModel.findByIdAndUser(accountId, userId);
+  if (!account?.parent_account_id) return account;
+  return (await AccountModel.findByIdAndUser(account.parent_account_id, userId)) || account;
 }
 
 /**
@@ -112,16 +121,14 @@ export const transactionsController = {
       }
 
       if (accountId !== null && accountId !== '') {
-        const acc = await AccountModel.findByIdAndUser(accountId, userId);
+        const acc = await resolveSourceAccount(accountId, userId);
         if (!acc) {
           return res.status(400).json({ error: 'Account not found or does not belong to user', status: 400 });
         }
-        if (acc.parent_account_id) {
-          const parentAcc = await AccountModel.findByIdAndUser(acc.parent_account_id, userId);
-          accountId = parentAcc ? parentAcc.id : acc.id;
-        } else {
-          accountId = acc.id;
+        if (kind === 'card_payment' && !isCardPaymentSource(acc)) {
+          return res.status(400).json({ error: 'Choose an asset account to pay from', status: 400 });
         }
+        accountId = acc.id;
       } else {
         accountId = null;
       }
@@ -147,6 +154,9 @@ export const transactionsController = {
             error: 'Destination account not found or does not belong to user (Constitution L2)',
             status: 400,
           });
+        }
+        if (kind === 'card_payment' && !isCardPaymentDestination(toAcc)) {
+          return res.status(400).json({ error: 'Choose a credit card or BNPL account to pay', status: 400 });
         }
         toAccountId = toAcc.id;
       } else if (toAccountId !== null && toAccountId !== '') {
@@ -231,38 +241,28 @@ export const transactionsController = {
         }
       }
 
-      let nextAccountId = existing.account_id;
-      if (body.account_id !== undefined) {
-        if (!body.account_id) {
-          nextAccountId = null;
-        } else {
-          const acc = await AccountModel.findByIdAndUser(body.account_id, userId);
-          if (!acc) {
-            return res.status(400).json({ error: 'Account not found or does not belong to user', status: 400 });
-          }
-          if (acc.parent_account_id) {
-            const parentAcc = await AccountModel.findByIdAndUser(acc.parent_account_id, userId);
-            nextAccountId = parentAcc ? parentAcc.id : acc.id;
-          } else {
-            nextAccountId = acc.id;
-          }
+      let nextAccountId = body.account_id === undefined ? existing.account_id : body.account_id || null;
+      if (nextAccountId && (body.account_id !== undefined || nextKind === 'card_payment')) {
+        const acc = await resolveSourceAccount(nextAccountId, userId);
+        if (!acc) {
+          return res.status(400).json({ error: 'Account not found or does not belong to user', status: 400 });
         }
+        if (nextKind === 'card_payment' && !isCardPaymentSource(acc)) {
+          return res.status(400).json({ error: 'Choose an asset account to pay from', status: 400 });
+        }
+        nextAccountId = acc.id;
       }
 
-      let nextToAccountId = existing.to_account_id;
-      if (body.to_account_id !== undefined) {
-        if (!body.to_account_id) {
-          nextToAccountId = null;
-        } else {
-          const toAcc = await AccountModel.findByIdAndUser(body.to_account_id, userId);
-          if (!toAcc) {
-            return res.status(400).json({
-              error: 'Destination account not found or does not belong to user',
-              status: 400,
-            });
-          }
-          nextToAccountId = toAcc.id;
+      let nextToAccountId = body.to_account_id === undefined ? existing.to_account_id : body.to_account_id || null;
+      if (nextToAccountId && (body.to_account_id !== undefined || nextKind === 'card_payment')) {
+        const toAcc = await AccountModel.findByIdAndUser(nextToAccountId, userId);
+        if (!toAcc) {
+          return res.status(400).json({ error: 'Destination account not found or does not belong to user', status: 400 });
         }
+        if (nextKind === 'card_payment' && !isCardPaymentDestination(toAcc)) {
+          return res.status(400).json({ error: 'Choose a credit card or BNPL account to pay', status: 400 });
+        }
+        nextToAccountId = toAcc.id;
       }
 
       if (
@@ -276,7 +276,7 @@ export const transactionsController = {
       }
 
       let nextCategoryId = existing.category_id;
-      if (body.category_id !== undefined || body.category_name !== undefined) {
+      if (nextKind === 'card_payment' || body.category_id !== undefined || body.category_name !== undefined) {
         const { category, error: catError } = await resolveUserCategory(userId, {
           category_id: body.category_id,
           category_name: body.category_name,
