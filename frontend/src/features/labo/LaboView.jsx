@@ -26,6 +26,7 @@ import { ReportCard } from "./ReportCard";
 import { AllocationCard, PurchaseCard } from "./SimulatorCards";
 import { WhatIfPanel } from "./WhatIfPanel";
 import { useLaboAgent } from "./useLaboAgent";
+import ChatActionCard from "./ChatActionCard";
 
 const futureModules = [
   {
@@ -108,6 +109,7 @@ export default function LaboView() {
     categories,
     statement,
     confirmAllocation,
+    chatActions,
   } = useLaboAgent();
 
   const photoInputRef = useRef(null);
@@ -235,6 +237,10 @@ export default function LaboView() {
               )}
             </div>
           ))}
+          {chatActions.pending && (
+            <ChatActionCard key={chatActions.pending.id} proposal={chatActions.pending} busy={busy}
+              onConfirm={chatActions.confirm} onCancel={chatActions.cancel} />
+          )}
           {busy && <div className="labo-msg labo-msg-ai">Thinking…</div>}
         </div>
 

@@ -411,6 +411,12 @@ export async function parseTransactionsWithMeta({
 
 // --- Unified Provider Interface (used by laboController) ---
 
+export function completeLaboExtraction(messages, { env = process.env, fetchImpl = fetch } = {}) {
+  const cfg = getProviderConfig(env);
+  const provider = cfg.provider === 'groq' ? groqComplete : metaComplete;
+  return provider(messages, { ...cfg, fetchImpl, temperature: 0 });
+}
+
 export async function askLabo({
   question,
   snapshot,
