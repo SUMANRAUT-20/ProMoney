@@ -5,6 +5,7 @@ import { PageHeading } from '../../components/ui';
 import { apiClient } from '../../services/api';
 import { isLiabilityAccount } from '../../utils/financeMath';
 import CategoriesSettings from './CategoriesSettings';
+import NidhiMemorySettings from './NidhiMemorySettings';
 import './settings.css';
 
 const CURRENCIES = [
@@ -299,6 +300,7 @@ export default function SettingsView() {
         title="Settings"
         subtitle="Set-once Home engine rules, appearance, regional formats, and account security."
       />
+      <NidhiMemorySettings />
 
       {loadError && (
         <section className="section-card card settings-card">

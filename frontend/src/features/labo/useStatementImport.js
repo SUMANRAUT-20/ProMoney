@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { apiClient } from '../../services/api';
 import { getStatementNet } from '../../utils/financeMath';
 import { makeId, money } from '../../utils/formatters';
-import { saveSelectedStatementRows } from './saveSelectedStatementRows';
+import { saveSelectedStatementRows, statementMemoryCorrections } from './saveSelectedStatementRows';
 
 const MAX_STATEMENT_BYTES = 8 * 1024 * 1024;
 
@@ -18,6 +18,7 @@ function summarizeStatement({ rows, sheets }) {
 export function useStatementImport({ busy, setBusy, setError, setMessages, finance }) {
   const [rows, setRows] = useState([]);
   const [accountId, setAccountId] = useState(null);
+  const [rememberChanges, setRememberChanges] = useState(true);
   const accounts = finance.accounts || [];
   const account = accounts.find((item) => String(item.id) === accountId);
 
@@ -44,8 +45,10 @@ export function useStatementImport({ busy, setBusy, setError, setMessages, finan
       const { data } = await apiClient.laboImport(file, format);
       if (!data?.rows?.length) throw new Error('No readable transactions were found in this statement.');
       setAccountId(null);
+      setRememberChanges(true);
       setRows(data.rows.map((row) => ({
         ...row,
+        suggestedCategoryId: row.category_id,
         selected: row.selected === true && !row.possibleDuplicate && !row.uncertain,
       })));
       addMessage('ai', summarizeStatement(data));
@@ -77,6 +80,16 @@ export function useStatementImport({ busy, setBusy, setError, setMessages, finan
         addMessage('ai', text, { savedIds, undone: false });
       }
       if (error) showFailure(error.message || 'Could not save the remaining statement transactions.');
+      if (rememberChanges && savedIds.length) {
+        const merchantMap = statementMemoryCorrections(selected.slice(0, savedIds.length), finance.categories || []);
+        if (Object.keys(merchantMap).length) {
+          try {
+            await apiClient.saveNidhiMemory({ merchantMap });
+          } catch {
+            addMessage('ai', 'The transactions were saved. I couldn’t remember the category changes.');
+          }
+        }
+      }
     } finally {
       setBusy(false);
     }
@@ -89,5 +102,5 @@ export function useStatementImport({ busy, setBusy, setError, setMessages, finan
     addMessage('ai', 'Statement review closed.');
   };
 
-  return { rows, accounts, account, setAccountId, attach, update, save, cancel };
+  return { rows, accounts, account, setAccountId, attach, update, save, cancel, rememberChanges, setRememberChanges };
 }

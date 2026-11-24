@@ -1,3 +1,5 @@
+import { memoryCategory } from './nidhiMemory.js';
+
 const HEALTH_KEYWORDS = /\b(?:hospital|medical|pharmacy|clinic)\b|病院|薬局|医療/;
 
 const CATEGORY_RULES = [
@@ -52,7 +54,7 @@ function duplicateKey(row) {
   return row.transaction_date + ':' + Number(row.amount);
 }
 
-export function buildStatementReview(rows, categories, existingTransactions) {
+export function buildStatementReview(rows, categories, existingTransactions, merchantMap) {
   const existingTitles = new Map();
   for (const tx of existingTransactions) {
     const key = duplicateKey(tx);
@@ -64,12 +66,14 @@ export function buildStatementReview(rows, categories, existingTransactions) {
     const title = titleKey(row.note);
     const matches = existingTitles.get(duplicateKey(row)) ?? [];
     const possibleDuplicate = matches.some((existing) => similarTitle(title, existing));
-    const category = suggestCategory(row, categories);
+    const remembered = memoryCategory(row.note, row.kind, categories, merchantMap);
+    const category = remembered || suggestCategory(row, categories);
     return {
       ...row,
       id: 'statement-row-' + (index + 1),
       category_id: category?.id ?? null,
       category_name: category?.name ?? null,
+      ...(remembered && { rememberedCategory: true }),
       possibleDuplicate,
       selected: !possibleDuplicate && !row.uncertain,
     };

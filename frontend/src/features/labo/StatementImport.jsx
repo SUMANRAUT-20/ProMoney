@@ -92,6 +92,9 @@ function StatementRow({ row, categories, onChange, disabled }) {
         {row.note}
         {row.possibleDuplicate && <span className="status-pill due_soon">Possible duplicate</span>}
         {row.uncertain && <span className="status-pill due_soon">Check extraction</span>}
+        {row.rememberedCategory && String(row.category_id ?? '') === String(row.suggestedCategoryId ?? '') && (
+          <span className="status-pill paid">Remembered from last time</span>
+        )}
       </td>
       <td className="align-right">{money(row.kind === 'expense' ? -row.amount : row.amount)}</td>
       <td>
@@ -149,6 +152,13 @@ export function StatementReview({ statement, categories, busy }) {
           </tbody>
         </table>
       </div>
+      {selected.some((row) => String(row.category_id ?? '') !== String(row.suggestedCategoryId ?? '')) && (
+        <label className="labo-statement-account">
+          <input type="checkbox" checked={statement.rememberChanges} disabled={busy}
+            onChange={(event) => statement.setRememberChanges(event.target.checked)} />
+          Remember category changes for future imports
+        </label>
+      )}
       <div className="labo-statement-actions">
         <button className="btn secondary compact" type="button" onClick={statement.cancel} disabled={busy}>Cancel</button>
         <button className="btn primary compact" type="button" onClick={statement.save} disabled={busy || !selected.length}>

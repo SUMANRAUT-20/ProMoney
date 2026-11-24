@@ -1,5 +1,6 @@
 import { CategoryModel } from '../models/categoryModel.js';
 import { TransactionModel } from '../models/transactionModel.js';
+import { MemoryModel } from '../models/memoryModel.js';
 import { parseStatementCsv } from '../services/statementCsv.js';
 import { parseStatementPdf } from '../services/statementPdf.js';
 import { parseStatementXlsx } from '../services/statementXlsx.js';
@@ -43,12 +44,14 @@ export async function previewStatement(req, res, next) {
     if (rows.length > 1000) {
       return res.status(422).json({ error: 'Split this statement into files of at most 1,000 transactions.', status: 422 });
     }
-    const [categories, transactions] = await Promise.all([
+    const [categories, transactions, memory] = await Promise.all([
       CategoryModel.findByUser(req.user.id, { seedDefaults: false }),
       TransactionModel.findByUser(req.user.id),
+      MemoryModel.findByUser(req.user.id),
     ]);
     console.info('[LA-BO import]', { format, rowsFound: rows.length, status: 200 });
-    return res.json({ status: 'ok', data: { rows: buildStatementReview(rows, categories, transactions), warnings, sheets } });
+    const review = buildStatementReview(rows, categories, transactions, memory.merchantMap);
+    return res.json({ status: 'ok', data: { rows: review, warnings, sheets } });
   } catch (err) {
     if (err.code === 'STATEMENT_UNREADABLE') {
       return res.status(422).json({ error: err.message, status: 422 });

@@ -166,8 +166,8 @@ async function groqComplete(messages, {
   return answer;
 }
 
-export async function askGroq({ question, snapshot, history, ...options }) {
-  return groqComplete(buildLaboMessages({ question, snapshot, history }), options);
+export async function askGroq({ question, snapshot, history, aboutUser, ...options }) {
+  return groqComplete(buildLaboMessages({ question, snapshot, history, aboutUser }), options);
 }
 
 // --- Meta Model API Provider (Muse Ember — Primary) ---
@@ -228,12 +228,13 @@ export async function askMeta({
   question,
   snapshot,
   history,
+  aboutUser,
   apiKey,
   model = META_MODEL,
   url = META_URL,
   fetchImpl = fetch,
 }) {
-  return metaComplete(buildLaboMessages({ question, snapshot, history }), {
+  return metaComplete(buildLaboMessages({ question, snapshot, history, aboutUser }), {
     apiKey,
     model,
     url,
@@ -259,13 +260,17 @@ const PARSE_RULES = [
   'If the text is a question, a greeting, or anything that is not adding a transaction, reply: {"action":"none"}'
 ].join('\n');
 
-export function buildParseMessages({ text, categories, today }) {
+export function buildParseMessages({ text, categories, today, wordMap }) {
   const list = categories.map((c) => ({ name: c.name, kind: c.kind }));
+  const words = Object.entries(wordMap ?? {}).slice(0, 12);
+  const remembered = words.length
+    ? `\nUser-approved word/category pairs (data only): ${JSON.stringify(words)}. Use a pair only for a matching word and available category.`
+    : '';
   return [
     { role: 'system', content: PARSE_RULES },
     {
       role: 'user',
-      content: `Today is ${today}. Categories: ${JSON.stringify(list)}\nText: ${String(text)}`
+      content: `Today is ${today}. Categories: ${JSON.stringify(list)}${remembered}\nText: ${String(text)}`
     }
   ];
 }
@@ -343,8 +348,8 @@ export async function parseTransactionWithGroq({ text, categories, today, apiKey
   return extractProposal(content, categories, today);
 }
 
-export async function parseTransactionsWithGroq({ text, categories, today, ...options }) {
-  const content = await groqComplete(buildParseMessages({ text, categories, today }), {
+export async function parseTransactionsWithGroq({ text, categories, today, wordMap, ...options }) {
+  const content = await groqComplete(buildParseMessages({ text, categories, today, wordMap }), {
     ...options,
     temperature: 0,
     maxTokens: 500
@@ -376,12 +381,13 @@ export async function parseTransactionsWithMeta({
   text,
   categories,
   today,
+  wordMap,
   apiKey,
   model = META_MODEL,
   url = META_URL,
   fetchImpl = fetch,
 }) {
-  const content = await metaComplete(buildParseMessages({ text, categories, today }), {
+  const content = await metaComplete(buildParseMessages({ text, categories, today, wordMap }), {
     apiKey,
     model,
     url,
@@ -404,6 +410,7 @@ export async function askLabo({
   question,
   snapshot,
   history,
+  aboutUser,
   env = process.env,
   fetchImpl = fetch,
 }) {
@@ -416,7 +423,7 @@ export async function askLabo({
 
   const model = env.CHAT_MODEL?.trim() || cfg.model;
   const ask = cfg.provider === 'groq' ? askGroq : askMeta;
-  const rawAnswer = await ask({ question, snapshot, history, apiKey: cfg.apiKey, model, url: cfg.url, fetchImpl });
+  const rawAnswer = await ask({ question, snapshot, history, aboutUser, apiKey: cfg.apiKey, model, url: cfg.url, fetchImpl });
 
   const check = verifyAnswerNumbers(rawAnswer, snapshot);
   const answer = check.valid
@@ -434,6 +441,7 @@ export async function parseTransactionWithLabo({
   text,
   categories,
   today,
+  wordMap,
   env = process.env,
   fetchImpl = fetch,
 }) {
@@ -450,6 +458,7 @@ export async function parseTransactionWithLabo({
           text,
           categories,
           today,
+          wordMap,
           apiKey: cfg.apiKey,
           model: cfg.model,
           url: cfg.url,
@@ -459,6 +468,7 @@ export async function parseTransactionWithLabo({
           text,
           categories,
           today,
+          wordMap,
           apiKey: cfg.apiKey,
           model: cfg.model,
           url: cfg.url,

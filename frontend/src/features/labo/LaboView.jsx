@@ -15,6 +15,7 @@ import { StatementAccountPicker, StatementAttachment, StatementReview } from "./
 import { ReportCard } from "./ReportCard";
 import { AllocationCard, PurchaseCard } from "./SimulatorCards";
 import ChatActionCard from "./ChatActionCard";
+import MemoryReview from "./MemoryReview";
 import LaboResources from "./LaboResources";
 import TransactionProposals from "./TransactionProposals";
 import { useChatScroll } from "./useChatScroll";
@@ -56,6 +57,7 @@ export default function LaboView() {
     statement,
     confirmAllocation,
     chatActions,
+    decideMemory,
   } = useLaboAgent();
 
   const photoInputRef = useRef(null);
@@ -160,6 +162,8 @@ export default function LaboView() {
                 className={`labo-msg ${m.role === "user" ? "labo-msg-user" : "labo-msg-ai"}`}
               >
                 <div>{m.text}</div>
+                {m.memoryProposal && <MemoryReview proposal={m.memoryProposal} onDecision={(remembered) => decideMemory(m.id, remembered)} />}
+                {m.remembered && <p className="muted small" role="status">Remembered</p>}
                 {m.report && <ReportCard report={m.report} signature={m.signature} format={m.downloadFormat} />}
                 {m.purchase && <PurchaseCard plan={m.purchase} />}
                 {m.allocation && <AllocationCard plan={m.allocation} closed={m.allocationClosed} busy={busy}

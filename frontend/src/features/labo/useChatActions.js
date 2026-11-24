@@ -19,23 +19,23 @@ export function useChatActions({ finance, setMessages, setBusy, setError }) {
     reply('Action cancelled.');
   };
 
-  async function preview(question) {
+  async function preview(question, replyToPreview) {
     if (clarification && /^cancel[.!]?$/i.test(question)) return cancel();
-    if (pending) return reply('Confirm or cancel the current action first.');
+    if (pending) return replyToPreview('Confirm or cancel the current action first.');
     const text = isAction(question) || !clarification ? question : `${clarification}\nClarification: ${question}`;
     if (text.length > 500) {
       setClarification('');
-      return reply('Can you restate the action and the record details in one short message?');
+      return replyToPreview('Can you restate the action and the record details in one short message?');
     }
     const { data } = await apiClient.previewLaboAction(text);
     const result = makeChatProposal(data.action, finance);
     if (result.question) {
       setClarification(text);
-      return reply(result.question);
+      return replyToPreview(result.question);
     }
     setClarification('');
     setPending({ ...result.proposal, id: makeId('action') });
-    return reply('Review the proposed change below.');
+    return replyToPreview('Review the proposed change below.');
   }
 
   async function confirm(draft, step) {

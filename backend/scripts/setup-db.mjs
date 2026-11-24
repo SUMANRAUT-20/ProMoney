@@ -98,6 +98,13 @@ if (!(await hasColumn('transactions', 'note'))) {
   console.log('Migration 005 applied: transactions.note column added.');
 }
 
+if (!(await hasColumn('user_settings', 'nidhi_memory_json'))) {
+  await connection.query(
+    `ALTER TABLE \`${dbName}\`.user_settings ADD COLUMN nidhi_memory_json JSON NULL`
+  );
+  console.log('Migration 006 applied: user_settings.nidhi_memory_json column added.');
+}
+
 const [rows] = await connection.query(
   `SELECT table_name FROM information_schema.tables WHERE table_schema = ? ORDER BY table_name`,
   [dbName]

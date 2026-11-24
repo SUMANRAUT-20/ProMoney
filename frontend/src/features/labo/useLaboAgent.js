@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useFinance } from '../../context/FinanceContext';
+import { apiClient } from '../../services/api';
 import { makeId, money } from '../../utils/formatters';
 import { useStatementImport } from './useStatementImport';
 import { useAllocationConfirmation } from './useAllocationConfirmation';
@@ -123,6 +124,20 @@ export function useLaboAgent() {
     [messages, finance, speak]
   );
 
+  const replyWithMemory = useCallback((question, text, extra) => {
+    const id = makeId('msg');
+    setMessages((previous) => [...previous, { id, role: 'ai', text, ...extra }]);
+    if (!text) return;
+    apiClient.previewNidhiMemory(question, text.slice(0, 2000)).then(({ data }) => {
+      if (!data?.proposal) return;
+      setMessages((previous) => previous.map((message) =>
+        message.id === id ? { ...message, memoryProposal: data.proposal } : message));
+    }).catch(() => {});
+  }, []);
+
+  const decideMemory = (id, remembered) => setMessages((previous) => previous.map((message) =>
+    message.id === id ? { ...message, memoryProposal: null, remembered } : message));
+
   const ask = useCallback(
     async (questionText) => {
       const question = (questionText ?? input).trim();
@@ -140,7 +155,7 @@ export function useLaboAgent() {
       setBusy(true);
       try {
         if (chatActions.matches(question)) {
-          await chatActions.preview(question);
+          await chatActions.preview(question, (text) => replyWithMemory(question, text));
           return;
         }
         // Check if the message is adding one or more transactions (F1 / F5)
@@ -156,16 +171,14 @@ export function useLaboAgent() {
               proposals.length === 1
                 ? `I prepared 1 ${proposals[0].kind} proposal: ${money(proposals[0].amount)} for ${proposals[0].category_name} (${proposals[0].note}). Tap "Confirm & Save" below to record it.`
                 : `I prepared ${proposals.length} proposals totaling ${money(totalYen)}. You can remove any item below before tapping "Confirm & Save".`;
-            setMessages((prev) => [...prev, { id: makeId('msg'), role: 'ai', text: summaryText }]);
+            replyWithMemory(question, summaryText);
             speak(summaryText);
             return;
           }
         }
 
         const { answer, report, signature, downloadFormat, warnings, purchase, allocation } = await sendLaboQuestion({ question, finance, messages });
-        setMessages((prev) => [...prev, {
-          id: makeId('msg'), role: 'ai', text: answer, report, signature, downloadFormat, warnings, purchase, allocation,
-        }]);
+        replyWithMemory(question, answer, { report, signature, downloadFormat, warnings, purchase, allocation });
         if (warnings) speak([answer, ...warnings].join('\n'), true);
         else speak(answer);
       } catch (err) {
@@ -180,7 +193,7 @@ export function useLaboAgent() {
         setBusy(false);
       }
     },
-    [input, busy, finance, messages, speak, undoSave, chatActions]
+    [input, busy, finance, messages, speak, undoSave, chatActions, replyWithMemory]
   );
 
   const parseEntry = useCallback(
@@ -436,5 +449,6 @@ export function useLaboAgent() {
     statement,
     confirmAllocation,
     chatActions,
+    decideMemory,
   };
 }
