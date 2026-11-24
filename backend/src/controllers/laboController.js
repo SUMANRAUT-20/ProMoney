@@ -12,7 +12,7 @@ import { getLaboInsight } from './laboInsights.js';
 export const laboController = {
   async chat(req, res, next) {
     try {
-      const { question, snapshot } = req.body ?? {};
+      const { question, snapshot, history } = req.body ?? {};
       if (typeof question !== 'string' || !question.trim()) {
         return res.status(400).json({ error: 'question is required', status: 400 });
       }
@@ -27,6 +27,7 @@ export const laboController = {
       const { answer, provider, model } = await askLabo({
         question: question.trim(),
         snapshot,
+        history,
       });
       return res.json({ status: 'ok', data: { answer, provider, model } });
     } catch (err) {

@@ -27,7 +27,7 @@ export function reportRequest(question, today = tokyoTodayISO()) {
   const categories = /\b(?:by category|category breakdown|category spending)\b|カテゴリ別/.test(text);
   const compare = /last month.*this month|this month.*last month|monthly comparison|先月.*今月|今月.*先月/.test(text);
   const cashFlow = /\bincome\b.*\bexpenses?\b|\bexpenses?\b.*\bincome\b|収入.*支出/.test(text);
-  const report = /^report\b|\b(?:a|my|monthly|spending|expense|income|financial) report\b|レポート/.test(text);
+  const report = /^report\b|\b(?:a|my|monthly|spending|expense|income|financial) report\b|\breport (?:of|for) (?:last|this) month\b|レポート/.test(text);
   if (!categories && !compare && !cashFlow && !report) return null;
 
   const current = today.slice(0, 7);

@@ -33,6 +33,7 @@ test('F7: category report uses the financeMath breakdown for the requested month
   assert.deepEqual(report.rows, [...expected.items.map(({ name, amount }) => [name, amount]), ['Total', expected.totalExpense]]);
   assert.deepEqual(reportRequest('last month vs this month', '2027-01-17').months, ['2026-12', '2027-01']);
   assert.deepEqual(reportRequest('show my income vs expense October 2026').months, [month]);
+  assert.deepEqual(reportRequest('can you give me report of last month in pdf', '2026-11-17'), { kind: 'summary', months: [month] });
 });
 
 async function fixture(t) {

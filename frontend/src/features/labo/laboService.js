@@ -167,11 +167,15 @@ export function looksLikeAddIntent(text) {
   return /[a-zA-Z\u3040-\u9faf]+\s+[¥￥]?\d{2,}/.test(str);
 }
 
-export async function sendLaboQuestion({ question, finance }) {
+export async function sendLaboQuestion({ question, finance, messages = [] }) {
   const snapshot = buildFinanceSnapshot(finance, currentMonthISO(), todayISO());
-  const payload = await apiClient.laboChat({ question, snapshot });
+  const history = messages.slice(-8).map(({ role, text }) => ({
+    role: role === 'ai' ? 'assistant' : role, content: text,
+  }));
+  const payload = await apiClient.laboChat({ question, snapshot, history });
+  if (!payload?.data?.answer) throw new Error('Nidhi did not return a reply.');
   return {
-    answer: payload?.data?.answer || "I don't have that in your data yet.",
+    answer: payload.data.answer,
     provider: payload?.data?.provider || 'meta',
     model: payload?.data?.model || null,
     report: payload?.data?.report,

@@ -35,7 +35,9 @@ export async function getLaboInsight(question, userId) {
     request.kind === 'categories' ? CategoryModel.findByUser(userId, { seedDefaults: false }) : [],
   ]);
   const report = buildFinanceReport({ ...request, transactions, categories });
-  const answer = report.hasData
+  const answer = report.hasData && /\bpdf\b/i.test(question)
+    ? 'Here’s your report. Choose Download PDF on the card.'
+    : report.hasData
     ? 'Here’s your report from the ProMoney engine.'
     : 'There’s no activity to report for that scope. You can add records on the Transactions page.';
   return { answer, report, signature: signReport(report, userId) };
