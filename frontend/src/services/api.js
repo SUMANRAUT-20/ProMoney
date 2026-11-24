@@ -132,6 +132,14 @@ export const apiClient = {
     return request('/categories', { method: 'POST', body: JSON.stringify(body) });
   },
 
+  async renameCategory(id, name) {
+    return request(`/categories/${id}`, { method: 'PUT', body: JSON.stringify({ name }) });
+  },
+
+  async deleteCategory(id) {
+    return request(`/categories/${id}`, { method: 'DELETE' });
+  },
+
   // Accounts
   async getAccounts() {
     return request('/accounts', { method: 'GET' });

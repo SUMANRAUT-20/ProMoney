@@ -7,5 +7,7 @@ const router = Router();
 router.use(requireAuth);
 router.get('/', categoriesController.list);
 router.post('/', categoriesController.create);
+router.put('/:id', categoriesController.rename);
+router.delete('/:id', categoriesController.remove);
 
 export default router;

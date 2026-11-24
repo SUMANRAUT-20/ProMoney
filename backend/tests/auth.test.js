@@ -31,9 +31,10 @@ test('verifyPassword returns false for malformed hashes instead of throwing', ()
   assert.equal(verifyPassword('whatever', null), false);
 });
 
-test('default categories match the seeds.sql template (2 income, 6 expense)', () => {
+test('default categories include Health (2 income, 7 expense)', () => {
   assert.equal(DEFAULT_CATEGORIES.filter((c) => c.kind === 'income').length, 2);
-  assert.equal(DEFAULT_CATEGORIES.filter((c) => c.kind === 'expense').length, 6);
+  assert.equal(DEFAULT_CATEGORIES.filter((c) => c.kind === 'expense').length, 7);
+  assert.ok(DEFAULT_CATEGORIES.some((c) => c.name === 'Health' && c.kind === 'expense'));
 });
 
 // --- JWT signing / verification (HMAC-SHA256) ---

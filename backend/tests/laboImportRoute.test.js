@@ -96,3 +96,15 @@ test('F4: unknown CSV columns are rejected without saving a transaction', async 
   assert.equal(error.data, undefined);
   assert.deepEqual((await records()).map((row) => row.id), [existing.id]);
 });
+
+test('Statement imports infer Health for English and Japanese medical expenses', async (t) => {
+  const { request, records, existing } = await importFixture(t);
+  const descriptions = ['Hospital expenses', 'Medical fees', 'Pharmacy', 'Clinic', '病院', '薬局', '医療'];
+  const csv = ['Date,Description,Amount', ...descriptions.map((name) => `2026-11-12,${name},-1000`)].join('\n');
+  const response = await preview(request, csv);
+  assert.equal(response.status, 200);
+  const { data: { rows } } = await response.json();
+  assert.equal(rows.length, descriptions.length);
+  assert.ok(rows.every((row) => row.category_name === 'Health' && row.category_id));
+  assert.deepEqual((await records()).map((row) => row.id), [existing.id]);
+});

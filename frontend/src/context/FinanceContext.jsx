@@ -187,6 +187,29 @@ export function FinanceProvider({ children }) {
     return true;
   }, []);
 
+  const saveCategory = useCallback(async ({ name, kind }, id = null) => {
+    if (id === null) {
+      const { data } = await apiClient.createCategory({ name, kind });
+      setCategories((rows) => rows.some((row) => row.id === data.id) ? rows : [...rows, data]);
+      return data;
+    }
+
+    const { data } = await apiClient.renameCategory(id, name);
+    const hasCategory = (row) => String(row.category_id) === String(id);
+    setCategories((rows) => rows.map((row) => row.id === data.id ? data : row));
+    setTransactions((rows) => rows.map((row) => hasCategory(row) ? { ...row, category_name: data.name } : row));
+    setBudgets((rows) => rows.map((row) => hasCategory(row) ? { ...row, category_name: data.name } : row));
+    return data;
+  }, []);
+
+  const removeCategory = useCallback(async (id) => {
+    await apiClient.deleteCategory(id);
+    const hasCategory = (row) => String(row.category_id) === String(id);
+    setCategories((rows) => rows.filter((row) => String(row.id) !== String(id)));
+    setTransactions((rows) => rows.map((row) => hasCategory(row) ? { ...row, category_id: null, category_name: null } : row));
+    setBudgets((rows) => rows.filter((row) => !hasCategory(row)));
+  }, []);
+
   // --- Transactions actions ---
   const addTransaction = useCallback(async (payload) => {
     const res = await apiClient.createTransaction(payload);
@@ -314,6 +337,8 @@ export function FinanceProvider({ children }) {
       advanceBillCycle,
       removeBill,
       categories,
+      saveCategory,
+      removeCategory,
       theme,
       setTheme,
       preferences,
@@ -347,6 +372,8 @@ export function FinanceProvider({ children }) {
       advanceBillCycle,
       removeBill,
       categories,
+      saveCategory,
+      removeCategory,
       theme,
       preferences,
       setPreferences,

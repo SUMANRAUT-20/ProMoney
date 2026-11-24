@@ -798,8 +798,8 @@ export function getCategoryBreakdown(transactions = [], month, categories = []) 
     if (String(tx.transaction_date || '').slice(0, 7) !== month) continue;
     if (tx.kind !== 'expense' && !REFUND_KINDS.includes(tx.kind)) continue;
     const cat = categories.find((c) => String(c.id) === String(tx.category_id));
-    const key = cat?.id || tx.category_id || tx.category_name || 'other-expense';
-    const name = cat?.name || tx.category_name || 'Other Expense';
+    const key = cat?.id || tx.category_id || tx.category_name || 'uncategorized';
+    const name = cat?.name || tx.category_name || 'Uncategorized';
     const amt = Number(tx.amount || 0);
     const delta = tx.kind === 'expense' ? amt : -amt;
     const prev = totals.get(key)?.amount || 0;

@@ -5,6 +5,7 @@ import { useFinance } from '../../context/FinanceContext';
 import { Amount, EmptyState, Metric, Modal, PageHeading } from '../../components/ui';
 import { exportTransactionsCsv, formatDate, isValidISODate, money, parseWholeYen, todayISO } from '../../utils/formatters';
 import { REFUND_KINDS } from '../../utils/financeMath';
+import TransactionCategoryPicker from './TransactionCategoryPicker';
 
 export default function TransactionsView() {
   const {
@@ -89,7 +90,7 @@ export default function TransactionsView() {
     setForm({
       kind: tx.kind,
       amount: String(tx.amount),
-      category_id: String(tx.category_id || firstCatForKind(tx.kind)),
+      category_id: String(tx.category_id ?? ''),
       account_id: tx.account_id ? String(tx.account_id) : defaultAccountId,
       transaction_date: tx.transaction_date,
       note: tx.note || tx.title || '',
@@ -104,7 +105,7 @@ export default function TransactionsView() {
     const amount = parseWholeYen(form.amount);
     if (amount === null) return setError('Amount must be a whole number greater than ¥0.');
     const cat = categories.find((c) => String(c.id) === String(form.category_id) && c.kind === form.kind);
-    if (!cat) return setError('Please select a valid category.');
+    if (!cat && !(editingTx && form.category_id === '')) return setError('Please select or create a category.');
     if (accounts.length > 0 && !accounts.some((a) => String(a.id) === String(form.account_id))) {
       return setError('Please select a valid account.');
     }
@@ -115,8 +116,8 @@ export default function TransactionsView() {
     const payload = {
       kind: form.kind,
       amount,
-      category_id: cat.id,
-      category_name: cat.name,
+      category_id: cat?.id ?? null,
+      category_name: cat?.name ?? null,
       account_id: accounts.length > 0 ? form.account_id : null,
       transaction_date: form.transaction_date,
       note,
@@ -247,12 +248,13 @@ export default function TransactionsView() {
               </label>
             </div>
             <div className="form-row">
-              <label>
-                Category
-                <select value={form.category_id} onChange={(e) => { setForm({ ...form, category_id: e.target.value }); setError(''); }}>
-                  {categories.filter((c) => c.kind === form.kind).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </label>
+              <TransactionCategoryPicker key={form.kind} kind={form.kind} value={form.category_id}
+                allowUncategorized={Boolean(editingTx && !editingTx.category_id)}
+                onChange={(categoryId) => {
+                  setForm((current) => current.kind === form.kind ? { ...current, category_id: categoryId } : current);
+                  setError('');
+                }}
+              />
               <label>
                 Account
                 <select value={form.account_id} onChange={(e) => { setForm({ ...form, account_id: e.target.value }); setError(''); }} disabled={accounts.length === 0}>

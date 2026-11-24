@@ -1,4 +1,5 @@
 import { getDbPool } from '../db.js';
+import { DEMO_CATEGORIES } from '../models/defaultCategories.js';
 import {
   UserModel,
   hashPassword,
@@ -11,25 +12,6 @@ import { addMonthsISO, tokyoTodayISO } from './financeMath.js';
 const pool = getDbPool();
 
 export const DEMO_DISPLAY_NAME = 'Sample Demo Account';
-
-export const DEMO_CATEGORIES = [
-  { name: 'Part-time Salary', kind: 'income' },
-  { name: 'Salary', kind: 'income' },
-  { name: 'Freelance', kind: 'income' },
-  { name: 'Allowance', kind: 'income' },
-  { name: 'Other Income', kind: 'income' },
-  { name: 'Housing', kind: 'expense' },
-  { name: 'Groceries', kind: 'expense' },
-  { name: 'Food & Dining', kind: 'expense' },
-  { name: 'Transportation', kind: 'expense' },
-  { name: 'Utilities', kind: 'expense' },
-  { name: 'Phone & Internet', kind: 'expense' },
-  { name: 'Education', kind: 'expense' },
-  { name: 'Shopping', kind: 'expense' },
-  { name: 'Healthcare', kind: 'expense' },
-  { name: 'Entertainment', kind: 'expense' },
-  { name: 'Other Expense', kind: 'expense' },
-];
 
 export function getDemoCredentials() {
   const email = String(process.env.DEMO_EMAIL || 'demo@promoney.local')

@@ -29,12 +29,11 @@ async function resolveUserCategory(userId, { category_id, category_name, kind })
     }
   }
   if (typeof category_name === 'string' && category_name.trim()) {
-    const byName = await CategoryModel.findByNameAndUser(category_name.trim(), catKind, userId);
-    if (byName) return { category: byName };
     const created = await CategoryModel.create({
       userId,
       name: category_name.trim(),
       kind: catKind,
+      reuseExisting: true,
     });
     return { category: created };
   }
