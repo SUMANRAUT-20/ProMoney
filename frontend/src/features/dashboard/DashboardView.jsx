@@ -394,12 +394,12 @@ export default function DashboardView() {
       </section>
 
       {/* 7. LA-BO one-line alert card + quick-ask box */}
-      <section className="section-card card" style={{ marginBottom: 0 }} aria-label="ProMoney LA-BO alert and quick ask">
+      <section className="section-card card" style={{ marginBottom: 0 }} aria-label="Nidhi alert and quick ask">
         <div className="home-labo-bar">
           <div className="home-labo-alert-line">
             <Bot size={20} color="var(--green)" style={{ flexShrink: 0 }} />
             <div>
-              <strong>ProMoney LA-BO:</strong> <span>{home.laboAlertText}</span>
+              <strong>Nidhi:</strong> <span>{home.laboAlertText}</span>
             </div>
           </div>
 
@@ -408,12 +408,12 @@ export default function DashboardView() {
               type="text"
               value={quickQuestion}
               onChange={(e) => setQuickQuestion(e.target.value)}
-              placeholder="Quick ask LA-BO… e.g. How much can I safely spend per day?"
+              placeholder="Ask Nidhi… e.g. How much can I safely spend per day?"
               maxLength={500}
-              aria-label="Quick ask ProMoney LA-BO"
+              aria-label="Quick ask Nidhi"
             />
             <button type="submit" className="btn primary compact">
-              <Send size={14} /> Ask LA-BO
+              <Send size={14} /> Ask Nidhi
             </button>
           </form>
         </div>
