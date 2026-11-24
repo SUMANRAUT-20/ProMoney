@@ -67,7 +67,10 @@ test('XLSX rejects old XLS, malformed workbooks and unrecognized first-sheet col
 
 test('team dummy template reads transaction tabs past instruction sheets and excludes invalid dates with a warning', async () => {
   const warnings = [];
-  const parsed = await parseStatementXlsx(await dummyTemplateBytes(), { onWarning: (message) => warnings.push(message) });
+  const sheets = [];
+  const parsed = await parseStatementXlsx(await dummyTemplateBytes(), {
+    onWarning: (message) => warnings.push(message), onSheet: (sheet) => sheets.push(sheet),
+  });
   const categories = [{ id: 1, name: 'Housing', kind: 'expense' }, { id: 2, name: 'Salary', kind: 'income' }];
   const review = buildStatementReview(parsed, categories, [
     { transaction_date: '2026-01-01', amount: 40000, title: 'Monthly rent' },
@@ -79,6 +82,11 @@ test('team dummy template reads transaction tabs past instruction sheets and exc
     ['2026-02-25', 'Salary', 75000, 'income', false, true],
   ]);
   assert.deepEqual(warnings, ['02 Feb, row 16 was excluded: Invalid calendar date.']);
+  assert.deepEqual(sheets.find(({ name }) => name === '02 Feb'), {
+    name: '02 Feb', found: 2, skipped: 1, reasons: [{ reason: 'Invalid calendar date', count: 1 }], note: null,
+  });
+  assert.equal(sheets.find(({ name }) => name === 'START HERE').note, 'No transaction table');
+  assert.equal(sheets.find(({ name }) => name === '12 Dec').note, 'No transaction rows');
 });
 
 test('XLSX review marks duplicates unticked and saves only selected rows through transaction creation', async () => {
@@ -97,7 +105,8 @@ test('XLSX review marks duplicates unticked and saves only selected rows through
   const preview = mockRes();
   await previewStatement({ user, get: () => 'xlsx', body: bytes }, preview, next);
   assert.equal(preview.statusCode, 200);
-  const { data: { rows } } = preview.body;
+  const { data: { rows, sheets } } = preview.body;
+  assert.equal(sheets[0].found, 3);
   assert.deepEqual(rows.map(({ possibleDuplicate, selected }) => [possibleDuplicate, selected]), [
     [true, false], [false, true], [false, true],
   ]);

@@ -1,22 +1,31 @@
 import { useState } from 'react';
 import { apiClient } from '../../services/api';
-import { makeId } from '../../utils/formatters';
+import { getStatementNet } from '../../utils/financeMath';
+import { makeId, money } from '../../utils/formatters';
 import { saveSelectedStatementRows } from './saveSelectedStatementRows';
 
 const MAX_STATEMENT_BYTES = 8 * 1024 * 1024;
+
+function summarizeStatement({ rows, sheets }) {
+  const summary = `${rows.length} ${rows.length === 1 ? 'transaction is' : 'transactions are'} ready to review. Choose the target account.`;
+  const details = sheets?.map(({ name, found, skipped, reasons, note }) => {
+    const reason = note || reasons.map(({ reason, count }) => `${count} × ${reason}`).join(', ');
+    return `${name} · ${found} found, ${skipped} skipped${reason ? ` (${reason})` : ''}`;
+  }) ?? [];
+  return [summary, ...details].join('\n');
+}
 
 export function useStatementImport({ busy, setBusy, setError, setMessages, finance }) {
   const [rows, setRows] = useState([]);
   const [accountId, setAccountId] = useState(null);
   const accounts = finance.accounts || [];
-  const account = accounts.find((item) => String(item.id) === accountId) ?? accounts[0];
+  const account = accounts.find((item) => String(item.id) === accountId);
 
   const addMessage = (role, text, extra) => {
     setMessages((previous) => [...previous, { id: makeId('msg'), role, text, ...extra }]);
   };
   const showFailure = (message) => {
-    setError(message);
-    addMessage('ai', message);
+    addMessage('ai', message.split('\n')[0]);
   };
 
   const attach = async (files) => {
@@ -39,7 +48,7 @@ export function useStatementImport({ busy, setBusy, setError, setMessages, finan
         ...row,
         selected: row.selected === true && !row.possibleDuplicate && !row.uncertain,
       })));
-      addMessage('ai', ['Your statement is ready to review.', ...(data.warnings || [])].join('\n'));
+      addMessage('ai', summarizeStatement(data));
     } catch (error) {
       showFailure(error.name === 'TimeoutError' ? 'Reading this statement timed out. Please try again.'
         : error.message || 'Could not read this statement.');
@@ -53,19 +62,21 @@ export function useStatementImport({ busy, setBusy, setError, setMessages, finan
   };
 
   const save = async () => {
-    if (busy || !rows.some((row) => row.selected)) return;
+    const selected = rows.filter((row) => row.selected);
+    if (busy || !account || !selected.length) return;
     setBusy(true);
     setError('');
     try {
       const { savedIds, remainingRows, error } = await saveSelectedStatementRows(
-        rows, finance.addTransaction, account ? String(account.id) : null,
+        rows, finance.addTransaction, String(account.id),
       );
       setRows(remainingRows);
       if (savedIds.length) {
-        const text = `Added ${savedIds.length} statement ${savedIds.length === 1 ? 'transaction' : 'transactions'}.`;
+        const net = getStatementNet(selected.slice(0, savedIds.length));
+        const text = `Added ${savedIds.length} statement ${savedIds.length === 1 ? 'transaction' : 'transactions'}. Net ${money(net)}.`;
         addMessage('ai', text, { savedIds, undone: false });
       }
-      if (error) setError(error.message || 'Could not save the remaining statement transactions.');
+      if (error) showFailure(error.message || 'Could not save the remaining statement transactions.');
     } finally {
       setBusy(false);
     }
@@ -73,7 +84,9 @@ export function useStatementImport({ busy, setBusy, setError, setMessages, finan
 
   const cancel = () => {
     setRows([]);
+    setAccountId(null);
     setError('');
+    addMessage('ai', 'Statement review closed.');
   };
 
   return { rows, accounts, account, setAccountId, attach, update, save, cancel };

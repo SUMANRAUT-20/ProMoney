@@ -26,12 +26,16 @@ export async function previewStatement(req, res, next) {
 
   try {
     const warnings = [];
+    const sheets = [];
     const text = format === 'csv' ? decodeCsv(bytes) : null;
     if (format === 'csv' && text === null) {
       return res.status(422).json({ error: 'The CSV must be encoded as UTF-8 or Shift JIS.', status: 422 });
     }
     const rows = format === 'csv' ? parseStatementCsv(text)
-      : format === 'xlsx' ? await parseStatementXlsx(bytes, { onWarning: (message) => warnings.push(message) })
+      : format === 'xlsx' ? await parseStatementXlsx(bytes, {
+        onWarning: (message) => warnings.push(message),
+        onSheet: (sheet) => sheets.push(sheet),
+      })
         : await parseStatementPdf(bytes);
     if (!rows.length) {
       return res.status(422).json({ error: 'I couldn’t read any transactions from this file. Check its date, description, and amount columns.', status: 422 });
@@ -44,7 +48,7 @@ export async function previewStatement(req, res, next) {
       TransactionModel.findByUser(req.user.id),
     ]);
     console.info('[LA-BO import]', { format, rowsFound: rows.length, status: 200 });
-    return res.json({ status: 'ok', data: { rows: buildStatementReview(rows, categories, transactions), warnings } });
+    return res.json({ status: 'ok', data: { rows: buildStatementReview(rows, categories, transactions), warnings, sheets } });
   } catch (err) {
     if (err.code === 'STATEMENT_UNREADABLE') {
       return res.status(422).json({ error: err.message, status: 422 });

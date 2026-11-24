@@ -1,4 +1,5 @@
 .labo-statement-review {
+  flex-shrink: 0;
   padding: 14px;
   margin-block: 10px;
   border-color: var(--green);

@@ -1,7 +1,9 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Paperclip } from 'lucide-react';
+import { useFinance } from '../../context/FinanceContext';
 import { getStatementNet } from '../../utils/financeMath';
 import { money } from '../../utils/formatters';
+import AccountFormModal from '../accounts/AccountFormModal';
 import './statementImport.css';
 
 export function StatementAttachment({ onAttach, disabled }) {
@@ -27,6 +29,49 @@ export function StatementAttachment({ onAttach, disabled }) {
         Drop a CSV, PDF, or XLSX here. PDFs with unreadable text may be sent to Meta for extraction.
       </span>
     </div>
+  );
+}
+
+export function StatementAccountPicker({ statement, busy }) {
+  const { addAccount } = useFinance();
+  const [showAccountForm, setShowAccountForm] = useState(false);
+  const [savingAccount, setSavingAccount] = useState(false);
+  const [error, setError] = useState('');
+
+  async function createAccount(values, uiDetails) {
+    if (savingAccount) return;
+    setSavingAccount(true);
+    try {
+      const created = await addAccount(values, uiDetails);
+      statement.setAccountId(String(created.id));
+    } catch (err) {
+      setError(err.message || 'Could not create the account.');
+    } finally {
+      setSavingAccount(false);
+      setShowAccountForm(false);
+    }
+  }
+
+  return (
+    <section className="card labo-statement-review" aria-label="Choose statement account">
+      <h3>Which account should I use?</h3>
+      {statement.accounts.length > 0 && (
+        <label className="labo-statement-account">
+          Target account
+          <select className="filter-select" value="" disabled={busy} onChange={(event) => statement.setAccountId(event.target.value)}>
+            <option value="" disabled>Choose an account</option>
+            {statement.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+          </select>
+        </label>
+      )}
+      {error && <p className="negative" role="alert">{error}</p>}
+      <div className="labo-statement-actions">
+        <button type="button" className="btn secondary compact" disabled={busy} onClick={statement.cancel}>Cancel</button>
+        <button type="button" className="btn secondary compact" disabled={busy}
+          onClick={() => { setError(''); setShowAccountForm(true); }}>+ Create it here</button>
+      </div>
+      {showAccountForm && <AccountFormModal onClose={() => !savingAccount && setShowAccountForm(false)} onSave={createAccount} />}
+    </section>
   );
 }
 
@@ -75,19 +120,17 @@ export function StatementReview({ statement, categories, busy }) {
       <p className="muted small" aria-live="polite">
         {selected.length} of {statement.rows.length} selected · Net {money(getStatementNet(selected))}
       </p>
-      {statement.account ? (
-        <label className="labo-statement-account">
-          Account
-          <select
-            className="filter-select"
-            value={statement.account.id}
-            onChange={(event) => statement.setAccountId(event.target.value)}
-            disabled={busy}
-          >
-            {statement.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-          </select>
-        </label>
-      ) : <p className="muted small">No account assigned</p>}
+      <label className="labo-statement-account">
+        Account
+        <select
+          className="filter-select"
+          value={statement.account.id}
+          onChange={(event) => statement.setAccountId(event.target.value)}
+          disabled={busy}
+        >
+          {statement.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+        </select>
+      </label>
       <div className="table-scroll" tabIndex={0} role="region" aria-label="Statement transactions">
         <table className="finance-table">
           <thead>
