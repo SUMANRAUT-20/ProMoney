@@ -176,6 +176,7 @@ export async function sendLaboQuestion({ question, finance }) {
     model: payload?.data?.model || null,
     report: payload?.data?.report,
     signature: payload?.data?.signature,
+    downloadFormat: payload?.data?.downloadFormat,
     warnings: payload?.data?.warnings,
     purchase: payload?.data?.purchase,
     allocation: payload?.data?.allocation,
