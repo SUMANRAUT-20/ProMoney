@@ -44,23 +44,25 @@ export function ProgressBar({ current, target, color = 'green' }) {
   );
 }
 
-export function Modal({ title, onClose, children }) {
+export function Modal({ title, onClose, inactive = false, children }) {
   useEffect(() => {
+    if (inactive) return;
     const keyDown = (e) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', keyDown);
     return () => window.removeEventListener('keydown', keyDown);
-  }, [onClose]);
+  }, [onClose, inactive]);
 
   return (
     <div
       className="modal-backdrop"
+      inert={inactive ? '' : undefined}
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <section className="modal card" role="dialog" aria-modal="true" aria-label={title}>
+      <section className="modal card" role="dialog" aria-modal={!inactive} aria-label={title}>
         <div className="modal-heading">
           <h2>{title}</h2>
           <button className="icon-button" type="button" onClick={onClose} aria-label="Close">

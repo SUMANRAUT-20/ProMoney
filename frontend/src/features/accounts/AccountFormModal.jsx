@@ -156,7 +156,7 @@ function validateAccount(values, isDebit, parentAccountId) {
   return errors;
 }
 
-export default function AccountFormModal({ account, initialGroup = "bank", onClose, onSave }) {
+export default function AccountFormModal({ account, initialGroup = "bank", focusKind = false, onClose, onSave }) {
   const { accounts } = useFinance();
   const startingGroup = account
     ? accountGroup(account)
@@ -186,6 +186,7 @@ export default function AccountFormModal({ account, initialGroup = "bank", onClo
     manual_balance: startingGroup.id === "debit" ? "0" : String(account?.manual_balance ?? ""),
   });
   const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
 
   const group = accountGroups.find((item) => item.id === groupId) || accountGroups[0];
   const isDebit = groupId === "debit";
@@ -232,8 +233,9 @@ export default function AccountFormModal({ account, initialGroup = "bank", onClo
     setErrors({});
   }
 
-  function submit(event) {
+  async function submit(event) {
     event.preventDefault();
+    if (saving) return;
     const nextErrors = validateAccount(values, isDebit, parentAccountId);
     if (!isDebit && groupId !== "cash" && (!chosenProvider || chosenProvider.length > 80)) {
       nextErrors.provider = "Enter or select a provider name (max 80 characters).";
@@ -242,25 +244,32 @@ export default function AccountFormModal({ account, initialGroup = "bank", onClo
     if (Object.keys(nextErrors).length) return;
 
     const finalParentId = isDebit ? parentAccount?.id ?? parentAccountId : null;
-    onSave(
-      {
-        name: values.name.trim(),
-        kind: isDebit ? "debit_card" : values.kind,
-        manual_balance: isDebit ? 0 : Number(String(values.manual_balance).trim()),
-        parent_account_id: finalParentId,
-      },
-      {
-        ...account?.ui_details,
-        group: groupId,
-        provider: chosenProvider,
-        parent_account_id: finalParentId,
-        note: note.trim().slice(0, 150),
-      }
-    );
+    setSaving(true);
+    try {
+      await onSave(
+        {
+          name: values.name.trim(),
+          kind: isDebit ? "debit_card" : values.kind,
+          manual_balance: isDebit ? 0 : Number(String(values.manual_balance).trim()),
+          parent_account_id: finalParentId,
+        },
+        {
+          ...account?.ui_details,
+          group: groupId,
+          provider: chosenProvider,
+          parent_account_id: finalParentId,
+          note: note.trim().slice(0, 150),
+        }
+      );
+    } catch (error) {
+      setErrors({ save: error.message || "Could not save account." });
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
-    <Modal title={account ? "Edit Account / Card" : "Add Account / Card"} onClose={onClose}>
+    <Modal title={account ? "Edit Account / Card" : "Add Account / Card"} onClose={() => !saving && onClose()}>
       <form
         className="form"
         noValidate
@@ -276,6 +285,7 @@ export default function AccountFormModal({ account, initialGroup = "bank", onClo
             1. What kind is it?
             <select
               id="account-group"
+              autoFocus={focusKind}
               value={groupId}
               onChange={(e) => {
                 const next = accountGroups.find((item) => item.id === e.target.value) || accountGroups[0];
@@ -482,11 +492,12 @@ export default function AccountFormModal({ account, initialGroup = "bank", onClo
           </label>
         </div>
 
+        {errors.save && <p className="negative" role="alert">{errors.save}</p>}
         <div className="form-actions">
-          <button className="btn secondary" type="button" onClick={onClose}>
+          <button className="btn secondary" type="button" onClick={onClose} disabled={saving}>
             Cancel
           </button>
-          <button className="btn primary" type="submit">
+          <button className="btn primary" type="submit" disabled={saving}>
             {account ? "Save Changes" : isDebit ? "Link Debit Card" : "Add Account"}
           </button>
         </div>

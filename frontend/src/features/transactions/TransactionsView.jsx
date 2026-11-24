@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ArrowDownLeft, ArrowUpRight, Download, Pencil, Plus, Scale, Trash2 } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { Amount, EmptyState, Metric, Modal, PageHeading } from '../../components/ui';
 import { exportTransactionsCsv, formatDate, isValidISODate, money, parseWholeYen, todayISO } from '../../utils/formatters';
 import { REFUND_KINDS } from '../../utils/financeMath';
+import AccountFormModal from '../accounts/AccountFormModal';
 
 export default function TransactionsView() {
   const {
@@ -13,6 +14,7 @@ export default function TransactionsView() {
     editTransaction,
     removeTransaction,
     accounts,
+    addAccount,
     categories,
   } = useFinance();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -23,6 +25,8 @@ export default function TransactionsView() {
   const [kindFilter, setKindFilter] = useState('all');
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [accountFormOpen, setAccountFormOpen] = useState(false);
+  const accountPicker = useRef(null);
   const [editingTx, setEditingTx] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [error, setError] = useState('');
@@ -139,6 +143,11 @@ export default function TransactionsView() {
     if (searchParams.has('search')) setSearchParams({});
   };
 
+  function closeAccountForm() {
+    setAccountFormOpen(false);
+    requestAnimationFrame(() => accountPicker.current?.focus());
+  }
+
   return (
     <>
       <PageHeading
@@ -229,7 +238,7 @@ export default function TransactionsView() {
       </section>
 
       {modalOpen && (
-        <Modal title={editingTx ? 'Edit Transaction' : 'Add Transaction'} onClose={() => setModalOpen(false)}>
+        <Modal title={editingTx ? 'Edit Transaction' : 'Add Transaction'} inactive={accountFormOpen} onClose={() => setModalOpen(false)}>
           <form className="form" onSubmit={handleSave} noValidate>
             <div className="segmented">
               {['expense', 'income'].map((k) => (
@@ -255,8 +264,17 @@ export default function TransactionsView() {
               </label>
               <label>
                 Account
-                <select value={form.account_id} onChange={(e) => { setForm({ ...form, account_id: e.target.value }); setError(''); }} disabled={accounts.length === 0}>
-                  {accounts.length === 0 ? <option value="">Unassigned (add account first)</option> : accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                <select ref={accountPicker} value={form.account_id} disabled={Boolean(editingTx) && accounts.length === 0}
+                  onChange={(event) => {
+                    const accountId = event.target.value;
+                    if (accountId === '__new__') return setAccountFormOpen(true);
+                    setForm((draft) => ({ ...draft, account_id: accountId }));
+                    setError('');
+                  }}
+                >
+                  {accounts.length === 0 && <option value="">Unassigned</option>}
+                  {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  {!editingTx && <option value="__new__">+ New account</option>}
                 </select>
               </label>
             </div>
@@ -271,6 +289,14 @@ export default function TransactionsView() {
             </div>
           </form>
         </Modal>
+      )}
+
+      {accountFormOpen && (
+        <AccountFormModal focusKind onClose={closeAccountForm} onSave={async (values, uiDetails) => {
+          const account = await addAccount(values, uiDetails);
+          setForm((draft) => ({ ...draft, account_id: String(account.id) }));
+          closeAccountForm();
+        }} />
       )}
 
       {deleteTarget && (
