@@ -91,7 +91,7 @@ export function useLaboAgent() {
         : [...messages].reverse().find((m) => m.savedIds?.length && !m.undone);
 
       if (!targetMsg) {
-        const noUndoText = 'There is no recent LA-BO save to undo.';
+        const noUndoText = 'There is no recent save from Nidhi to undo.';
         setMessages((prev) => [...prev, { id: makeId('msg'), role: 'ai', text: noUndoText }]);
         speak(noUndoText);
         return false;
@@ -166,9 +166,9 @@ export function useLaboAgent() {
         if (err.status === 503) {
           setError('AI is not switched on yet — the server needs its AI API key in the root .env.');
         } else if (err.status === 401) {
-          setError('Please log in again, then ask LA-BO.');
+          setError('Please log in again, then ask Nidhi.');
         } else {
-          setError('LA-BO could not answer just now. Please try again.');
+          setError('Nidhi could not answer just now. Please try again.');
         }
       } finally {
         setBusy(false);

@@ -44,6 +44,7 @@ const next = (err) => { if (err) throw err; };
 test('buildLaboMessages embeds the snapshot numbers and the no-inventing rule', () => {
   const messages = buildLaboMessages({ question: 'How much did I spend?', snapshot });
   assert.equal(messages.length, 2);
+  assert.match(messages[0].content, /I'm Nidhi, your ProMoney assistant/);
   assert.match(messages[0].content, /Never invent/);
   assert.match(messages[0].content, /warm, casual, friend-like/);
   assert.match(messages[0].content, /data_status/);

@@ -141,7 +141,7 @@ export default function Sidebar({ onNavigate }) {
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
           <FlaskConical size={17} strokeWidth={1.9} />
-          <span>ProMoney LA-BO</span>
+          <span>Nidhi</span>
           <span className="nav-ai-badge" aria-label="AI feature">
             AI
           </span>

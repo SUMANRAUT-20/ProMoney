@@ -116,7 +116,7 @@ export default function LaboView() {
   return (
     <>
       <PageHeading
-        title="ProMoney LA-BO"
+        title="Nidhi"
         subtitle="Chat, voice, receipt scans, statement imports, and reports."
       />
 
@@ -125,7 +125,7 @@ export default function LaboView() {
         <div>
           <strong>Review before saving</strong>
           <span>
-            LA-BO shows a review before saving transactions from chat, receipt photos, or statements.
+            Nidhi shows a review before saving transactions from chat, receipt photos, or statements.
           </span>
         </div>
       </div>
@@ -144,7 +144,7 @@ export default function LaboView() {
         <div className="section-title" style={{ flexWrap: "wrap", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Bot size={20} color="var(--green)" />
-            <h2 style={{ margin: 0 }}>Ask LA-BO</h2>
+            <h2 style={{ margin: 0 }}>Ask Nidhi</h2>
             {isListening && (
               <span className="status-pill due_soon" role="status">
                 🎤 Listening ({voiceLang === "ja-JP" ? "JA" : "EN"})…
@@ -182,7 +182,7 @@ export default function LaboView() {
               className="btn secondary compact"
               onClick={toggleVoiceMuted}
               aria-pressed={voiceMuted}
-              aria-label={voiceMuted ? "Unmute LA-BO voice replies" : "Mute LA-BO voice replies"}
+              aria-label={voiceMuted ? "Unmute Nidhi voice replies" : "Mute Nidhi voice replies"}
               title={voiceMuted ? "Voice replies muted — tap to unmute" : "Voice replies on — tap to mute"}
             >
               {voiceMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
@@ -436,7 +436,7 @@ export default function LaboView() {
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask about your money or say 'spent 500 on lunch and 1200 on train'…"
             maxLength={500}
-            aria-label="Ask LA-BO a question or enter transactions"
+            aria-label="Ask Nidhi a question or enter transactions"
           />
 
           <button type="submit" className="btn primary compact" disabled={busy || !input.trim()}>
