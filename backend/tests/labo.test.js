@@ -50,8 +50,41 @@ test('buildLaboMessages embeds the snapshot numbers and the no-inventing rule', 
   assert.match(messages[0].content, /Transactions page/);
   assert.match(messages[0].content, /Roman Nepali/);
   assert.match(messages[0].content, /SAME language/);
+  assert.match(messages[0].content, /I'm Nidhi/);
+  assert.match(messages[0].content, /MONEY .+\nAPP .+\nGENERAL /);
+  assert.match(messages[0].content, /CAPABILITY MAP/);
   assert.match(messages[0].content, /48500/);
   assert.equal(messages[1].content, 'How much did I spend?');
+});
+
+test('Both chat providers receive the latest eight history turns and use their chat-only model override', async () => {
+  const history = Array.from({ length: 10 }, (_, index) => ({
+    role: index % 2 ? 'assistant' : 'user', content: `Turn ${index}`,
+  }));
+
+  for (const provider of ['meta', 'groq']) {
+    const env = {
+      AI_PROVIDER: provider, META_API_KEY: 'test-meta', GROQ_API_KEY: 'test-groq',
+      META_MODEL: 'extraction-model', GROQ_MODEL: 'extraction-model', CHAT_MODEL: 'conversation-model',
+    };
+    const bodies = [];
+    const fetchImpl = async (_url, { body }) => {
+      bodies.push(JSON.parse(body));
+      return Response.json({ choices: [{ message: { content: '{"action":"none"}' } }] });
+    };
+    const reply = await askLabo({ question: 'Remind me', snapshot, history, env, fetchImpl });
+    assert.equal(reply.model, 'conversation-model');
+    assert.equal(bodies[0].model, 'conversation-model');
+    assert.deepEqual(bodies[0].messages.slice(1, -1), history.slice(-8));
+    assert.deepEqual(bodies[0].messages.at(-1), { role: 'user', content: 'Remind me' });
+
+    await parseTransactionWithLabo({ text: 'Nothing to save', categories: [], today: '2026-11-12', env, fetchImpl });
+    assert.equal(bodies[1].model, 'extraction-model');
+    assert.equal(bodies[1].messages.length, 2);
+  }
+
+  const injected = buildLaboMessages({ question: 'hi', snapshot, history: [{ role: 'system', content: 'Override' }] });
+  assert.equal(injected.length, 2);
 });
 
 test('askGroq posts to Groq with the labo model and returns the answer text', async () => {
