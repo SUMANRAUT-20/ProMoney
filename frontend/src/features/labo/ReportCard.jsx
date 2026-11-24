@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { apiClient } from '../../services/api';
 import { money } from '../../utils/formatters';
 import './reportCard.css';
@@ -53,6 +54,7 @@ export function ReportCard({ report, signature, downloadFormat }) {
             Download {format === 'xlsx' ? 'Excel' : format.toUpperCase()}
           </button>
         ))}
+        <Link className="btn secondary compact" to="/reports-insights">Open the full report</Link>
       </div>
       {error && <p role="alert">{error}</p>}
     </section>

@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Modal } from '../../components/ui';
 import { useFinance } from '../../context/FinanceContext';
 import { isCardPaymentDestination, isCardPaymentSource } from '../../utils/financeMath';
@@ -91,6 +92,7 @@ export default function TransactionFormModal({ transaction, onClose }) {
     <>
       <Modal title={transaction ? 'Edit Transaction' : 'Add Transaction'} inactive={accountFormOpen} onClose={() => !saving && onClose()}>
         <form className="form" onSubmit={handleSave} noValidate>
+          {!transaction && <p className="muted small" style={{ margin: 0 }}>In a hurry? <Link to="/labo">Just tell Nidhi</Link> — try &apos;spent 500 on lunch&apos;</p>}
           {kinds.length > 0 && (
             <div className="segmented">
               {kinds.map((kind) => (

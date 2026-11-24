@@ -153,7 +153,7 @@ export default function LaboView() {
             <LaboResources categories={categories} />
             {messages.length === 0 && (
               <p className="muted small" style={{ margin: 0 }}>
-                Try one of these questions, or type/speak &ldquo;Khana 800, bus 220, coffee 500&rdquo; to test multi-add.
+                Quick add or question: ask here. See or fix everything: use the pages. Keep a copy: download a report.
               </p>
             )}
             {messages.map((m, i) => (
@@ -164,7 +164,7 @@ export default function LaboView() {
                 <div>{m.text}</div>
                 {m.memoryProposal && <MemoryReview proposal={m.memoryProposal} onDecision={(remembered) => decideMemory(m.id, remembered)} />}
                 {m.remembered && <p className="muted small" role="status">Remembered</p>}
-                {m.report && <ReportCard report={m.report} signature={m.signature} format={m.downloadFormat} />}
+                {m.report && <ReportCard report={m.report} signature={m.signature} downloadFormat={m.downloadFormat} />}
                 {m.purchase && <PurchaseCard plan={m.purchase} />}
                 {m.allocation && <AllocationCard plan={m.allocation} closed={m.allocationClosed} busy={busy}
                   onConfirm={(proposal) => confirmAllocation(m.id, proposal)} />}
