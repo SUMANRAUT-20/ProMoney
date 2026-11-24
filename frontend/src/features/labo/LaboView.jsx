@@ -198,7 +198,7 @@ export default function LaboView() {
         <div className="labo-chat-log">
           {messages.length === 0 && (
             <p className="muted small" style={{ margin: 0 }}>
-              Try one of these questions, or type/speak &ldquo;Khana 800, bus 220, coffee 500&rdquo; to test multi-add.
+              Quick add or question: ask here. See or fix everything: use the pages. Keep a copy: download a report.
             </p>
           )}
           {messages.map((m, i) => (

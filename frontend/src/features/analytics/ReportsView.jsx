@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowUpRight, CalendarDays, PiggyBank, Plus, TrendingUp, Wallet } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { EmptyState, Metric, PageHeading, ProgressBar } from '../../components/ui';
@@ -83,6 +83,7 @@ export default function ReportsView() {
           </label>
         }
       />
+      <p className="muted small">Want this explained? <Link to="/labo">Ask Nidhi</Link></p>
 
       <section className="dashboard-metrics" style={{ marginBottom: 16 }}>
         <Metric

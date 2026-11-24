@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowDownLeft, ArrowUpRight, Download, Pencil, Plus, Scale, Trash2 } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
 import { Amount, EmptyState, Metric, Modal, PageHeading } from '../../components/ui';
@@ -194,7 +194,12 @@ export default function TransactionsView() {
             description={transactions.length === 0 ? 'Add your income and expenses to keep balances, budgets, and reports updated.' : 'Adjust your search or clear active filters to view entries.'}
             action={
               transactions.length === 0
-                ? <button className="btn primary" type="button" onClick={openAdd}><Plus size={15} /> Add First Transaction</button>
+                ? (
+                  <div className="inline-editor" style={{ justifyContent: 'center' }}>
+                    <button className="btn primary" type="button" onClick={openAdd}><Plus size={15} /> Add First Transaction</button>
+                    <Link className="btn secondary" to="/labo">Ask Nidhi</Link>
+                  </div>
+                )
                 : <button className="btn secondary" type="button" onClick={resetFilters}>Reset Filters</button>
             }
           />
@@ -231,6 +236,7 @@ export default function TransactionsView() {
       {modalOpen && (
         <Modal title={editingTx ? 'Edit Transaction' : 'Add Transaction'} onClose={() => setModalOpen(false)}>
           <form className="form" onSubmit={handleSave} noValidate>
+            {!editingTx && <p className="muted small" style={{ margin: 0 }}>In a hurry? <Link to="/labo">Just tell Nidhi</Link> — try &apos;spent 500 on lunch&apos;</p>}
             <div className="segmented">
               {['expense', 'income'].map((k) => (
                 <button key={k} type="button" style={{ flex: 1, textTransform: 'capitalize' }} className={form.kind === k ? 'selected' : ''} onClick={() => { setForm({ ...form, kind: k, category_id: firstCatForKind(k) }); setError(''); }}>{k}</button>

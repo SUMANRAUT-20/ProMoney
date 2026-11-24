@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { apiClient } from '../../services/api';
 import { money } from '../../utils/formatters';
 import './reportCard.css';
@@ -44,6 +45,7 @@ export function ReportCard({ report, signature }) {
       <div className="inline-editor">
         <button type="button" className="btn secondary compact" disabled={downloading} onClick={() => download('csv')}>Download CSV</button>
         <button type="button" className="btn secondary compact" disabled={downloading} onClick={() => download('pdf')}>Download PDF</button>
+        <Link className="btn secondary compact" to="/reports-insights">Open the full report</Link>
       </div>
       {error && <p role="alert">{error}</p>}
     </section>
