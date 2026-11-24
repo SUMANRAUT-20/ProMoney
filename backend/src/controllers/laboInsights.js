@@ -3,7 +3,9 @@ import { CategoryModel } from '../models/categoryModel.js';
 import { TransactionModel } from '../models/transactionModel.js';
 import { buildHomeSummary } from '../services/financeMath.js';
 import { buildFinanceReport, reportRequest } from '../services/financeReport.js';
-import { reportCsv, reportPdf, signReport, verifyReport } from '../services/reportExport.js';
+import { reportCsv, reportPdf, reportXlsx, signReport, verifyReport } from '../services/reportExport.js';
+import { chatExportFormat, parseChatExport } from '../services/chatExportRequest.js';
+import { buildChatExportReport, loadChatExportData } from '../services/chatExportReport.js';
 import { getSimulatorInsight, loadLaboPlan } from './laboSimulators.js';
 
 async function currentAlerts(userId, japanese) {
@@ -18,7 +20,23 @@ async function currentAlerts(userId, japanese) {
   return { answer, warnings };
 }
 
+async function prepareChatExport(question, format, userId) {
+  const data = await loadChatExportData(userId);
+  const exportQuery = parseChatExport(question, { format, categories: data.categories, accounts: data.accounts });
+  if (exportQuery.error) return { answer: exportQuery.error };
+  const result = buildChatExportReport(exportQuery, data);
+  if (!result.hasData) {
+    return { answer: result.nearest
+      ? `No matching data for ${result.period}. Ask for the same report for ${result.nearest}.`
+      : `No matching data for ${result.period}. Add records on the relevant page, then try again.` };
+  }
+  const report = { title: result.title, period: result.period, exportQuery };
+  return { answer: 'Your report is ready to download.', report, signature: signReport(report, userId), downloadFormat: format };
+}
+
 export async function getLaboInsight(question, userId) {
+  const format = chatExportFormat(question);
+  if (format) return prepareChatExport(question, format, userId);
   if (/^(?:any |hear (?:my )?|show (?:me )?(?:my )?|read (?:out )?(?:my )?|do i have (?:any )?|what are (?:my |the )?|are there (?:any )?)?(?:current )?(?:alerts|warnings)(?: today)?[.!?\s]*$/i.test(question)
     || /^(?:アラート|警告)(?:を聞く|はある|はありますか)?[？?。\s]*$/.test(question)) {
     return currentAlerts(userId, /[\u3040-\u30ff\u4e00-\u9faf]/.test(question));
@@ -46,13 +64,26 @@ export async function getLaboInsight(question, userId) {
 export async function exportLaboReport(req, res, next) {
   const { format, report, signature } = req.body ?? {};
   try {
-    if (!['csv', 'pdf'].includes(format) || !verifyReport(report, signature, req.user.id)) {
+    const validFormat = report?.exportQuery ? format === report.exportQuery.format : ['csv', 'pdf'].includes(format);
+    if (!validFormat || !Object.hasOwn(exportFormats, format) || !verifyReport(report, signature, req.user.id)) {
       return res.status(400).json({ error: 'Open a new report card to download this report.', status: 400 });
     }
-    const content = format === 'csv' ? reportCsv(report) : await reportPdf(report);
+    const data = report.exportQuery
+      ? buildChatExportReport(report.exportQuery, await loadChatExportData(req.user.id)) : report;
+    if (report.exportQuery && !data.hasData) {
+      return res.status(404).json({ error: 'There is no matching data in this period now. Ask for a new report.', status: 404 });
+    }
+    const { encode, type } = exportFormats[format];
+    const content = await encode(data);
     return res.set('Cache-Control', 'no-store').attachment(`promoney-report.${format}`)
-      .type(format === 'csv' ? 'text/csv' : 'application/pdf').send(content);
+      .type(type).send(content);
   } catch (error) {
     return next(error);
   }
 }
+
+const exportFormats = {
+  csv: { encode: reportCsv, type: 'text/csv' },
+  pdf: { encode: reportPdf, type: 'application/pdf' },
+  xlsx: { encode: reportXlsx, type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+};

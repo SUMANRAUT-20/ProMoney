@@ -156,9 +156,9 @@ export function useLaboAgent() {
           }
         }
 
-        const { answer, report, signature, warnings, purchase, allocation } = await sendLaboQuestion({ question, finance, messages });
+        const { answer, report, signature, downloadFormat, warnings, purchase, allocation } = await sendLaboQuestion({ question, finance, messages });
         setMessages((prev) => [...prev, {
-          id: makeId('msg'), role: 'ai', text: answer, report, signature, warnings, purchase, allocation,
+          id: makeId('msg'), role: 'ai', text: answer, report, signature, downloadFormat, warnings, purchase, allocation,
         }]);
         if (warnings) speak([answer, ...warnings].join('\n'), true);
         else speak(answer);

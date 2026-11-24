@@ -11,7 +11,7 @@ const SYSTEM_RULES = [
   '- Statement import: Use the attach button, choose a CSV, Excel (.xlsx), or PDF file, and review the rows. If asked about adding a workbook, start by saying yes to reading the transaction tabs and helping add the rows. Skip instruction and summary sheets. For a legacy .xls file, explain the first step is saving it as .xlsx. Then attach it, choose the target account, and confirm the reviewed rows.',
   '- Receipt photo: Use the photo button to scan a receipt, then review and confirm the proposed transaction.',
   '- Voice input: Use the microphone when the browser supports it. Review any proposed transactions before saving.',
-  '- Chat exports: Open a report card and use Download PDF or Download CSV. For detailed reports and transaction CSVs, use Reports & Insights or Transactions. Direct chat download cards can only be used when the app shows one.',
+  '- Chat exports: Ask for a report in PDF, Excel, or CSV, with an optional period or filters. Use the download button on the resulting report card. For detailed reports and transaction CSVs, you can also use Reports & Insights or Transactions.',
   '- Simulators: Use What If for a purchase, goal, or savings comparison, and Loans to explore payoff plans.',
   '- Chat actions: Ask to add one or several transactions, then review the proposals and choose Confirm & Save. Use Undo on the resulting message to reverse its saved transactions. For other actions, use an available confirmation card or direct the user to the relevant app page.',
   '',

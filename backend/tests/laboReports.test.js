@@ -3,6 +3,8 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import test from 'node:test';
 import express from 'express';
+import ExcelJS from 'exceljs';
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { signToken } from '../src/middleware/authMiddleware.js';
 import { AccountModel } from '../src/models/accountModel.js';
 import { BillModel } from '../src/models/billModel.js';
@@ -12,8 +14,10 @@ import { SettingsModel } from '../src/models/settingsModel.js';
 import { TransactionModel } from '../src/models/transactionModel.js';
 import { UserModel } from '../src/models/userModel.js';
 import laboRoutes from '../src/routes/laboRoutes.js';
-import { buildHomeSummary, getCategoryBreakdown, tokyoTodayISO } from '../src/services/financeMath.js';
+import { addMonthsISO, buildHomeSummary, getCategoryBreakdown, tokyoTodayISO } from '../src/services/financeMath.js';
 import { buildFinanceReport, reportRequest } from '../src/services/financeReport.js';
+import { parseChatExport } from '../src/services/chatExportRequest.js';
+import { getMonthlySummary as reportsPageSummary } from '../../frontend/src/utils/financeMath.js';
 
 const month = '2026-10';
 const categories = [{ id: 1, name: 'Food & Dining' }, { id: 2, name: 'Transportation' }];
@@ -55,8 +59,88 @@ async function fixture(t) {
     headers: { Authorization: `Bearer ${signToken(user)}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  return { userId: user.id, post };
+  return { userId: user.id, post, base };
 }
+
+test('Chat export parses account, period, type and explicit report sections', () => {
+  const parsed = parseChatExport('Export October expenses in CSV, account: Everyday; sections: summary, budgets, goals', {
+    format: 'csv', today: '2026-11-24', categories, accounts: [{ id: 4, name: 'Everyday' }],
+  });
+  assert.deepEqual(parsed, {
+    format: 'csv', months: ['2026-10'], categoryIds: [], accountIds: [4], kind: 'expense',
+    sections: ['summary', 'budgets', 'goals'],
+  });
+});
+
+test('Chat downloads a real PDF whose monthly totals match Reports & Insights', async (t) => {
+  const { userId, post } = await fixture(t);
+  const lastMonth = addMonthsISO(tokyoTodayISO(), -1).slice(0, 7);
+  for (const [kind, amount] of [['income', 38000], ['expense', 12600]]) {
+    await TransactionModel.create({
+      userId, kind, amount, title: kind, transactionDate: lastMonth + '-05',
+    });
+  }
+  const expected = reportsPageSummary(await TransactionModel.findByUser(userId), lastMonth);
+  const { data } = await (await post('/chat', { question: 'can you give me report of last month in pdf' })).json();
+  assert.equal(data.downloadFormat, 'pdf');
+  const pdf = await post('/report/export', { format: data.downloadFormat, report: data.report, signature: data.signature });
+  assert.equal(pdf.status, 200);
+  assert.match(pdf.headers.get('content-disposition'), /promoney-report\.pdf/);
+  const loading = getDocument({ data: new Uint8Array(await pdf.arrayBuffer()) });
+  try {
+    const page = await (await loading.promise).getPage(1);
+    const text = (await page.getTextContent()).items.map(({ str }) => str).join(' ');
+    for (const [label, value] of [['Income', expected.income], ['Expenses', expected.expense], ['Net', expected.net]]) {
+      assert.ok(text.includes(`${label} (JPY): ${value.toLocaleString('ja-JP')}`), text);
+    }
+  } finally {
+    await loading.destroy();
+  }
+});
+
+test('Filtered Excel download contains only owner records and offers the nearest populated month', async (t) => {
+  const owner = await fixture(t);
+  const other = await fixture(t);
+  const categories = await CategoryModel.findByUser(owner.userId);
+  for (const [name, title, amount] of [
+    ['Food & Dining', 'Lunch sample', 700], ['Transportation', 'Local train sample', 250],
+    ['Utilities', 'Outside filter', 999], ['Salary', 'Outside type', 5000],
+  ]) {
+    const kind = name === 'Salary' ? 'income' : 'expense';
+    const category = categories.find((item) => item.name === name && item.kind === kind);
+    assert.ok(category, `Missing default category ${name}`);
+    await TransactionModel.create({ userId: owner.userId, kind, amount, title,
+      categoryId: category.id, transactionDate: '2026-10-12' });
+  }
+  const question = 'October 2026 expenses in Excel, only Food and Transport';
+  const { data } = await (await owner.post('/chat', { question })).json();
+  assert.equal(data.downloadFormat, 'xlsx');
+  const body = { format: data.downloadFormat, report: data.report, signature: data.signature };
+  const response = await owner.post('/report/export', body);
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-disposition'), /promoney-report\.xlsx/);
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(Buffer.from(await response.arrayBuffer()));
+  assert.deepEqual(workbook.worksheets.map(({ name }) => name), ['Summary', 'Transactions']);
+  const rows = workbook.getWorksheet('Transactions').getRows(2, 2).map((row) => [row.getCell(2).value, row.getCell(6).value]);
+  assert.deepEqual(rows.sort(), [['Local train sample', 250], ['Lunch sample', 700]]);
+  assert.equal(workbook.getWorksheet('Transactions').rowCount, 3);
+
+  assert.equal((await other.post('/report/export', body)).status, 400);
+  assert.equal((await fetch(owner.base + '/report/export', { method: 'POST' })).status, 401);
+  const emptyOther = await (await other.post('/chat', { question })).json();
+  assert.equal(emptyOther.data.report, undefined);
+  const empty = await (await owner.post('/chat', { question: '2026-09 expenses in CSV, only Food and Transport' })).json();
+  assert.equal(empty.data.report, undefined);
+  assert.match(empty.data.answer, /No matching data for 2026-09.*2026-10/);
+
+  const csvCard = (await (await owner.post('/chat', { question: question.replace('Excel', 'CSV') })).json()).data;
+  const csv = await owner.post('/report/export', { format: csvCard.downloadFormat, report: csvCard.report, signature: csvCard.signature });
+  assert.match(csv.headers.get('content-type'), /^text\/csv\b/);
+  const text = await csv.text();
+  assert.match(text, /"Summary"[\s\S]+"Transactions"[\s\S]+Local train sample/);
+  assert.doesNotMatch(text, /Outside filter|Outside type/);
+});
 
 test('F7: CSV and PDF export the same card even after its source data changes', async (t) => {
   const { userId, post } = await fixture(t);

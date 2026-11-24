@@ -158,7 +158,7 @@ export default function LaboView() {
                 className={`labo-msg ${m.role === "user" ? "labo-msg-user" : "labo-msg-ai"}`}
               >
                 <div>{m.text}</div>
-                {m.report && <ReportCard report={m.report} signature={m.signature} />}
+                {m.report && <ReportCard report={m.report} signature={m.signature} format={m.downloadFormat} />}
                 {m.purchase && <PurchaseCard plan={m.purchase} />}
                 {m.allocation && <AllocationCard plan={m.allocation} closed={m.allocationClosed} busy={busy}
                   onConfirm={(proposal) => confirmAllocation(m.id, proposal)} />}

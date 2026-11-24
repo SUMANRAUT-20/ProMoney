@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import PDFDocument from 'pdfkit';
+import ExcelJS from 'exceljs';
 
 const font = fileURLToPath(new URL('../assets/NotoSansJP.ttf', import.meta.url));
 
@@ -22,8 +23,23 @@ function csvCell(value) {
   return '"' + safe.replaceAll('"', '""') + '"';
 }
 
-export function reportCsv({ title, period, columns, rows }) {
-  return '\uFEFF' + [[title, period], columns, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n') + '\r\n';
+export function reportCsv({ title, period, columns, rows, sections }) {
+  const tables = sections
+    ? sections.flatMap((table) => [[table.title], table.columns, ...table.rows, []])
+    : [columns, ...rows];
+  return '\uFEFF' + [[title, period], ...tables].map((row) => row.map(csvCell).join(',')).join('\r\n') + '\r\n';
+}
+
+function writePdfTable(doc, { columns, rows }) {
+  for (const [label, ...amounts] of rows) {
+    const values = amounts.map((amount, i) =>
+      `${columns[i + 1]}: ${amount.toLocaleString('ja-JP')}`).join('  |  ');
+    const rowHeight = doc.heightOfString(label) + doc.heightOfString(values);
+    if (doc.y + rowHeight > doc.page.height - doc.page.margins.bottom) doc.addPage();
+    doc.text(label);
+    doc.fillColor('#516359').text(values);
+    doc.moveDown(0.65).fillColor('#182820');
+  }
 }
 
 export async function reportPdf(report) {
@@ -36,17 +52,37 @@ export async function reportPdf(report) {
   doc.fontSize(11).fillColor('#516359').text(`${report.period}  |  Figures by ProMoney engine`);
   doc.moveDown();
   doc.fontSize(12).fillColor('#182820');
-  for (const [label, ...amounts] of report.rows) {
-    const values = amounts.map((amount, i) =>
-      `${report.columns[i + 1]}: ${amount.toLocaleString('ja-JP')}`).join('  |  ');
-    const rowHeight = doc.heightOfString(label) + doc.heightOfString(values);
-    if (doc.y + rowHeight > doc.page.height - doc.page.margins.bottom) doc.addPage();
-    doc.text(label);
-    doc.fillColor('#516359').text(values);
-    doc.moveDown(0.65).fillColor('#182820');
+  for (const table of report.sections || [report]) {
+    if (report.sections) doc.moveDown(0.5).fillColor('#135844').text(table.title).fillColor('#182820');
+    writePdfTable(doc, table);
   }
   if (!report.hasData) doc.fontSize(11).text('Add records on the Transactions page to see activity here.');
   doc.end();
   await finished;
   return Buffer.concat(chunks);
+}
+
+export async function reportXlsx(report) {
+  const workbook = new ExcelJS.Workbook();
+  const overview = report.sections.filter(({ title }) => title !== 'Transactions');
+  if (overview.length) {
+    const summary = workbook.addWorksheet('Summary');
+    summary.addRow([report.title, report.period]).font = { bold: true };
+    for (const table of overview) {
+      summary.addRow([]);
+      summary.addRow([table.title]).font = { bold: true };
+      summary.addRow(table.columns).font = { bold: true };
+      summary.addRows(table.rows);
+    }
+    summary.columns.forEach((column) => { column.width = 28; });
+  }
+  const transactions = report.sections.find(({ title }) => title === 'Transactions');
+  if (transactions) {
+    const sheet = workbook.addWorksheet('Transactions', { views: [{ state: 'frozen', ySplit: 1 }] });
+    sheet.addRow(transactions.columns).font = { bold: true };
+    sheet.addRows(transactions.rows);
+    sheet.columns.forEach((column, index) => { column.width = index === 1 ? 36 : 19; });
+    sheet.getColumn(6).numFmt = '#,##0';
+  }
+  return Buffer.from(await workbook.xlsx.writeBuffer());
 }
