@@ -26,3 +26,14 @@ export async function saveSelectedStatementRows(rows, addTransaction, accountId)
     };
   }
 }
+
+export function statementMemoryCorrections(savedRows, categories) {
+  return Object.fromEntries(savedRows.flatMap((row) => {
+    const categoryId = String(row.category_id ?? '');
+    if (categoryId === String(row.suggestedCategoryId ?? '')) return [];
+    const name = categoryId
+      ? categories.find((category) => String(category.id) === categoryId && category.kind === row.kind)?.name
+      : 'Uncategorized';
+    return name ? [[row.note, name]] : [];
+  }));
+}

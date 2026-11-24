@@ -6,6 +6,7 @@ import {
   setCachedTokenVersion,
 } from '../models/userModel.js';
 import { DEFAULT_PREFERENCES } from '../models/settingsModel.js';
+import { MemoryModel } from '../models/memoryModel.js';
 import { addMonthsISO, tokyoTodayISO } from './financeMath.js';
 
 const pool = getDbPool();
@@ -407,6 +408,7 @@ async function runSeedDemoAccountOnce({ now = new Date() } = {}) {
        VALUES (?, ?, NULL)`,
       [userId, JSON.stringify(DEFAULT_PREFERENCES)]
     );
+    await MemoryModel.seedDemo(connection, userId);
 
     await connection.commit();
     return {

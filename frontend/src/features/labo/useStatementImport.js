@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { apiClient } from '../../services/api';
 import { makeId } from '../../utils/formatters';
-import { saveSelectedStatementRows } from './saveSelectedStatementRows';
+import { saveSelectedStatementRows, statementMemoryCorrections } from './saveSelectedStatementRows';
 
 const MAX_STATEMENT_BYTES = 8 * 1024 * 1024;
 
 export function useStatementImport({ busy, setBusy, setError, setMessages, finance }) {
   const [rows, setRows] = useState([]);
   const [accountId, setAccountId] = useState(null);
+  const [rememberChanges, setRememberChanges] = useState(true);
   const accounts = finance.accounts || [];
   const account = accounts.find((item) => String(item.id) === accountId) ?? accounts[0];
 
@@ -35,8 +36,10 @@ export function useStatementImport({ busy, setBusy, setError, setMessages, finan
       const { data } = await apiClient.laboImport(file, format);
       if (!data?.rows?.length) throw new Error('No readable transactions were found in this statement.');
       setAccountId(null);
+      setRememberChanges(true);
       setRows(data.rows.map((row) => ({
         ...row,
+        suggestedCategoryId: row.category_id,
         selected: row.selected === true && !row.possibleDuplicate && !row.uncertain,
       })));
       addMessage('ai', ['Your statement is ready to review.', ...(data.warnings || [])].join('\n'));
@@ -53,7 +56,8 @@ export function useStatementImport({ busy, setBusy, setError, setMessages, finan
   };
 
   const save = async () => {
-    if (busy || !rows.some((row) => row.selected)) return;
+    const selectedRows = rows.filter((row) => row.selected);
+    if (busy || !selectedRows.length) return;
     setBusy(true);
     setError('');
     try {
@@ -66,6 +70,16 @@ export function useStatementImport({ busy, setBusy, setError, setMessages, finan
         addMessage('ai', text, { savedIds, undone: false });
       }
       if (error) setError(error.message || 'Could not save the remaining statement transactions.');
+      if (rememberChanges && savedIds.length) {
+        const merchantMap = statementMemoryCorrections(selectedRows.slice(0, savedIds.length), finance.categories || []);
+        if (Object.keys(merchantMap).length) {
+          try {
+            await apiClient.saveNidhiMemory({ merchantMap });
+          } catch {
+            addMessage('ai', 'The transactions were saved. I couldn’t remember the category changes.');
+          }
+        }
+      }
     } finally {
       setBusy(false);
     }
@@ -76,5 +90,5 @@ export function useStatementImport({ busy, setBusy, setError, setMessages, finan
     setError('');
   };
 
-  return { rows, accounts, account, setAccountId, attach, update, save, cancel };
+  return { rows, accounts, account, setAccountId, attach, update, save, cancel, rememberChanges, setRememberChanges };
 }

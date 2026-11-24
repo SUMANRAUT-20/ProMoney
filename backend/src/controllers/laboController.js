@@ -8,6 +8,8 @@
  */
 import { askLabo, parseTransactionWithLabo, scanReceiptWithLabo } from '../services/laboChat.js';
 import { getLaboInsight } from './laboInsights.js';
+import { MemoryModel } from '../models/memoryModel.js';
+import { aboutThisUser, memoryCategory } from '../services/nidhiMemory.js';
 
 export const laboController = {
   async chat(req, res, next) {
@@ -27,6 +29,7 @@ export const laboController = {
       const { answer, provider, model } = await askLabo({
         question: question.trim(),
         snapshot,
+        aboutUser: aboutThisUser(await MemoryModel.findByUser(req.user?.id)),
       });
       return res.json({ status: 'ok', data: { answer, provider, model } });
     } catch (err) {
@@ -58,12 +61,19 @@ export const laboController = {
         .slice(0, 40)
         .map((c) => ({ id: c.id, name: c.name.slice(0, 60), kind: c.kind }));
       const todayISO = /^\d{4}-\d{2}-\d{2}$/.test(String(today)) ? String(today) : new Date().toISOString().slice(0, 10);
-      const { proposal, proposals, provider, model } = await parseTransactionWithLabo({
+      const { wordMap } = await MemoryModel.findByUser(req.user?.id);
+      const { proposals, provider, model } = await parseTransactionWithLabo({
         text: text.trim(),
         categories: cleanCategories,
         today: todayISO,
+        wordMap,
       });
-      return res.json({ status: 'ok', data: { proposal, proposals, provider, model } });
+      const classified = proposals.map((proposal) => {
+        const category = memoryCategory(proposal.note, proposal.kind, cleanCategories, wordMap)
+          || (proposals.length === 1 && memoryCategory(text, proposal.kind, cleanCategories, wordMap));
+        return category ? { ...proposal, category_id: category.id, category_name: category.name } : proposal;
+      });
+      return res.json({ status: 'ok', data: { proposal: classified[0] ?? null, proposals: classified, provider, model } });
     } catch (err) {
       if (err.code === 'GROQ_UPSTREAM' || err.code === 'META_UPSTREAM') {
         return res.status(502).json({ error: 'The AI service is busy right now. Please try again.', status: 502 });

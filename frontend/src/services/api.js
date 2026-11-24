@@ -73,6 +73,10 @@ export const apiClient = {
   async laboChat(body) {
     return request('/labo/chat', { method: 'POST', body: JSON.stringify(body) });
   },
+
+  async previewNidhiMemory(question, answer) {
+    return request('/labo/memory/preview', { method: 'POST', body: JSON.stringify({ question, answer }) });
+  },
   async laboReportExport(body) {
     return request('/labo/report/export', { method: 'POST', body: JSON.stringify(body) }, 'blob');
   },
@@ -105,6 +109,19 @@ export const apiClient = {
   // Settings & Preferences (SQL-persisted)
   async getSettings() {
     return request('/settings', { method: 'GET' });
+  },
+
+  async getNidhiMemory() {
+    return request('/settings/memory');
+  },
+
+  async saveNidhiMemory(patch) {
+    return request('/settings/memory', { method: 'PATCH', body: JSON.stringify({ patch }) });
+  },
+
+  async forgetNidhiMemory(entry = null) {
+    const suffix = entry ? `/${encodeURIComponent(entry.section)}/${encodeURIComponent(entry.key)}` : '';
+    return request(`/settings/memory${suffix}`, { method: 'DELETE' });
   },
 
   async updatePreferences(body) {
