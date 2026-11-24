@@ -14,6 +14,7 @@ import { PageHeading } from "../../components/ui";
 import { StatementAccountPicker, StatementAttachment, StatementReview } from "./StatementImport";
 import { ReportCard } from "./ReportCard";
 import { AllocationCard, PurchaseCard } from "./SimulatorCards";
+import ChatActionCard from "./ChatActionCard";
 import LaboResources from "./LaboResources";
 import TransactionProposals from "./TransactionProposals";
 import { useChatScroll } from "./useChatScroll";
@@ -54,6 +55,7 @@ export default function LaboView() {
     categories,
     statement,
     confirmAllocation,
+    chatActions,
   } = useLaboAgent();
 
   const photoInputRef = useRef(null);
@@ -186,6 +188,11 @@ export default function LaboView() {
                 )}
               </div>
             ))}
+
+            {chatActions.pending && (
+              <ChatActionCard key={chatActions.pending.id} proposal={chatActions.pending} busy={busy}
+                onConfirm={chatActions.confirm} onCancel={chatActions.cancel} />
+            )}
 
             {pendingProposals.length > 0 && (
               <TransactionProposals

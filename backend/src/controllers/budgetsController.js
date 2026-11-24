@@ -74,9 +74,13 @@ export const budgetsController = {
         categoryId: category.id,
         budgetMonth: monthDate,
         amountLimit: limit,
+        createOnly: req.body?.create_only === true,
       });
       return res.json({ status: 'ok', data: saved });
     } catch (err) {
+      if (req.body?.create_only === true && err.code === 'ER_DUP_ENTRY') {
+        return res.status(409).json({ error: 'A budget already exists for this category and month.', status: 409 });
+      }
       return next(err);
     }
   },

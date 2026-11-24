@@ -69,14 +69,14 @@ export const BudgetModel = {
     return toRow(rows[0]);
   },
 
-  async upsert({ userId, categoryId, budgetMonth, amountLimit }) {
+  async upsert({ userId, categoryId, budgetMonth, amountLimit, createOnly = false }) {
     const uid = Number(userId);
     const catId = Number(categoryId);
     const monthDate = normalizeMonthDate(budgetMonth);
     await pool.execute(
       `INSERT INTO budgets (user_id, category_id, budget_month, amount_limit)
        VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE amount_limit = VALUES(amount_limit)`,
+       ${createOnly ? '' : 'ON DUPLICATE KEY UPDATE amount_limit = VALUES(amount_limit)'}`,
       [uid, catId, monthDate, Number(amountLimit)]
     );
     const [rows] = await pool.execute(

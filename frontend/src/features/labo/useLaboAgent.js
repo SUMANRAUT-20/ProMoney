@@ -4,6 +4,7 @@ import { useFinance } from '../../context/FinanceContext';
 import { makeId, money } from '../../utils/formatters';
 import { useStatementImport } from './useStatementImport';
 import { useAllocationConfirmation } from './useAllocationConfirmation';
+import { useChatActions } from './useChatActions';
 import {
   QUICK_QUESTIONS,
   compressReceiptImage,
@@ -42,6 +43,7 @@ export function useLaboAgent() {
   const [pendingProposals, setPendingProposals] = useState([]);
   const statement = useStatementImport({ busy, setBusy, setError, setMessages, finance });
   const confirmAllocation = useAllocationConfirmation({ finance, busy, setBusy, setError, setMessages });
+  const chatActions = useChatActions({ finance, setBusy, setError, setMessages });
 
   const [voiceMuted, setVoiceMuted] = useState(loadVoiceMuted);
   const [voiceLang, setVoiceLangState] = useState(loadVoiceLang);
@@ -137,6 +139,10 @@ export function useLaboAgent() {
 
       setBusy(true);
       try {
+        if (chatActions.matches(question)) {
+          await chatActions.preview(question);
+          return;
+        }
         // Check if the message is adding one or more transactions (F1 / F5)
         if (looksLikeAddIntent(question)) {
           const { proposals } = await parseLaboTransaction({
@@ -174,7 +180,7 @@ export function useLaboAgent() {
         setBusy(false);
       }
     },
-    [input, busy, finance, messages, speak, undoSave]
+    [input, busy, finance, messages, speak, undoSave, chatActions]
   );
 
   const parseEntry = useCallback(
@@ -429,5 +435,6 @@ export function useLaboAgent() {
     categories: finance.categories || [],
     statement,
     confirmAllocation,
+    chatActions,
   };
 }

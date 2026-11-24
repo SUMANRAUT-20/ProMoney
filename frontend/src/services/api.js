@@ -73,6 +73,10 @@ export const apiClient = {
   async laboChat(body) {
     return request('/labo/chat', { method: 'POST', body: JSON.stringify(body) });
   },
+
+  async previewLaboAction(text) {
+    return request('/labo/actions/preview', { method: 'POST', body: JSON.stringify({ text }) });
+  },
   async laboReportExport(body) {
     return request('/labo/report/export', { method: 'POST', body: JSON.stringify(body) }, 'blob');
   },
