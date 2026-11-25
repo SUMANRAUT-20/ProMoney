@@ -87,6 +87,11 @@
   overflow-wrap: anywhere;
 }
 
+.labo-markdown ul {
+  margin: 4px 0;
+  padding-inline-start: 20px;
+}
+
 .labo-review-note {
   display: flex;
   align-items: center;

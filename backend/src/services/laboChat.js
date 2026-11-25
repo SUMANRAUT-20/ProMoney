@@ -74,7 +74,7 @@ function extractCompletionText(payload) {
   return '';
 }
 
-export { verifyAnswerNumbers } from './wonderConversation.js';
+export { verifyAnswerNumbers } from './laboGrounding.js';
 
 // --- Groq Provider (Fallback — KEPT intact) ---
 

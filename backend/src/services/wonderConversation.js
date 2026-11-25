@@ -1,33 +1,13 @@
+import { verifyAnswerNumbers } from './laboGrounding.js';
+
 const WONDER = 'muse-wonder-1.0';
 const UNVERIFIED = "I couldn't verify those figures in ProMoney. Please check the Home or Transactions page.";
 const CLARIFY = 'Tell me a little more about what you want to do so I can prepare the right review.';
-const numeric = /(?<![\p{Script=Latin}\d])[-−]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?![\p{Script=Latin}\d])/gu;
-
-function mentionedNumbers(text) {
-  return [...text.normalize('NFKC').replace(/(?:JPY|USD|EUR)(?=\d)|(?<=\d)(?:JPY|USD|EUR|yen)/gi, ' ')
-    .replace(/([−-])\s*¥\s*(?=\d)/g, '$1').matchAll(numeric)]
-    .map(([value]) => Number(value.replaceAll(',', '').replace('−', '-')));
-}
-
-function collectNumbers(data, allow) {
-  if (typeof data === 'number' && Number.isFinite(data)) allow.add(data);
-  else if (typeof data === 'string' && /^\d{4}-\d{2}(?:-\d{2})?$/.test(data)) {
-    mentionedNumbers(data).forEach((value) => allow.add(value));
-  }
-  else if (data && typeof data === 'object') Object.values(data).forEach((value) => collectNumbers(value, allow));
-}
-
-export function verifyAnswerNumbers(answer, data) {
-  const allowed = new Set();
-  collectNumbers(data, allowed);
-  const text = answer.normalize('NFKC');
-  const mismatchedNumbers = mentionedNumbers(text).filter((value) => !allowed.has(value));
-  const spelledAmount = /\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|\w+teen|\w+ty|hundred|thousand|million|billion)[\s-]+(?:yen|dollars|percent|per cent|hundred|thousand|million|billion)\b|[〇零一二三四五六七八九十百千万億兆]+(?:円|パーセント)|\d\s*(?:[kmb]\b|万|億|兆)/iu;
-  return { valid: !mismatchedNumbers.length && !spelledAmount.test(text), mismatchedNumbers };
-}
-
-function groundReply(answer, data) {
-  return verifyAnswerNumbers(answer, data).valid ? answer : UNVERIFIED;
+function groundReply(answer, snapshot, question, logUsage) {
+  const { valid } = verifyAnswerNumbers(answer, snapshot, question);
+  if (valid) return answer;
+  logUsage('[Nidhi answer grounding fallback]', { question, reason: 'User money figure absent from the engine snapshot' });
+  return UNVERIFIED;
 }
 
 function jsonReply(content) {
@@ -92,7 +72,7 @@ export async function completeWonderTurn({
 }) {
   const { answer, calls, model } = await getModelReply(complete, messages, tools, ember, logUsage);
   const scope = { provider: 'meta', model };
-  if (!calls.length) return { ...scope, answer: groundReply(answer, snapshot) };
+  if (!calls.length) return { ...scope, answer: groundReply(answer, snapshot, messages.at(-1).content, logUsage) };
   const call = calls.length === 1 && calls[0]?.function;
   if (!call || !tools.some((tool) => tool.function.name === call.name)) return { ...scope, answer: CLARIFY };
   let args;
