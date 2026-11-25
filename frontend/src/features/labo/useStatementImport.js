@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { apiClient } from '../../services/api';
 import { makeId, money } from '../../utils/formatters';
+import { statementSheetBadge, statementSheetDetail } from './statementSheetSummary';
 import {
   applyStatementAccount, saveSelectedStatementRows, statementMemoryCorrections, statementReviewNet, statementRowLabel,
 } from './saveSelectedStatementRows';
@@ -9,15 +10,14 @@ const MAX_STATEMENT_BYTES = 8 * 1024 * 1024;
 
 function summarizeStatement({ rows, sheets, accountGroups }) {
   const summary = `${rows.length} ${rows.length === 1 ? 'transaction is' : 'transactions are'} ready to review.`;
-  const details = sheets?.map(({ name, found, skipped, reasons, note }) => {
-    const reason = note || reasons.map(({ reason, count }) => `${count} × ${reason}`).join(', ');
-    return `${name} · ${found} found, ${skipped} skipped${reason ? ` (${reason})` : ''}`;
-  }) ?? [];
+  const details = sheets?.map((sheet) => [sheet.name, statementSheetBadge(sheet), statementSheetDetail(sheet)]
+    .filter(Boolean).join(' · ')) ?? [];
   return [accountGroups ? summary : summary + ' Choose the target account.', ...details].join('\n');
 }
 
 export function useStatementImport({ busy, setBusy, setError, setMessages, finance }) {
   const [rows, setRows] = useState([]);
+  const [sheets, setSheets] = useState([]);
   const [accountId, setAccountId] = useState(null);
   const [accountGroups, setAccountGroups] = useState(null);
   const [rememberChanges, setRememberChanges] = useState(true);
@@ -49,6 +49,7 @@ export function useStatementImport({ busy, setBusy, setError, setMessages, finan
       const { data } = await apiClient.laboImport(file, format);
       if (!data?.rows?.length) throw new Error('No readable transactions were found in this statement.');
       setAccountId(null);
+      setSheets(data.sheets ?? []);
       setAccountGroups(data.accountGroups);
       setRememberChanges(true);
       setRows(data.rows.map((row) => ({
@@ -127,6 +128,7 @@ export function useStatementImport({ busy, setBusy, setError, setMessages, finan
 
   const cancel = () => {
     setRows([]);
+    setSheets([]);
     setAccountId(null);
     setAccountGroups(null);
     setError('');
@@ -134,7 +136,7 @@ export function useStatementImport({ busy, setBusy, setError, setMessages, finan
   };
 
   return {
-    rows, accounts, account, accountGroups, setAccountId, assignGroup, applyToAll, resolveAccountId,
+    rows, sheets, accounts, account, accountGroups, setAccountId, assignGroup, applyToAll, resolveAccountId,
     attach, update, save, cancel, rememberChanges, setRememberChanges,
   };
 }

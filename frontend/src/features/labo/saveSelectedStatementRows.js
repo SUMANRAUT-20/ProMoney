@@ -13,6 +13,7 @@ export function statementRowError(row) {
   const label = statementRowLabel(row);
   if (!isValidISODate(row.transaction_date)) return `${label}: enter a valid calendar date.`;
   if (rowAmount(row) === null) return `${label}: enter a whole JPY amount greater than zero.`;
+  if (!['income', 'expense'].includes(row.kind)) return `${label}: choose a transaction type.`;
   if (!(row.title ?? row.note)?.trim()) return `${label}: enter a title.`;
   return '';
 }

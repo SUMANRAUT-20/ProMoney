@@ -69,8 +69,11 @@ export function buildStatementReview(rows, categories, existingTransactions, mer
     const title = titleKey(row.note);
     const matches = existingTitles.get(duplicateKey(row)) ?? [];
     const possibleDuplicate = matches.some((existing) => similarTitle(title, existing));
-    const remembered = memoryCategory(row.note, row.kind, categories, merchantMap);
-    const category = remembered || suggestCategory(row, categories);
+    const hasValidCategory = !row.aiCleaned || row.aiCategoryId != null;
+    const remembered = hasValidCategory && memoryCategory(row.note, row.kind, categories, merchantMap);
+    const category = remembered || (row.aiCleaned
+      ? categories.find((item) => item.id === row.aiCategoryId)
+      : suggestCategory(row, categories));
     return {
       ...row,
       id: 'statement-row-' + (index + 1),

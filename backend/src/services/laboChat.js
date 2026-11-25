@@ -17,8 +17,8 @@ export const LABO_MODEL = 'openai/gpt-oss-120b';
 
 export const META_URL =
   process.env.META_API_URL || 'https://api.meta.ai/v1/chat/completions';
-export const META_MODEL =
-  process.env.META_MODEL || 'muse-ember-1.0';
+export const META_EMBER_MODEL = 'muse-ember-1.0';
+export const META_MODEL = process.env.META_MODEL || META_EMBER_MODEL;
 export const META_MAX_COMPLETION_TOKENS = 3000;
 
 export function getActiveProvider(env = process.env) {
@@ -172,7 +172,7 @@ export async function askGroq({ question, snapshot, history, aboutUser, ...optio
 
 // --- Meta Model API Provider (Muse Ember — Primary) ---
 
-async function metaAttempt(messages, { apiKey, model, url, fetchImpl, temperature, maxTokens }) {
+async function metaAttempt(messages, { apiKey, model, url, fetchImpl, temperature, maxTokens, privateInput }) {
   const response = await fetchProvider('meta', fetchImpl, url, {
     method: 'POST',
     headers: {
@@ -187,7 +187,8 @@ async function metaAttempt(messages, { apiKey, model, url, fetchImpl, temperatur
     }),
   });
   if (!response.ok) {
-    await logProviderHttpError('meta', response, apiKey);
+    if (privateInput) console.warn('[LA-BO Meta import]', 'HTTP status', response.status);
+    else await logProviderHttpError('meta', response, apiKey);
     const err = new Error(`Meta API request failed with status ${response.status}`);
     err.code = 'META_UPSTREAM';
     err.status = response.status;
@@ -199,6 +200,7 @@ async function metaAttempt(messages, { apiKey, model, url, fetchImpl, temperatur
 export async function metaComplete(messages, {
   apiKey, model = META_MODEL, url = META_URL, fetchImpl = fetch,
   temperature = 0.2, maxTokens = META_MAX_COMPLETION_TOKENS,
+  onUsage, privateInput = false,
 }) {
   const cleanKey = normalizeMetaApiKey(apiKey);
   if (!cleanKey) {
@@ -208,8 +210,9 @@ export async function metaComplete(messages, {
   }
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const { payload, status } = await metaAttempt(messages, {
-      apiKey: cleanKey, model, url, fetchImpl, temperature, maxTokens,
+      apiKey: cleanKey, model, url, fetchImpl, temperature, maxTokens, privateInput,
     });
+    onUsage?.(payload?.usage);
     const answer = extractCompletionText(payload);
     if (answer) return answer;
     if (attempt === 0 && payload?.choices?.[0]?.finish_reason === 'length') {
@@ -217,7 +220,8 @@ export async function metaComplete(messages, {
       console.warn('[LA-BO provider retry]', 'meta', status, 'Empty length-truncated completion. Retrying once with max_tokens', maxTokens);
       continue;
     }
-    logProviderFailure('meta', status, JSON.stringify(payload), cleanKey);
+    if (privateInput) console.warn('[LA-BO Meta import]', 'Empty completion', status);
+    else logProviderFailure('meta', status, JSON.stringify(payload), cleanKey);
     const err = new Error('Meta API returned an empty answer.');
     err.code = 'META_UPSTREAM';
     throw err;

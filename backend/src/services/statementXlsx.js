@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
-import { findStatementColumns, parseStatementTable, StatementCsvError } from './statementCsv.js';
+import { findStatementColumns, StatementCsvError } from './statementCsv.js';
+import { inspectStatementTable, statementSheetSummary } from './statementTables.js';
 
 function cellText(cell) {
   const value = cell.value;
@@ -13,52 +14,33 @@ function cellText(cell) {
   return cell.text;
 }
 
-function worksheetTable(sheet, { onWarning, onSheet }) {
-  const table = [];
-  const rowNumbers = [];
+function worksheetTable(sheet) {
+  const entries = [];
+  let headerAt = -1;
   let matched;
   sheet.eachRow((row) => {
     if (!matched) {
-      const headers = Array.from({ length: row.cellCount }, (_, index) => row.getCell(index + 1).text);
-      const columns = findStatementColumns(headers);
+      const cells = Array.from({ length: row.cellCount }, (_, index) => row.getCell(index + 1).text);
+      const columns = findStatementColumns(cells);
       if (columns) {
-        matched = Object.entries(columns).filter(([, index]) => index !== undefined);
-        table.push(matched.map(([, index]) => headers[index]));
+        headerAt = entries.length;
+        matched = Object.values(columns).filter((index) => index !== undefined);
       }
+      entries.push({ number: row.number, cells: matched ? matched.map((index) => cells[index]) : cells });
       return;
     }
-    const cells = matched.map(([, index]) => cellText(row.getCell(index + 1)));
-    if (!cells.some((cell) => cell.trim())) return;
-    if (table.length > 1000) {
-      throw new StatementCsvError('Split this statement into files of at most 1,000 transactions.');
+    const sourceCells = matched.map((index) => row.getCell(index + 1));
+    try {
+      const cells = sourceCells.map(cellText);
+      if (cells.some((cell) => cell.trim())) entries.push({ number: row.number, cells });
+    } catch (error) {
+      entries.push({ number: row.number, cells: sourceCells.map((cell) => cell.text), error: error.message });
     }
-    table.push(cells);
-    rowNumbers.push(row.number);
   });
-  console.info('[LA-BO XLSX]', {
-    sheet: sheet.name,
-    headersMatched: matched?.map(([field, column], index) => ({
-      field, column: column + 1, header: table[0][index],
-    })) ?? [],
-    rowsFound: Math.max(0, table.length - 1),
-  });
-  const reasons = new Map();
-  const found = Math.max(0, table.length - 1);
-  const rows = found ? parseStatementTable(table, {
-    onInvalidRow: (index, reason) => {
-      reasons.set(reason, (reasons.get(reason) ?? 0) + 1);
-      onWarning(`${sheet.name}, row ${rowNumbers[index]} was excluded: ${reason}.`);
-    },
-  }) : [];
-  onSheet({
-    name: sheet.name, found, skipped: found - rows.length,
-    reasons: [...reasons].map(([reason, count]) => ({ reason, count })),
-    note: !matched ? 'No transaction table' : !found ? 'No transaction rows' : null,
-  });
-  return rows;
+  return inspectStatementTable(sheet.name, entries, { headerAt });
 }
 
-export async function parseStatementXlsx(bytes, { onWarning = () => {}, onSheet = () => {} } = {}) {
+export async function inspectStatementXlsx(bytes) {
   if (!Buffer.isBuffer(bytes) || bytes.subarray(0, 4).toString('hex') !== '504b0304') {
     throw new StatementCsvError('Upload an XLSX workbook. Older XLS files are unsupported. Save the file as .xlsx first.');
   }
@@ -70,14 +52,21 @@ export async function parseStatementXlsx(bytes, { onWarning = () => {}, onSheet 
   } catch {
     throw new StatementCsvError('I could not read this XLSX workbook. Upload an unlocked .xlsx file or export it as CSV.');
   }
+  return workbook.worksheets.map(worksheetTable);
+}
+
+export async function parseStatementXlsx(bytes, { onWarning = () => {}, onSheet = () => {} } = {}) {
   const warnings = [];
-  const rows = workbook.worksheets.flatMap((sheet) => worksheetTable(sheet, {
-    onSheet,
-    onWarning: (message) => {
+  const rows = (await inspectStatementXlsx(bytes)).flatMap((sheet) => {
+    const legacySheet = sheet.headerMatched ? sheet : { ...sheet, data: [], failures: new Map() };
+    onSheet(statementSheetSummary(legacySheet));
+    for (const [number, reason] of legacySheet.failures) {
+      const message = `${sheet.name}, row ${number} was excluded: ${reason}.`;
       warnings.push(message);
       onWarning(message);
-    },
-  }));
+    }
+    return [...sheet.rows.values()];
+  });
   if (!rows.length) {
     throw new StatementCsvError(warnings.length
       ? 'I couldn’t read any valid transactions. ' + warnings.join('\n')

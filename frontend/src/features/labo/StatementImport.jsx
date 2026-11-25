@@ -4,6 +4,7 @@ import { useFinance } from '../../context/FinanceContext';
 import { money } from '../../utils/formatters';
 import AccountFormModal from '../accounts/AccountFormModal';
 import { statementReviewNet, statementRowError, statementRowLabel } from './saveSelectedStatementRows';
+import { statementSheetBadge, statementSheetDetail } from './statementSheetSummary';
 import './statementImport.css';
 
 export function StatementAttachment({ onAttach, disabled }) {
@@ -26,9 +27,22 @@ export function StatementAttachment({ onAttach, disabled }) {
         <Paperclip size={15} /> Attach statement
       </button>
       <span className="muted small">
-        Drop a CSV, PDF, or XLSX here. PDFs with unreadable text may be sent to Meta for extraction.
+        Drop a CSV, PDF, or XLSX here. Files that need cleaning may be sent to Meta.
       </span>
     </div>
+  );
+}
+
+function StatementSheetList({ sheets }) {
+  if (!sheets.length) return null;
+  return (
+    <ul className="labo-statement-sheets muted small" aria-label="Statement parsing summary">
+      {sheets.map((sheet, index) => {
+        const badge = statementSheetBadge(sheet);
+        return <li key={index}>{sheet.name} {badge && <span className="status-pill">{badge}</span>}
+          {' · '}{statementSheetDetail(sheet)}</li>;
+      })}
+    </ul>
   );
 }
 
@@ -48,6 +62,7 @@ function StatementAccountPicker({ statement, group, busy }) {
   return (
     <section className="card labo-statement-review" aria-label={group ? title : 'Choose statement account'}>
       <h3>{title}</h3>
+      {!group && <StatementSheetList sheets={statement.sheets} />}
       {statement.accounts.length > 0 && (
         <label className="labo-statement-account">
           {group ? 'Account' : 'Target account'}
@@ -93,15 +108,29 @@ function StatementRow({ row, categories, statement, disabled }) {
           disabled={disabled} onChange={(event) => update({ title: event.target.value })} />
         {issue && <p className="negative small" role="alert">{issue}</p>}
         {row.possibleDuplicate && <span className="status-pill due_soon">Possible duplicate</span>}
-        {row.uncertain && <span className="status-pill due_soon">Check extraction</span>}
+        {row.aiIssues?.length > 0 && (
+          <details>
+            <summary className="status-pill due_soon">AI guessed — check</summary>
+            <p className="muted small">{row.aiIssues.join(' ')}</p>
+            {row.aiSource && <p className="muted small">Source row · {row.aiSource}</p>}
+          </details>
+        )}
+        {row.uncertain && !row.aiCleaned && <span className="status-pill due_soon">AI guessed — check</span>}
         {row.rememberedCategory && String(row.category_id ?? '') === String(row.suggestedCategoryId ?? '') && (
           <span className="status-pill paid">Remembered from last time</span>
         )}
       </td>
       <td>
-        <input type="number" min="1" step="1" inputMode="numeric" aria-label={`Amount for ${label}`} value={row.amount}
+        <input type="number" min="1" step="1" inputMode="numeric" aria-label={`Amount for ${label}`} value={row.amount ?? ''}
           disabled={disabled} onChange={(event) => update({ amount: event.target.value })} />
-        <span className="muted small">{row.kind === 'expense' ? 'Expense' : 'Income'}</span>
+        {row.aiCleaned ? (
+          <select className="filter-select" aria-label={`Type for ${label}`} value={row.kind} disabled={disabled}
+            onChange={(event) => update({ kind: event.target.value, category_id: '' })}>
+            <option value="" disabled>Choose a type</option>
+            <option value="expense">Expense</option>
+            <option value="income">Income</option>
+          </select>
+        ) : <span className="muted small">{row.kind === 'expense' ? 'Expense' : 'Income'}</span>}
       </td>
       <td>
         <select className="filter-select" aria-label={`Account for ${label}`} value={statement.resolveAccountId(row)}
@@ -140,6 +169,7 @@ export function StatementReview({ statement, categories, busy }) {
   return (
     <section className="card labo-statement-review" aria-label="Statement review">
       <h3>Review statement</h3>
+      <StatementSheetList sheets={statement.sheets} />
       {accountGroups && (
         <>
           <p>{parsedCount} rows: {accountGroups.map(({ label, count }) => `${label || 'No account listed'} ${count}`).join(' · ')}</p>
