@@ -13,7 +13,7 @@ export async function proposeMemoryUpdate({ question, answer, current }, options
   if (containsMemorySecret(question) || containsMemorySecret(answer)) return null;
   const response = await completeLaboExtraction([
     { role: 'system', content: rules },
-    { role: 'user', content: JSON.stringify({ question, answer, remembered: memoryEntries(current).slice(0, 12) }) },
+    { role: 'user', content: JSON.stringify({ question, answer, remembered: memoryEntries({ ...current, accountMap: {} }).slice(0, 12) }) },
   ], options);
   let parsed;
   try {
@@ -23,6 +23,7 @@ export async function proposeMemoryUpdate({ question, answer, current }, options
   }
   const patch = cleanMemory(parsed);
   patch.merchantMap = {};
+  patch.accountMap = {};
   const next = mergeMemory(current, patch);
   if (JSON.stringify(current) === JSON.stringify(next)) return null;
   return { patch, entries: memoryEntries(patch) };

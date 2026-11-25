@@ -156,7 +156,7 @@ function validateAccount(values, isDebit, parentAccountId) {
   return errors;
 }
 
-export default function AccountFormModal({ account, initialGroup = "bank", focusKind = false, onClose, onSave }) {
+export default function AccountFormModal({ account, initialGroup = "bank", initialName = "", focusKind = false, onClose, onSave }) {
   const { accounts } = useFinance();
   const startingGroup = account
     ? accountGroup(account)
@@ -181,7 +181,7 @@ export default function AccountFormModal({ account, initialGroup = "bank", focus
   const [customProvider, setCustomProvider] = useState("");
   const [note, setNote] = useState(account?.ui_details?.note ?? "");
   const [values, setValues] = useState({
-    name: account?.name ?? "",
+    name: account?.name ?? initialName,
     kind: startingGroup.kind,
     manual_balance: startingGroup.id === "debit" ? "0" : String(account?.manual_balance ?? ""),
   });

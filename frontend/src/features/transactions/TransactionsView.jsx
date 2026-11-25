@@ -44,7 +44,7 @@ export default function TransactionsView() {
       if (monthFilter && String(tx.transaction_date || '').slice(0, 7) !== monthFilter) return false;
       if (categoryFilter !== 'all' && String(tx.category_id) !== categoryFilter) return false;
       if (!query) return true;
-      const text = `${tx.note || tx.title || ''} ${getCatName(tx)} ${getTxAccount(tx)}`.toLowerCase();
+      const text = `${tx.title || ''} ${tx.note || ''} ${getCatName(tx)} ${getTxAccount(tx)}`.toLowerCase();
       return text.includes(query);
     })
     .sort((a, b) => String(b.transaction_date).localeCompare(String(a.transaction_date)));
@@ -155,14 +155,14 @@ export default function TransactionsView() {
                 {filtered.map((tx) => (
                   <tr key={tx.id}>
                     <td>{formatDate(tx.transaction_date)}</td>
-                    <td className="table-strong">{tx.note || tx.title}</td>
+                    <td className="table-strong">{tx.title || tx.note}</td>
                     <td>{tx.kind === 'card_payment' ? '—' : <span className="neutral-badge">{getCatName(tx)}</span>}</td>
                     <td>{getTxAccount(tx)}</td>
                     <td><span className={`type-badge ${tx.kind}`}>{tx.kind === 'card_payment' ? 'Card payment' : tx.kind}</span></td>
                     <td className="align-right table-strong">{tx.kind === 'card_payment' ? money(tx.amount) : <Amount amount={tx.amount} type={tx.kind} />}</td>
                     <td className="align-right">
-                      <button className="icon-button" type="button" onClick={() => openEdit(tx)} aria-label={`Edit ${tx.note || tx.title}`}><Pencil size={15} /></button>
-                      <button className="icon-button" type="button" onClick={() => setDeleteTarget(tx)} aria-label={`Delete ${tx.note || tx.title}`}><Trash2 size={15} /></button>
+                      <button className="icon-button" type="button" onClick={() => openEdit(tx)} aria-label={`Edit ${tx.title || tx.note}`}><Pencil size={15} /></button>
+                      <button className="icon-button" type="button" onClick={() => setDeleteTarget(tx)} aria-label={`Delete ${tx.title || tx.note}`}><Trash2 size={15} /></button>
                     </td>
                   </tr>
                 ))}

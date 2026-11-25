@@ -1,3 +1,5 @@
+import { accountLabelKey } from './statementAccounts.js';
+
 const secretWords = /\b(?:pass(?:word|code)(?:[ _-]*(?:value|code))?|p\.?i\.?n\.?(?:[ _-]*(?:code|number))?|cvv|cvc|(?:credit |debit )?card[ _-]*(?:no\.?|number)|api[ _-]*key|otp)\b|パスワード|暗証番号|カード番号/i;
 const secretKey = /password|passcode|pincode|pinnumber|cardnumber|cvv|cvc|apikey|onepassword|^pin$/i;
 const cardDigits = /(?:\d[\s\p{Pd}.·・]*){13}/u;
@@ -31,6 +33,16 @@ function cleanMap(source) {
   }));
 }
 
+function cleanAccountMap(source) {
+  if (!source || typeof source !== 'object' || Array.isArray(source)) return {};
+  return Object.fromEntries(Object.entries(source).flatMap(([label, value]) => {
+    const key = accountLabelKey(label);
+    const id = String(value ?? '');
+    return key.length <= 160 && safeKey(key) && /^[1-9]\d*$/.test(id) && Number.isSafeInteger(Number(id))
+      ? [[key, id]] : [];
+  }));
+}
+
 export function cleanMemory(source = {}) {
   const style = {};
   const languageMix = safeText(source?.style?.languageMix, 80);
@@ -51,7 +63,8 @@ export function cleanMemory(source = {}) {
   const summary = safeText(source?.summary, 300);
   return {
     style, facts: [...facts.values()], wordMap: cleanMap(source?.wordMap),
-    merchantMap: cleanMap(source?.merchantMap), patterns, ...(summary && { summary }),
+    merchantMap: cleanMap(source?.merchantMap), accountMap: cleanAccountMap(source?.accountMap),
+    patterns, ...(summary && { summary }),
   };
 }
 
@@ -64,6 +77,7 @@ export function mergeMemory(current, proposed) {
     facts: [...before.facts, ...update.facts],
     wordMap: { ...before.wordMap, ...update.wordMap },
     merchantMap: { ...before.merchantMap, ...update.merchantMap },
+    accountMap: { ...before.accountMap, ...update.accountMap },
     patterns: {
       ...before.patterns, ...update.patterns,
       regularSpends: { ...before.patterns.regularSpends, ...update.patterns.regularSpends },
@@ -81,6 +95,7 @@ export function memoryEntries(memory) {
     ...(memory.facts ?? []).map(({ key, value }) => ({ section: 'facts', key, label: key, value })),
     ...entries('wordMap', memory.wordMap, (key) => `Word · ${key}`),
     ...entries('merchantMap', memory.merchantMap, (key) => `Merchant · ${key}`),
+    ...entries('accountMap', memory.accountMap, (key) => `File account · ${key}`),
     ...(memory.patterns?.payday ? [{ section: 'patterns', key: 'payday', label: 'Payday', value: memory.patterns.payday }] : []),
     ...entries('regularSpends', memory.patterns?.regularSpends, (key) => `Regular spend · ${key}`),
     ...(memory.summary ? [{ section: 'summary', key: 'summary', label: 'Summary', value: memory.summary }] : []),
@@ -111,5 +126,5 @@ export function memoryCategory(text, kind, categories, dictionary = {}) {
 }
 
 export function aboutThisUser(memory) {
-  return memoryEntries(memory).map(({ label, value }) => `${label}: ${value}`).join('\n').slice(0, 1500);
+  return memoryEntries({ ...memory, accountMap: {} }).map(({ label, value }) => `${label}: ${value}`).join('\n').slice(0, 1500);
 }

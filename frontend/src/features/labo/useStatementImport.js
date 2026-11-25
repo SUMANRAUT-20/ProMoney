@@ -1,26 +1,30 @@
 import { useState } from 'react';
 import { apiClient } from '../../services/api';
-import { getStatementNet } from '../../utils/financeMath';
 import { makeId, money } from '../../utils/formatters';
-import { saveSelectedStatementRows, statementMemoryCorrections } from './saveSelectedStatementRows';
+import {
+  applyStatementAccount, saveSelectedStatementRows, statementMemoryCorrections, statementReviewNet, statementRowLabel,
+} from './saveSelectedStatementRows';
 
 const MAX_STATEMENT_BYTES = 8 * 1024 * 1024;
 
-function summarizeStatement({ rows, sheets }) {
-  const summary = `${rows.length} ${rows.length === 1 ? 'transaction is' : 'transactions are'} ready to review. Choose the target account.`;
+function summarizeStatement({ rows, sheets, accountGroups }) {
+  const summary = `${rows.length} ${rows.length === 1 ? 'transaction is' : 'transactions are'} ready to review.`;
   const details = sheets?.map(({ name, found, skipped, reasons, note }) => {
     const reason = note || reasons.map(({ reason, count }) => `${count} × ${reason}`).join(', ');
     return `${name} · ${found} found, ${skipped} skipped${reason ? ` (${reason})` : ''}`;
   }) ?? [];
-  return [summary, ...details].join('\n');
+  return [accountGroups ? summary : summary + ' Choose the target account.', ...details].join('\n');
 }
 
 export function useStatementImport({ busy, setBusy, setError, setMessages, finance }) {
   const [rows, setRows] = useState([]);
   const [accountId, setAccountId] = useState(null);
+  const [accountGroups, setAccountGroups] = useState(null);
   const [rememberChanges, setRememberChanges] = useState(true);
   const accounts = finance.accounts || [];
   const account = accounts.find((item) => String(item.id) === accountId);
+  const groupAccounts = new Map(accountGroups?.map((group) => [group.key, group.accountId]));
+  const resolveAccountId = (row) => row.account_id || groupAccounts.get(row.accountGroup) || accountId || '';
 
   const addMessage = (role, text, extra) => {
     setMessages((previous) => [...previous, { id: makeId('msg'), role, text, ...extra }]);
@@ -45,9 +49,13 @@ export function useStatementImport({ busy, setBusy, setError, setMessages, finan
       const { data } = await apiClient.laboImport(file, format);
       if (!data?.rows?.length) throw new Error('No readable transactions were found in this statement.');
       setAccountId(null);
+      setAccountGroups(data.accountGroups);
       setRememberChanges(true);
       setRows(data.rows.map((row) => ({
         ...row,
+        sourceTitle: row.note,
+        title: row.note,
+        note: row.importNote ?? row.note,
         suggestedCategoryId: row.category_id,
         selected: row.selected === true && !row.possibleDuplicate && !row.uncertain,
       })));
@@ -64,18 +72,40 @@ export function useStatementImport({ busy, setBusy, setError, setMessages, finan
     setRows((previous) => previous.map((row) => row.id === id ? { ...row, ...patch } : row));
   };
 
+  async function assignGroup(group, id) {
+    setBusy(true);
+    try {
+      if (group.key) await apiClient.saveNidhiMemory({ accountMap: { [group.key]: id } });
+    } catch {
+      showFailure('The account was selected for this import. I couldn’t remember the mapping.');
+    } finally {
+      setAccountGroups((current) => current.map((item) => item.key === group.key ? { ...item, accountId: id } : item));
+      setBusy(false);
+    }
+  }
+
+  function applyToAll(id) {
+    const applied = applyStatementAccount(rows, id, () => window.confirm('Replace the individual account choices for these rows?'));
+    if (!applied) return;
+    setRows(applied);
+    setAccountId(id);
+  }
+
   const save = async () => {
     const selected = rows.filter((row) => row.selected);
-    if (busy || !account || !selected.length) return;
+    if (busy || !selected.length) return;
+    const ownedAccounts = new Set(accounts.map((item) => String(item.id)));
+    const unassigned = selected.find((row) => !ownedAccounts.has(resolveAccountId(row)));
+    if (unassigned) return showFailure(`Choose an account for ${statementRowLabel(unassigned)}.`);
     setBusy(true);
     setError('');
     try {
       const { savedIds, remainingRows, error } = await saveSelectedStatementRows(
-        rows, finance.addTransaction, String(account.id),
+        rows, finance.addTransaction, resolveAccountId,
       );
       setRows(remainingRows);
       if (savedIds.length) {
-        const net = getStatementNet(selected.slice(0, savedIds.length));
+        const net = statementReviewNet(selected.slice(0, savedIds.length));
         const text = `Added ${savedIds.length} statement ${savedIds.length === 1 ? 'transaction' : 'transactions'}. Net ${money(net)}.`;
         addMessage('ai', text, { savedIds, undone: false });
       }
@@ -98,9 +128,13 @@ export function useStatementImport({ busy, setBusy, setError, setMessages, finan
   const cancel = () => {
     setRows([]);
     setAccountId(null);
+    setAccountGroups(null);
     setError('');
     addMessage('ai', 'Statement review closed.');
   };
 
-  return { rows, accounts, account, setAccountId, attach, update, save, cancel, rememberChanges, setRememberChanges };
+  return {
+    rows, accounts, account, accountGroups, setAccountId, assignGroup, applyToAll, resolveAccountId,
+    attach, update, save, cancel, rememberChanges, setRememberChanges,
+  };
 }

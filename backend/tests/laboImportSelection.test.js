@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { saveSelectedStatementRows } from '../../frontend/src/features/labo/saveSelectedStatementRows.js';
+import { applyStatementAccount, saveSelectedStatementRows, statementReviewNet } from '../../frontend/src/features/labo/saveSelectedStatementRows.js';
 import { getStatementNet } from '../../frontend/src/utils/financeMath.js';
 
 const reviewedRows = [
@@ -29,4 +29,18 @@ test('statement Add selected retries only rows that were not confirmed saved', a
   }, null);
   assert.deepEqual(notes, ['Train', 'Salary', 'Salary']);
   assert.deepEqual(retry, { savedIds: [22], remainingRows: [], error: null });
+});
+
+test('A selected invalid date blocks every save, and apply-to-all confirms replacing row choices', async () => {
+  const [train, , salary] = reviewedRows;
+  const rows = [{ ...train, account_id: '2', amount: '500' }, { ...salary, transaction_date: '2026-02-30' }];
+  const invalid = await saveSelectedStatementRows(rows, () => assert.fail('No rows should be saved'), '1');
+  assert.deepEqual(invalid.savedIds, []);
+  assert.match(invalid.error.message, /Row 3 \(Salary\).*valid calendar date/);
+  assert.equal(statementReviewNet(rows), 14500);
+  assert.equal(applyStatementAccount(rows, '1', () => false), null);
+  const applied = applyStatementAccount(rows, '1', () => true);
+  assert.ok(applied.every((row) => !row.account_id));
+  const unchanged = applyStatementAccount(rows, '2', () => assert.fail('No override would change'));
+  assert.ok(unchanged.every((row) => !row.account_id));
 });

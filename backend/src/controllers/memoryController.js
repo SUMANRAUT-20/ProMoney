@@ -1,4 +1,5 @@
 import { MemoryModel } from '../models/memoryModel.js';
+import { AccountModel } from '../models/accountModel.js';
 import { cleanMemory, memoryEntries } from '../services/nidhiMemory.js';
 import { proposeMemoryUpdate } from '../services/laboMemory.js';
 
@@ -18,6 +19,13 @@ export async function remember(req, res, next) {
   try {
     const patch = cleanMemory(req.body?.patch);
     if (!memoryEntries(patch).length) return res.status(400).json({ error: 'Choose valid details to remember.', status: 400 });
+    const accountIds = Object.values(patch.accountMap);
+    if (accountIds.length) {
+      const ownedIds = new Set((await AccountModel.findByUser(req.user.id)).map(({ id }) => String(id)));
+      if (accountIds.some((id) => !ownedIds.has(id))) {
+        return res.status(400).json({ error: 'Choose one of your accounts to remember.', status: 400 });
+      }
+    }
     return reply(res, await MemoryModel.merge(req.user.id, patch));
   } catch (err) {
     return next(err);

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Modal } from '../../components/ui';
+import { useFinance } from '../../context/FinanceContext';
 import { apiClient } from '../../services/api';
 
 export default function NidhiMemorySettings() {
+  const { accounts } = useFinance();
   const [entries, setEntries] = useState(null);
   const [pending, setPending] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -48,7 +50,9 @@ export default function NidhiMemorySettings() {
       {entries?.length === 0 && <p className="muted">No remembered details yet.</p>}
       {entries?.map((entry) => (
         <div className="setting-row" key={`${entry.section}:${entry.key}`}>
-          <div><strong>{entry.label}</strong><div>{entry.value}</div></div>
+          <div><strong>{entry.label}</strong><div>{entry.section === 'accountMap'
+            ? accounts.find((account) => String(account.id) === entry.value)?.name ?? 'Account unavailable'
+            : entry.value}</div></div>
           <button type="button" className="btn secondary compact" onClick={() => open(entry)}
             aria-label={`Forget ${entry.label}`}>Forget</button>
         </div>
