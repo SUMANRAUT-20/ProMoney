@@ -33,10 +33,13 @@ function similarTitle(first, second) {
 function suggestCategory(row, categories) {
   const title = titleKey(row.note);
   const choices = categories.filter((category) => category.kind === row.kind);
-  if (row.kind === 'expense' && HEALTH_KEYWORDS.test(title)) {
+  const fileCategory = titleKey(row.categoryLabel);
+  if (row.kind === 'expense' && (fileCategory === 'healthcare' || HEALTH_KEYWORDS.test(title))) {
     const health = choices.find((category) => titleKey(category.name) === 'health');
     if (health) return health;
   }
+  const explicit = fileCategory && choices.find((category) => titleKey(category.name) === fileCategory);
+  if (explicit) return explicit;
   const named = choices.find((category) => {
     const label = titleKey(category.name);
     return label.length >= 3 && (' ' + title + ' ').includes(' ' + label + ' ');

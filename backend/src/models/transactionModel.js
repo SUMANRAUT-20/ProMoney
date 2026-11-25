@@ -10,7 +10,7 @@ const pool = getDbPool();
 
 function toRow(row) {
   if (!row) return null;
-  const noteVal = row.note || row.title || '';
+  const noteVal = row.note ?? row.title ?? '';
   return {
     id: Number(row.id),
     user_id: Number(row.user_id),
@@ -67,7 +67,7 @@ export const TransactionModel = {
     transactionDate,
   }) {
     const cleanTitle = String(title || note || kind).trim().slice(0, 150);
-    const cleanNote = String(note ?? title ?? '').trim().slice(0, 255) || cleanTitle;
+    const cleanNote = String(note ?? cleanTitle).trim().slice(0, 255);
     const [result] = await pool.execute(
       `INSERT INTO transactions
          (user_id, account_id, to_account_id, category_id, kind, title, note, amount, transaction_date)
@@ -97,7 +97,7 @@ export const TransactionModel = {
     if (!existing) return null;
     const nextKind = kind !== undefined ? kind : existing.kind;
     const nextTitle = String(title ?? note ?? existing.title).trim().slice(0, 150);
-    const nextNote = String(note ?? title ?? existing.note ?? '').trim().slice(0, 255) || nextTitle;
+    const nextNote = String(note ?? title ?? existing.note ?? '').trim().slice(0, 255);
     const nextAmount = amount !== undefined ? Number(amount) : existing.amount;
     const nextDate = transactionDate !== undefined ? transactionDate : existing.transaction_date;
     const nextAccountId = accountId !== undefined ? (accountId ? Number(accountId) : null) : existing.account_id;

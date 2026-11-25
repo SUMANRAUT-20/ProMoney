@@ -183,7 +183,7 @@ export const transactionsController = {
 
       const rawNote = String(body.note ?? body.title ?? '').trim();
       const fallbackTitle = isQuickAdd ? category?.name || 'Quick Expense' : '';
-      const finalTitle = (rawNote || fallbackTitle).slice(0, 150);
+      const finalTitle = (String(body.title ?? '').trim() || rawNote || fallbackTitle).slice(0, 150);
       if (!finalTitle) {
         return res.status(400).json({ error: 'title or note is required', status: 400 });
       }
@@ -195,7 +195,7 @@ export const transactionsController = {
         categoryId: category ? category.id : null,
         kind,
         title: finalTitle,
-        note: rawNote || finalTitle,
+        note: body.note == null ? rawNote || finalTitle : rawNote,
         amount,
         transactionDate,
       });
@@ -285,10 +285,10 @@ export const transactionsController = {
         nextCategoryId = category ? category.id : null;
       }
 
-      const rawNote = body.note !== undefined || body.title !== undefined
-        ? String(body.note ?? body.title ?? '').trim()
-        : existing.note;
-      if (!rawNote) {
+      const sameText = existing.title === existing.note;
+      const title = String(body.title ?? (sameText ? body.note : undefined) ?? existing.title).trim() || existing.title;
+      const note = String(body.note ?? (sameText ? body.title : undefined) ?? existing.note).trim();
+      if (!title) {
         return res.status(400).json({ error: 'title or note is required', status: 400 });
       }
 
@@ -297,8 +297,8 @@ export const transactionsController = {
         toAccountId: nextToAccountId,
         categoryId: nextCategoryId,
         kind: nextKind,
-        title: rawNote.slice(0, 150),
-        note: rawNote.slice(0, 255),
+        title: title.slice(0, 150),
+        note: note.slice(0, 255),
         amount: nextAmount,
         transactionDate: nextDate,
       });

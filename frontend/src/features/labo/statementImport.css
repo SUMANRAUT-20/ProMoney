@@ -9,9 +9,13 @@
   max-height: 22rem;
 }
 
-.labo-statement-review .align-right,
-.labo-statement-review time {
-  white-space: nowrap;
+.labo-statement-review td input:not([type="checkbox"]),
+.labo-statement-review td select {
+  min-width: 8rem;
+}
+
+.labo-statement-review td input[type="text"] {
+  min-width: 12rem;
 }
 
 .labo-statement-review .status-pill {

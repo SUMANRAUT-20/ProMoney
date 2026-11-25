@@ -30,6 +30,7 @@ export default function TransactionFormModal({ transaction, onClose }) {
   const kinds = transaction?.kind === 'card_payment' ? [] : ['expense', 'income', 'card_payment'];
   const allowUncategorized = Boolean(transaction && !transaction.category_id);
   const canAddAccount = !transaction && !isPayment;
+  const noteLimit = transaction ? 255 : 120;
 
   function change(patch) {
     setForm((current) => ({ ...current, ...patch }));
@@ -67,7 +68,9 @@ export default function TransactionFormModal({ transaction, onClose }) {
       return setError('Choose a credit card or BNPL account to pay.');
     }
     const note = form.note.trim() || (isPayment ? 'Card payment' : '');
-    if (!note || note.length > 120) return setError('Enter a short note (1–120 characters).');
+    if ((!note && !transaction?.title) || note.length > noteLimit) {
+      return setError(`Enter a short note (1–${noteLimit} characters).`);
+    }
 
     setSaving(true);
     try {
@@ -147,7 +150,7 @@ export default function TransactionFormModal({ transaction, onClose }) {
           </div>
           <label>
             Note
-            <input type="text" value={form.note} maxLength={120} placeholder={isPayment ? 'Card payment' : 'e.g. Supermarket groceries'} onChange={(event) => change({ note: event.target.value })} required={!isPayment} />
+            <input type="text" value={form.note} maxLength={noteLimit} placeholder={isPayment ? 'Card payment' : 'e.g. Supermarket groceries'} onChange={(event) => change({ note: event.target.value })} required={!isPayment && !transaction?.title} />
           </label>
           {error && <p className="negative" role="alert" style={{ margin: 0 }}>{error}</p>}
           <div className="form-actions">

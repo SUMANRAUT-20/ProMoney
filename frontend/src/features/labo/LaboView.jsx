@@ -11,7 +11,7 @@ import {
   VolumeX,
 } from "lucide-react";
 import { PageHeading } from "../../components/ui";
-import { StatementAccountPicker, StatementAttachment, StatementReview } from "./StatementImport";
+import { StatementAttachment, StatementReview } from "./StatementImport";
 import { ReportCard } from "./ReportCard";
 import { AllocationCard, PurchaseCard } from "./SimulatorCards";
 import ChatActionCard from "./ChatActionCard";
@@ -211,9 +211,7 @@ export default function LaboView() {
               />
             )}
 
-            {statement.rows.length > 0 && (statement.account
-              ? <StatementReview statement={statement} categories={categories} busy={busy} />
-              : <StatementAccountPicker statement={statement} busy={busy} />)}
+            {statement.rows.length > 0 && <StatementReview statement={statement} categories={categories} busy={busy} />}
             {busy && <div className="labo-thinking" role="status" aria-label="Thinking" />}
           </div>
           {newAnswer && (

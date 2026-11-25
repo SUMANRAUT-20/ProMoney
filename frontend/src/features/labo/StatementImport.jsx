@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react';
 import { Paperclip } from 'lucide-react';
 import { useFinance } from '../../context/FinanceContext';
-import { getStatementNet } from '../../utils/financeMath';
 import { money } from '../../utils/formatters';
 import AccountFormModal from '../accounts/AccountFormModal';
+import { statementReviewNet, statementRowError, statementRowLabel } from './saveSelectedStatementRows';
 import './statementImport.css';
 
 export function StatementAttachment({ onAttach, disabled }) {
@@ -32,78 +32,91 @@ export function StatementAttachment({ onAttach, disabled }) {
   );
 }
 
-export function StatementAccountPicker({ statement, busy }) {
+function StatementAccountPicker({ statement, group, busy }) {
   const { addAccount } = useFinance();
   const [showAccountForm, setShowAccountForm] = useState(false);
-  const [savingAccount, setSavingAccount] = useState(false);
-  const [error, setError] = useState('');
+  const chooseAccount = (id) => group ? statement.assignGroup(group, id) : statement.setAccountId(id);
+  const title = group?.label ? `File says “${group.label}” — use which account?`
+    : group ? 'Which account should I use for rows with no file account?' : 'Which account should I use?';
 
   async function createAccount(values, uiDetails) {
-    if (savingAccount) return;
-    setSavingAccount(true);
-    try {
-      const created = await addAccount(values, uiDetails);
-      statement.setAccountId(String(created.id));
-    } catch (err) {
-      setError(err.message || 'Could not create the account.');
-    } finally {
-      setSavingAccount(false);
-      setShowAccountForm(false);
-    }
+    const created = await addAccount(values, uiDetails);
+    await chooseAccount(String(created.id));
+    setShowAccountForm(false);
   }
 
   return (
-    <section className="card labo-statement-review" aria-label="Choose statement account">
-      <h3>Which account should I use?</h3>
+    <section className="card labo-statement-review" aria-label={group ? title : 'Choose statement account'}>
+      <h3>{title}</h3>
       {statement.accounts.length > 0 && (
         <label className="labo-statement-account">
-          Target account
-          <select className="filter-select" value="" disabled={busy} onChange={(event) => statement.setAccountId(event.target.value)}>
+          {group ? 'Account' : 'Target account'}
+          <select className="filter-select" value="" disabled={busy} onChange={(event) => chooseAccount(event.target.value)}>
             <option value="" disabled>Choose an account</option>
             {statement.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
           </select>
         </label>
       )}
-      {error && <p className="negative" role="alert">{error}</p>}
+      {group?.label && <p className="muted small">Your choice is remembered for future imports.</p>}
       <div className="labo-statement-actions">
-        <button type="button" className="btn secondary compact" disabled={busy} onClick={statement.cancel}>Cancel</button>
+        {!group && <button type="button" className="btn secondary compact" disabled={busy} onClick={statement.cancel}>Cancel</button>}
         <button type="button" className="btn secondary compact" disabled={busy}
-          onClick={() => { setError(''); setShowAccountForm(true); }}>+ Create it here</button>
+          onClick={() => setShowAccountForm(true)}>{group?.label ? `+ Create “${group.label}”` : '+ Create it here'}</button>
       </div>
-      {showAccountForm && <AccountFormModal onClose={() => !savingAccount && setShowAccountForm(false)} onSave={createAccount} />}
+      {showAccountForm && <AccountFormModal initialGroup={group?.suggestedGroup ?? 'bank'} initialName={group?.label}
+        onClose={() => setShowAccountForm(false)} onSave={createAccount} />}
     </section>
   );
 }
 
-function StatementRow({ row, categories, onChange, disabled }) {
+function StatementRow({ row, categories, statement, disabled }) {
+  const label = statementRowLabel(row);
+  const issue = statementRowError(row);
+  const update = (patch) => statement.update(row.id, patch);
   return (
     <tr>
       <td>
         <input
           type="checkbox"
-          aria-label={`Select ${row.note} on ${row.transaction_date}`}
+          aria-label={`Select ${label}`}
           checked={row.selected}
           disabled={disabled}
-          onChange={(event) => onChange(row.id, { selected: event.target.checked })}
+          onChange={(event) => update({ selected: event.target.checked })}
         />
       </td>
-      <td><time dateTime={row.transaction_date}>{row.transaction_date}</time></td>
       <td>
-        {row.note}
+        <input type="date" aria-label={`Date for ${label}`} value={row.transaction_date}
+          disabled={disabled} onChange={(event) => update({ transaction_date: event.target.value })} />
+      </td>
+      <td>
+        <input type="text" aria-label={`Title for ${label}`} value={row.title} maxLength={150}
+          disabled={disabled} onChange={(event) => update({ title: event.target.value })} />
+        {issue && <p className="negative small" role="alert">{issue}</p>}
         {row.possibleDuplicate && <span className="status-pill due_soon">Possible duplicate</span>}
         {row.uncertain && <span className="status-pill due_soon">Check extraction</span>}
         {row.rememberedCategory && String(row.category_id ?? '') === String(row.suggestedCategoryId ?? '') && (
           <span className="status-pill paid">Remembered from last time</span>
         )}
       </td>
-      <td className="align-right">{money(row.kind === 'expense' ? -row.amount : row.amount)}</td>
+      <td>
+        <input type="number" min="1" step="1" inputMode="numeric" aria-label={`Amount for ${label}`} value={row.amount}
+          disabled={disabled} onChange={(event) => update({ amount: event.target.value })} />
+        <span className="muted small">{row.kind === 'expense' ? 'Expense' : 'Income'}</span>
+      </td>
+      <td>
+        <select className="filter-select" aria-label={`Account for ${label}`} value={statement.resolveAccountId(row)}
+          disabled={disabled} onChange={(event) => update({ account_id: event.target.value })}>
+          <option value="" disabled>Choose an account</option>
+          {statement.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+        </select>
+      </td>
       <td>
         <select
           className="filter-select"
-          aria-label={`Category for ${row.note} on ${row.transaction_date}`}
+          aria-label={`Category for ${label}`}
           value={row.category_id ?? ''}
           disabled={disabled}
-          onChange={(event) => onChange(row.id, { category_id: event.target.value })}
+          onChange={(event) => update({ category_id: event.target.value })}
         >
           <option value="">Uncategorized</option>
           {categories.filter((category) => category.kind === row.kind).map((category) => (
@@ -111,29 +124,47 @@ function StatementRow({ row, categories, onChange, disabled }) {
           ))}
         </select>
       </td>
+      <td>
+        <input type="text" aria-label={`Note for ${label}`} value={row.note} maxLength={255}
+          disabled={disabled} onChange={(event) => update({ note: event.target.value })} />
+      </td>
     </tr>
   );
 }
 
 export function StatementReview({ statement, categories, busy }) {
+  const { accountGroups, account, accounts } = statement;
+  if (!accountGroups && !account) return <StatementAccountPicker statement={statement} busy={busy} />;
   const selected = statement.rows.filter((row) => row.selected);
+  const parsedCount = accountGroups?.reduce((total, group) => total + group.count, 0);
   return (
     <section className="card labo-statement-review" aria-label="Statement review">
       <h3>Review statement</h3>
+      {accountGroups && (
+        <>
+          <p>{parsedCount} rows: {accountGroups.map(({ label, count }) => `${label || 'No account listed'} ${count}`).join(' · ')}</p>
+          {accountGroups.filter((group) => group.remembered).map((group) => (
+            <p className="muted small" key={group.key}>
+              {group.label} → {accounts.find((item) => String(item.id) === group.accountId)?.name} (remembered)
+            </p>
+          ))}
+          {accountGroups.filter((group) => !group.accountId).map((group) => (
+            <StatementAccountPicker key={group.key} group={group} statement={statement} busy={busy} />
+          ))}
+        </>
+      )}
       <p className="muted small" aria-live="polite">
-        {selected.length} of {statement.rows.length} selected · Net {money(getStatementNet(selected))}
+        {selected.length} of {statement.rows.length} selected · Net {money(statementReviewNet(selected))}
       </p>
-      <label className="labo-statement-account">
-        Account
-        <select
-          className="filter-select"
-          value={statement.account.id}
-          onChange={(event) => statement.setAccountId(event.target.value)}
-          disabled={busy}
-        >
-          {statement.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-        </select>
-      </label>
+      {!accountGroups && (
+        <label className="labo-statement-account">
+          Apply account to all rows
+          <select className="filter-select" value="" disabled={busy} onChange={(event) => statement.applyToAll(event.target.value)}>
+            <option value="" disabled>Choose account</option>
+            {accounts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+        </label>
+      )}
       <div className="table-scroll" tabIndex={0} role="region" aria-label="Statement transactions">
         <table className="finance-table">
           <thead>
@@ -142,12 +173,14 @@ export function StatementReview({ statement, categories, busy }) {
               <th scope="col">Date</th>
               <th scope="col">Title</th>
               <th scope="col" className="align-right">Amount</th>
+              <th scope="col">Account</th>
               <th scope="col">Category</th>
+              <th scope="col">Note</th>
             </tr>
           </thead>
           <tbody>
             {statement.rows.map((row) => (
-              <StatementRow key={row.id} row={row} categories={categories} onChange={statement.update} disabled={busy} />
+              <StatementRow key={row.id} row={row} categories={categories} statement={statement} disabled={busy} />
             ))}
           </tbody>
         </table>

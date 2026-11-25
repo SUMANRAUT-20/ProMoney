@@ -8,6 +8,10 @@ const HEADER_NAMES = {
   debit: ['moneyout', 'debit', 'debitamount', 'withdrawal', 'withdrawals', 'withdrawalamount', '出金', '出金額', '引出金額', 'お引出し金額', 'お支払金額', '支払金額'],
   direction: ['direction', 'type', 'transactiontype', '入出金区分'],
   currency: ['currency', 'currencycode', '通貨', '通貨コード'],
+  accountLabel: ['account', 'accountname', '口座', '口座名'],
+  paymentMethod: ['paymentmethod', '支払方法', '決済方法'],
+  categoryLabel: ['category', 'transactioncategory', 'カテゴリ', 'カテゴリー'],
+  importNote: ['notes', 'notesscenario'],
 };
 
 const MAX_AMOUNT = 999_999_999_999;
@@ -150,6 +154,10 @@ function readTransaction(record, columns, dateOrder) {
     note: note.slice(0, 150),
     kind: signedAmount < 0 ? 'expense' : 'income',
     amount: positiveYen(Math.abs(signedAmount)),
+    ...(columns.accountLabel !== undefined && { accountLabel: record[columns.accountLabel].trim() }),
+    ...(columns.paymentMethod !== undefined && { paymentMethod: record[columns.paymentMethod].trim() }),
+    ...(columns.categoryLabel !== undefined && { categoryLabel: record[columns.categoryLabel].trim() }),
+    ...(columns.importNote !== undefined && { importNote: record[columns.importNote].trim().slice(0, 255) }),
   };
 }
 

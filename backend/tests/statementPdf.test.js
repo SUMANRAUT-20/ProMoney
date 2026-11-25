@@ -44,9 +44,12 @@ test('PDF import parses aligned text-layer transactions without sending the docu
   ]);
 });
 
-test('scanned PDF uses an inline PDF file content block and preserves uncertain rows', async () => {
+test('scanned PDF uses an inline PDF file content block and preserves uncertain rows and file labels', async () => {
   let request;
-  const row = { transaction_date: '2026-11-08', note: 'Bus fare', kind: 'expense', amount: 320, uncertain: true };
+  const row = {
+    transaction_date: '2026-11-08', note: 'Bus fare', kind: 'expense', amount: 320, uncertain: true,
+    accountLabel: 'Demo Cash', paymentMethod: 'Cash', categoryLabel: 'Transportation',
+  };
   const rows = await parseStatementPdf(scannedStatement, {
     env: metaEnv,
     fetchImpl: async (_url, options) => {
