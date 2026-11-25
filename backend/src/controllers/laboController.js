@@ -8,6 +8,7 @@ import { parseTransactionWithLabo, scanReceiptWithLabo } from '../services/laboC
 import { getLaboShortcut } from './laboInsights.js';
 import { MemoryModel } from '../models/memoryModel.js';
 import { memoryCategory } from '../services/nidhiMemory.js';
+import { appCapabilityAnswer } from '../services/laboConversation.js';
 import { requestedImportGuidance } from '../services/nidhiTools.js';
 import { chatForUser } from './nidhiChatContext.js';
 
@@ -24,7 +25,7 @@ export const laboController = {
       const userId = req.user?.id;
       if (!userId) return res.status(401).json({ error: 'Sign in to chat with Nidhi.', status: 401 });
       const text = question.trim();
-      const guidance = requestedImportGuidance(text);
+      const guidance = appCapabilityAnswer(text) || requestedImportGuidance(text);
       const data = guidance ? { answer: guidance }
         : await getLaboShortcut(text, userId) || await chatForUser({ userId, question: text, history });
       return res.set('Cache-Control', 'no-store').json({ status: 'ok', data });

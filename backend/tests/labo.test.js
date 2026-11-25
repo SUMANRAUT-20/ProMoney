@@ -35,6 +35,7 @@ function mockRes() {
     statusCode: 200,
     body: null,
     status(code) { this.statusCode = code; return this; },
+    set() { return this; },
     json(payload) { this.body = payload; return this; }
   };
 }
@@ -169,8 +170,68 @@ test('askLabo posts to Muse Wonder over the Meta Model API and enforces Q1', asy
   assert.equal(checkBad.valid, false);
   assert.deepEqual(checkBad.mismatchedNumbers, [999999]);
   assert.equal(verifyAnswerNumbers('You spent 48,500.50.', snapshot).valid, false);
-  assert.equal(verifyAnswerNumbers('You spent ¥48.5k.', snapshot).valid, false);
+  assert.equal(verifyAnswerNumbers('You spent ¥48.5k.', snapshot).valid, true);
   assert.equal(verifyAnswerNumbers('You spent fifty thousand yen.', snapshot).valid, false);
+});
+
+test('Grounding leaves guidance, examples, and verified spending intact and logs invented user figures', async () => {
+  const logs = [];
+  const question = 'How much did I spend?';
+  const turns = [
+    ['What can I do here?', '**Start here**\n1. Open Home\n2. Check Transactions. Settings has your preferences.'],
+    [question, 'You recorded **3 transactions** on 2026-11-25. Open Transactions for the details.'],
+    [question, 'For example, if you set aside ¥3,000 per month, you can track it as a goal.'],
+    [question, 'Open Home to see the results. A sample budget could show a limit of ¥200,000.'],
+    ['How does it work?', 'Home lets you see a safety threshold of ¥200,000.'],
+    [question, 'You spent **¥48,500** this month.'],
+    [question, '**Spending**\n- ¥48,500 this month.'],
+    ['今月の支出はいくら？', '今月の支出は四万八千五百円です。'],
+    ['今月の支出はいくら？', '今月の支出は4.85万円です。'],
+  ];
+  const replyTo = (question, content) => askLabo({
+    question, snapshot, env: { META_API_KEY: 'fixture' },
+    fetchImpl: async () => Response.json({ choices: [{ message: { content } }] }),
+    logUsage: (event, data) => { if (event === '[Nidhi answer grounding fallback]') logs.push(data); },
+  });
+  for (const [prompt, content] of turns) {
+    assert.equal((await replyTo(prompt, content)).answer, content);
+  }
+  assert.deepEqual(logs, []);
+  for (const content of ['You spent ¥870,000 this month.', '¥870,000 this month.']) {
+    const result = await replyTo(question, content);
+    assert.match(result.answer, /couldn't verify those figures/);
+  }
+  assert.equal(verifyAnswerNumbers('今月の支出は九万円です。', snapshot).valid, false);
+  assert.equal(verifyAnswerNumbers('You can safely spend ¥99,999 per day.', snapshot).valid, false);
+  assert.deepEqual(logs, Array.from({ length: 2 }, () => ({
+    question, reason: 'User money figure absent from the engine snapshot',
+  })));
+  const reportAnswer = 'Your report shows ¥900,000 in total expenses.';
+  const report = await askLabo({
+    question, snapshot, env: { META_API_KEY: 'fixture' },
+    tools: [{ type: 'function', function: { name: 'get_report' } }],
+    fetchImpl: async () => Response.json({ choices: [{ message: {
+      tool_calls: [{ function: { name: 'get_report', arguments: '{}' } }],
+    } }] }),
+    resolveTool: () => ({ answer: reportAnswer, report: { rows: [['Total', 900000]] } }),
+    logUsage: (event) => assert.notEqual(event, '[Nidhi answer grounding fallback]'),
+  });
+  assert.equal(report.answer, reportAnswer);
+});
+
+test('App-flow and capability questions return the sidebar story in order', async () => {
+  for (const question of [
+    'what can i do here?', 'can you so me the flow of this app?', 'show me the flow of this app',
+    'How does this work?', 'Where do I begin?',
+  ]) {
+    const res = mockRes();
+    await laboController.chat({ user: { id: 1 }, body: { question } }, res, next);
+    assert.equal(res.statusCode, 200);
+    assert.match(res.body.data.answer, /SEE → BALANCE → GROW/);
+    assert.match(res.body.data.answer, /Home.*Transactions.*My Accounts.*My Plans.*Reports & Insights.*Nidhi.*Settings/s);
+    assert.doesNotMatch(res.body.data.answer, /couldn't verify/);
+    if (question === 'what can i do here?') assert.match(res.body.data.answer, /attach a statement or receipt/i);
+  }
 });
 
 test('laboController validates input before calling the AI', async () => {

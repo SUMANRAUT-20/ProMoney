@@ -13,6 +13,7 @@ import { sendChatDraft, stageChatAttachment } from "./composerDraft";
 import { ReportCard } from "./ReportCard";
 import { AllocationCard, PurchaseCard } from "./SimulatorCards";
 import ChatActionCard from "./ChatActionCard";
+import ChatMarkdown from "./ChatMarkdown";
 import MemoryReview from "./MemoryReview";
 import LaboResources from "./LaboResources";
 import TransactionProposals from "./TransactionProposals";
@@ -177,7 +178,7 @@ export default function LaboView() {
                 key={m.id || i}
                 className={`labo-msg ${m.role === "user" ? "labo-msg-user" : "labo-msg-ai"}`}
               >
-                <div>{m.text}</div>
+                {m.role === "user" ? <div>{m.text}</div> : <ChatMarkdown text={m.text} />}
                 {m.memoryProposal && <MemoryReview proposal={m.memoryProposal} onDecision={(remembered) => decideMemory(m.id, remembered)} />}
                 {m.remembered && <p className="muted small" role="status">Remembered</p>}
                 {m.report && <ReportCard report={m.report} signature={m.signature} downloadFormat={m.downloadFormat} />}
