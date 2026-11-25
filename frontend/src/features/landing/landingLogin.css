@@ -12,7 +12,8 @@
 .landing-root .landing-login-surface { position: relative; padding: 32px; }
 .landing-root .landing-login-close { position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 8px; background: transparent; color: var(--landing-forest); font: inherit; font-size: 28px; cursor: pointer; }
 .landing-root .landing-login-close:hover { background: var(--landing-field); }
-.landing-root .landing-login-surface h2 { padding-right: 24px; font-size: 32px; }
+.landing-root .landing-login-surface h2 { display: flex; align-items: center; gap: 8px; padding-right: 24px; font-size: 32px; }
+.landing-root .landing-login-surface h2 img { flex: none; object-fit: contain; }
 .landing-root .landing-login-surface > p { margin: 8px 0 24px; color: var(--landing-muted); font-size: 14px; }
 .landing-root .landing-login-surface > p:last-child { margin: 24px 0 0; }
 .landing-root .landing-login-surface > p a, .landing-root .landing-login-surface .pm-auth-text-button { color: var(--landing-forest); }

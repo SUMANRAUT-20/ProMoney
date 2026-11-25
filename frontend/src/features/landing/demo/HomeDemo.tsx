@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Plus, RotateCcw, ShoppingBasket } from 'lucide-react';
-import { Badge, Bar, Button, Card, Collapse, Draft, Roll, Row, Stage, Text, Window, type Act } from './kit';
+import { Badge, Bar, Button, Card, Collapse, Draft, Phone, Roll, Row, Stage, Text, type Act } from './kit';
 import './hero-demo.css';
 
 const entry = '¥1,200 · Food & Dining';
 const initial = { draft: false, typed: '', saved: false, spend: 4800, onTrack: false };
 const poster = { ...initial, saved: true, spend: 4750, onTrack: true };
-const rest = { wide: { x: 528, y: 218 }, compact: { x: 228, y: 242 } };
+const rest = { wide: { x: 385, y: 342 }, compact: { x: 272, y: 274 } };
 type Scene = typeof initial;
 
 async function play(a: Act<Scene>) {
@@ -79,7 +79,7 @@ function Activity({ scene }: { scene: Scene }) {
           meta={<Text>−¥1,200</Text>}
         />
       </Collapse>
-      {[84, 108, 66, 94, 80, 70].map((w, i) => (
+      {[84, 108, 66, 94, 80, 70, 93].map((w, i) => (
         <Row key={w} pad={10} className="pm-demo-filler" lead={<Bar w={24} h={24} r={7} tone={2} />} title={<Bar w={w} />} meta={<Bar w={i % 2 ? 36 : 48} />} />
       ))}
     </div>
@@ -90,28 +90,25 @@ export default function HomeDemo() {
   const [paused, setPaused] = useState(false);
   return (
     <div className="pm-demo">
+      <button className="pm-demo-toggle" type="button" onClick={() => setPaused(!paused)}>{paused ? 'Replay demo' : 'Pause demo'}</button>
       <div role="img" aria-label="Animated sample of ProMoney Home. Adding a ¥1,200 Food & Dining transaction updates the daily Safe to spend amount. The demo then highlights an on-track savings goal.">
         <Stage
-          width={720}
-          height={340}
-          compact={{ below: 600, width: 358, height: 314 }}
+          width={500}
+          height={480}
+          compact={{ below: 500, width: 358, height: 378 }}
           initial={initial}
           poster={poster}
           script={paused ? undefined : play}
           cursor={paused ? undefined : { at: rest, ripple: true }}
           className="landing-product-demo"
         >
-          {(scene) => (
-            <Window className="pm-demo-window" url="ProMoney" lights="grey" body={{ className: 'pm-demo-body' }}>
-              <div className="pm-demo-sidebar" data-crop>
-                <Bar w={24} h={24} r={7} tone={5} />
-                {[0, 1, 2, 3, 4].map((index) => <Bar key={index} w={18} h={18} r={5} tone={index === 0 ? 4 : 2} />)}
-              </div>
+          {(scene, _rect, layout) => (
+            <Phone className="pm-demo-phone" width={layout === 'compact' ? 326 : 428} frame="silver" wallpaper="#f6f8f5">
               <div className="pm-demo-main">
                 <div className="pm-demo-top">
                   <div className="pm-demo-title"><Text>Home</Text><Badge>Sample data</Badge></div>
-                  <Button variant="ghost" className="pm-demo-reset" data-target="reset" icon={<RotateCcw size={14} />}>Reset</Button>
-                  <Button variant="primary" data-target="add" icon={<Plus size={14} />}>Add</Button>
+                  <Button size="large" variant="ghost" className="pm-demo-reset" data-target="reset" icon={<RotateCcw size={16} />}>Reset</Button>
+                  <Button size="large" variant="primary" data-target="add" icon={<Plus size={16} />}>Add</Button>
                 </div>
                 <div className="pm-demo-metrics">
                   <SafeToSpend value={scene.spend} />
@@ -119,11 +116,10 @@ export default function HomeDemo() {
                 </div>
                 <Activity scene={scene} />
               </div>
-            </Window>
+            </Phone>
           )}
         </Stage>
       </div>
-      <button className="pm-demo-toggle" type="button" onClick={() => setPaused(!paused)}>{paused ? 'Replay demo' : 'Pause demo'}</button>
     </div>
   );
 }

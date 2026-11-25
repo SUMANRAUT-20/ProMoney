@@ -14,7 +14,7 @@ export default function AuthLayout({ title, subtitle, children, footer, welcome 
     <div className="pm-auth">
       <header className="pm-auth-topbar">
         <Link to="/login?view=welcome" className="brand" aria-label="ProMoney welcome">
-          <div className="brand-logo">¥</div>
+          <img className="brand-logo" src="/promoney-symbol.webp" width="40" height="40" alt="" />
           <span>ProMoney<small>Personal Finance · Japan (JPY)</small></span>
         </Link>
         <div className="pm-auth-header-tools">

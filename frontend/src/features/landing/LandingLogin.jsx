@@ -30,7 +30,7 @@ export default function LandingLogin({ open, onClose, sessionAvailable }) {
           <button className="landing-login-close" type="button" aria-label="Close login" onClick={() => dialogRef.current.close()}>
             <span aria-hidden="true">×</span>
           </button>
-          <h2 id="landing-login-title">Sign in to ProMoney</h2>
+          <h2 id="landing-login-title"><img src="/promoney-symbol.webp" width="24" height="24" alt="" />Sign in to ProMoney</h2>
           <p>Access your personal finance workspace.</p>
           {sessionAvailable ? form : <AuthProvider>{form}</AuthProvider>}
           <p>New to ProMoney? <Link to="/register">Create an account</Link></p>

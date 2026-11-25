@@ -61,7 +61,7 @@ export default function Sidebar({ onNavigate }) {
   return (
     <aside className="sidebar">
       <NavLink to="/home" className="brand" aria-label="ProMoney home" onClick={onNavigate}>
-        <div className="brand-logo">¥</div>
+        <img className="brand-logo" src="/promoney-symbol.webp" width="29" height="29" alt="" />
         <span>ProMoney</span>
       </NavLink>
 

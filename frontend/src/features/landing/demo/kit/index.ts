@@ -1,6 +1,7 @@
 export { Stage } from './stage'
 export { type Act } from './act'
-export { Bar, Text, Window } from './window'
+export { Bar, Text } from './window'
+export { Phone } from './phone'
 export { Button } from './controls/Button'
 export { Badge } from './controls/Badge'
 export { Draft } from './controls/Draft'

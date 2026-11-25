@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import HomeDemo from './demo/HomeDemo';
+import HeroSatellites from './HeroSatellites';
 import LandingLogin from './LandingLogin';
 import { FAQ, NidhiTeaser, ProofStrip, Statement, StatBand, Tagline, UseCases } from './LandingContent';
 import './landing.css';
@@ -18,12 +19,15 @@ function Hero() {
   return (
     <section className="landing-hero landing-shell" aria-labelledby="landing-title">
       <div className="landing-hero-copy">
-        <h1 id="landing-title"><span>Know where</span> <span>your yen goes.</span></h1>
+        <h1 id="landing-title">Know where your yen goes.</h1>
         <p>Track spending, plan for bills, and save toward what matters in one workspace for life in Japan.</p>
         <DemoLink />
         <p className="landing-caption">Explore with sample data.</p>
       </div>
-      <HomeDemo />
+      <div className="landing-hero-scene">
+        <HeroSatellites />
+        <HomeDemo />
+      </div>
     </section>
   );
 }
@@ -71,7 +75,7 @@ export default function LandingPage({ sessionAvailable }) {
     <div className="landing-root" ref={page}>
       <a className="landing-skip" href="#landing-content">Skip to content</a>
       <header className="landing-header landing-shell">
-        <span className="landing-brand"><span aria-hidden="true">¥</span> ProMoney</span>
+        <span className="landing-brand"><img src="/promoney-symbol.webp" width="32" height="32" alt="" /> ProMoney</span>
         <nav aria-label="Landing navigation">
           <button className="landing-login-link" type="button" onClick={() => setLoginOpen(true)}>Log in <span aria-hidden="true">↗</span></button>
         </nav>

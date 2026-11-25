@@ -110,13 +110,13 @@ export function NidhiTeaser() {
       </div>
       <figure className="landing-chat">
         <figcaption>Nidhi <span>Sample conversation</span></figcaption>
-        <blockquote className="landing-chat-user">save 500000 for a Yamaha R1</blockquote>
+        <blockquote className="landing-chat-user">save for a Yamaha R1</blockquote>
         <p className="landing-chat-reply">Review the proposed change on the card before confirming.</p>
         <div className="landing-chat-proposal">
           <p>Create a savings goal</p>
           <dl>
             <div><dt>Goal</dt><dd>Yamaha R1</dd></div>
-            <div><dt>Target</dt><dd>¥500,000</dd></div>
+            <div><dt>Target</dt><dd>¥2,530,000</dd></div>
           </dl>
           <span className="landing-chat-confirm">Confirm</span>
         </div>

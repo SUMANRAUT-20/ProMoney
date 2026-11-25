@@ -46,7 +46,7 @@ p { line-height: 1.5; }
 .side-layer { flex: 0 0 242px; z-index: 30; }
 .sidebar { height: 100vh; position: sticky; top: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
 .brand { display: flex; align-items: center; gap: 11px; height: 77px; min-height: 77px; border-bottom: 1px solid var(--border); padding: 0 22px; font-size: 18px; letter-spacing: -.5px; font-weight: 750; }
-.brand-logo { display: grid; place-items: center; height: 29px; width: 29px; color: white; background: linear-gradient(145deg, #0c9865, #006b46); border-radius: 8px; font-weight: 800; font-size: 17px; box-shadow: 0 3px 8px #08785122; }
+.brand-logo { display: block; flex: none; height: 29px; width: 29px; padding: 2px; object-fit: contain; }
 .nav { display: flex; flex-direction: column; padding: 23px 12px; gap: 3px; }
 .nav-item { display: flex; align-items: center; gap: 13px; min-height: 39px; padding: 0 14px; color: var(--text); border-radius: 8px; font-size: 13px; font-weight: 530; transition: background .2s, color .2s; }
 .nav-item svg { color: #4f6660; }
