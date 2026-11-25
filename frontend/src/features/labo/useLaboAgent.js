@@ -6,6 +6,7 @@ import { makeId, money } from '../../utils/formatters';
 import { useStatementImport } from './useStatementImport';
 import { useAllocationConfirmation } from './useAllocationConfirmation';
 import { useChatActions } from './useChatActions';
+import { routeLaboQuestion } from './laboIntent';
 import {
   QUICK_QUESTIONS,
   compressReceiptImage,
@@ -152,9 +153,16 @@ export function useLaboAgent() {
         return;
       }
 
+      const route = routeLaboQuestion(question, chatActions.matches);
+      if (route.guidance) {
+        setMessages((prev) => [...prev, { id: makeId('msg'), role: 'ai', text: route.guidance }]);
+        speak(route.guidance);
+        return;
+      }
+
       setBusy(true);
       try {
-        if (chatActions.matches(question)) {
+        if (route.action) {
           await chatActions.preview(question, (text) => replyWithMemory(question, text));
           return;
         }

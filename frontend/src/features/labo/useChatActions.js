@@ -1,12 +1,9 @@
 import { useState } from 'react';
 import { apiClient } from '../../services/api';
 import { makeId } from '../../utils/formatters';
+import { isRecordAction } from './laboIntent';
 import { actionEntities } from './chatActionFields';
 import { chatActionLabel, confirmChatAction, makeChatProposal } from './chatActionProposal';
-
-const actionVerb = /\b(?:add|create|make|set up|record|open|edit|update|change|rename|delete|remove)\b/i;
-const actionObject = /\b(?:(?:account|transaction|budget|bill|subscription|goal)s?|categor(?:y|ies))\b/i;
-const isAction = (question) => actionVerb.test(question) && actionObject.test(question) && !/^(?:how|where|can i)\b/i.test(question);
 
 export function useChatActions({ finance, setMessages, setBusy, setError }) {
   const [pending, setPending] = useState(null);
@@ -22,7 +19,7 @@ export function useChatActions({ finance, setMessages, setBusy, setError }) {
   async function preview(question, replyToPreview) {
     if (clarification && /^cancel[.!]?$/i.test(question)) return cancel();
     if (pending) return replyToPreview('Confirm or cancel the current action first.');
-    const text = isAction(question) || !clarification ? question : `${clarification}\nClarification: ${question}`;
+    const text = isRecordAction(question) || !clarification ? question : `${clarification}\nClarification: ${question}`;
     if (text.length > 500) {
       setClarification('');
       return replyToPreview('Can you restate the action and the record details in one short message?');
@@ -57,5 +54,5 @@ export function useChatActions({ finance, setMessages, setBusy, setError }) {
     }
   }
 
-  return { pending, matches: (question) => Boolean(clarification) || isAction(question), preview, confirm, cancel };
+  return { pending, matches: (question) => Boolean(clarification) || isRecordAction(question), preview, confirm, cancel };
 }

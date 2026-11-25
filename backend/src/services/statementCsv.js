@@ -92,20 +92,30 @@ function statementDateOrder(records, column) {
   return orders.values().next().value;
 }
 
+class InvalidCalendarDate extends Error {}
+
+function readCalendarDate(value) {
+  try {
+    return iso(value);
+  } catch (error) {
+    throw new InvalidCalendarDate(error.message);
+  }
+}
+
 export function parseStatementDate(value, dateOrder) {
   const text = normalized(value);
   const yearFirst = /^([1-9]\d{3})([-/.])(\d{1,2})\2(\d{1,2})$/.exec(text);
   const japanese = /^([1-9]\d{3})年\s*(\d{1,2})月\s*(\d{1,2})日$/.exec(text);
   if (yearFirst || japanese) {
     const [, year, month, day] = japanese ?? [null, yearFirst[1], yearFirst[3], yearFirst[4]];
-    return iso(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`);
+    return readCalendarDate(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`);
   }
   const parts = splitDate(text);
   const order = parts && (dateOrder ?? explicitDateOrder(parts));
   if (!order) throw new Error('date is invalid or ambiguous (use YYYY-MM-DD)');
   const [, first, , second, year] = parts;
   const [month, day] = order === 'month-first' ? [first, second] : [second, first];
-  return iso(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`);
+  return readCalendarDate(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`);
 }
 
 export function parseSignedStatementAmount(value) {
@@ -149,11 +159,12 @@ function readTransaction(record, columns, dateOrder) {
   const note = record[columns.note].trim();
   if (!note) throw new Error('description is missing');
   const signedAmount = readAmount(record, columns);
+  const amount = positiveYen(Math.abs(signedAmount));
   return {
     transaction_date: parseStatementDate(record[columns.date], dateOrder),
     note: note.slice(0, 150),
     kind: signedAmount < 0 ? 'expense' : 'income',
-    amount: positiveYen(Math.abs(signedAmount)),
+    amount,
     ...(columns.accountLabel !== undefined && { accountLabel: record[columns.accountLabel].trim() }),
     ...(columns.paymentMethod !== undefined && { paymentMethod: record[columns.paymentMethod].trim() }),
     ...(columns.categoryLabel !== undefined && { categoryLabel: record[columns.categoryLabel].trim() }),
@@ -174,7 +185,7 @@ export function parseStatementTable([headers, ...records], { onInvalidRow, onPar
       return row;
     } catch (error) {
       if (onInvalidRow) {
-        onInvalidRow(index, error.message);
+        onInvalidRow(index, error.message, error instanceof InvalidCalendarDate);
         return null;
       }
       throw new StatementCsvError(`I could not import data row ${index + 1}: ${error.message}.`);

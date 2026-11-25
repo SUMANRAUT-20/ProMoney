@@ -14,6 +14,14 @@ function cellText(cell) {
   return cell.text;
 }
 
+function isAggregateHeader(cells) {
+  const labels = cells.map((cell) => cell.normalize('NFKC').replace(/\s*\([^)]*\)\s*$/, '').trim().toLowerCase());
+  return labels.some((label) => /^(?:month|period|quarter|year|月|期間)$/.test(label)) &&
+    labels.some((label) => /^(?:income|収入)$/.test(label)) &&
+    labels.some((label) => /^(?:expenses?|支出)$/.test(label)) &&
+    labels.some((label) => /^(?:surplus|net|transactions|transaction count|収支|件数)$/.test(label));
+}
+
 function worksheetTable(sheet) {
   const entries = [];
   let headerAt = -1;
@@ -37,6 +45,9 @@ function worksheetTable(sheet) {
       entries.push({ number: row.number, cells: sourceCells.map((cell) => cell.text), error: error.message });
     }
   });
+  if (headerAt < 0 && entries.some(({ cells }) => isAggregateHeader(cells))) {
+    return inspectStatementTable(sheet.name, []);
+  }
   return inspectStatementTable(sheet.name, entries, { headerAt });
 }
 
