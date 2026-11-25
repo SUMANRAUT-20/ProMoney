@@ -24,12 +24,12 @@ async function readSheets(bytes, format) {
   return [inspectStatementTable('CSV statement', records.map((cells, index) => ({ number: index + 1, cells })))];
 }
 
-export async function parseStatementImport(bytes, format, { categories, logUsage = console.info, ...options }) {
+export async function parseStatementImport(bytes, format, { categories, userMessage, logUsage = console.info, ...options }) {
   const meta = createStatementMeta(options);
   try {
     const source = await readSheets(bytes, format);
     if (format === 'pdf' && source.every((sheet) => !sheet.data.length)) {
-      const rows = await extractScannedRows(bytes, meta);
+      const rows = await extractScannedRows(bytes, meta, userMessage);
       const toCheck = rows.filter((row) => row.uncertain).length;
       return { rows, warnings: [], sheets: [{ name: 'Scanned PDF', found: rows.length, skipped: 0,
         reasons: [], note: null, parseMethod: 'ai', cleaned: rows.length, toCheck }] };
@@ -38,7 +38,7 @@ export async function parseStatementImport(bytes, format, { categories, logUsage
     const warnings = [];
     const sheets = [];
     for (const sheet of source) {
-      const result = await cleanStatementSheet(sheet, categories, meta);
+      const result = await cleanStatementSheet(sheet, categories, meta, userMessage);
       rows.push(...result.rows);
       sheets.push(result.summary);
       for (const [number, reason] of result.failures) warnings.push(`${sheet.name}, row ${number}: ${reason}.`);

@@ -260,11 +260,9 @@ export function useLaboAgent() {
   );
 
   const scanPhoto = useCallback(
-    async (file) => {
+    async (file, hint) => {
       if (!file || busy) return null;
       setError('');
-      const hint = input.trim();
-      setInput('');
       setMessages((prev) => [
         ...prev,
         {
@@ -302,7 +300,7 @@ export function useLaboAgent() {
         setBusy(false);
       }
     },
-    [busy, input, finance.categories, voiceLang, speak]
+    [busy, finance.categories, voiceLang, speak]
   );
 
   const confirmProposal = useCallback(async () => {

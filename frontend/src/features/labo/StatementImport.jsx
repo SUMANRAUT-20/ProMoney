@@ -1,37 +1,10 @@
-import { useRef, useState } from 'react';
-import { Paperclip } from 'lucide-react';
+import { useState } from 'react';
 import { useFinance } from '../../context/FinanceContext';
 import { money } from '../../utils/formatters';
 import AccountFormModal from '../accounts/AccountFormModal';
 import { statementReviewNet, statementRowError, statementRowLabel } from './saveSelectedStatementRows';
 import { statementSheetBadge, statementSheetDetail } from './statementSheetSummary';
 import './statementImport.css';
-
-export function StatementAttachment({ onAttach, disabled }) {
-  const inputRef = useRef(null);
-  return (
-    <div className="labo-statement-actions">
-      <input
-        ref={inputRef}
-        type="file"
-        accept=".csv,.pdf,.xlsx,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        hidden
-        aria-label="Upload bank statement"
-        onChange={(event) => {
-          onAttach(event.target.files);
-          event.target.value = '';
-        }}
-      />
-      <button type="button" className="btn secondary compact" disabled={disabled}
-        onClick={() => inputRef.current?.click()}>
-        <Paperclip size={15} /> Attach statement
-      </button>
-      <span className="muted small">
-        Drop a CSV, PDF, or XLSX here. Files that need cleaning may be sent to Meta.
-      </span>
-    </div>
-  );
-}
 
 function StatementSheetList({ sheets }) {
   if (!sheets.length) return null;

@@ -1,17 +1,15 @@
-import { useRef } from "react";
+import { useState } from "react";
 import {
   Bot,
-  Camera,
+  BellRing,
   Info,
-  Mic,
-  MicOff,
   RotateCcw,
-  Send,
   Volume2,
   VolumeX,
 } from "lucide-react";
-import { PageHeading } from "../../components/ui";
-import { StatementAttachment, StatementReview } from "./StatementImport";
+import { StatementReview } from "./StatementImport";
+import LaboComposer from "./LaboComposer";
+import { sendChatDraft, stageChatAttachment } from "./composerDraft";
 import { ReportCard } from "./ReportCard";
 import { AllocationCard, PurchaseCard } from "./SimulatorCards";
 import ChatActionCard from "./ChatActionCard";
@@ -60,44 +58,59 @@ export default function LaboView() {
     decideMemory,
   } = useLaboAgent();
 
-  const photoInputRef = useRef(null);
+  const [attachment, setAttachment] = useState(null);
+  const [attachmentError, setAttachmentError] = useState("");
   const { logRef, onScroll, newAnswer, showLatest } = useChatScroll(
     messages, busy, pendingProposals.length, statement.rows.length,
   );
   const proposalsTotal = pendingProposals.reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
+  function stageFiles(files) {
+    if (!files.length) return;
+    try {
+      setAttachment(stageChatAttachment(files));
+      setAttachmentError("");
+    } catch (err) {
+      setAttachmentError(err.message);
+    }
+  }
+
+  function removeAttachment() {
+    setAttachment(null);
+    setAttachmentError("");
+  }
+
+  function send() {
+    if (busy || (!input.trim() && !attachment)) return;
+    if (attachment && attachment.format !== "photo" && statement.rows.length) {
+      setAttachmentError("Finish or cancel the current statement review before sending another statement.");
+      return;
+    }
+    setAttachmentError("");
+    if (attachment) {
+      setAttachment(null);
+      setInput("");
+    }
+    sendChatDraft(input, attachment, { ask, scanPhoto, importStatement: statement.attach });
+  }
+
   return (
-    <div className="labo-page">
-      <PageHeading
-        title="Nidhi"
-        subtitle="Chat, voice, receipt scans, statement imports, and reports."
-      />
-
-      <div className="status-banner" role="status">
-        <Info size={16} />
-        <div>
-          <strong>Review before saving</strong>
-          <span>
-            Nidhi shows a review before saving transactions from chat, receipt photos, or statements.
-          </span>
-        </div>
-      </div>
-
       <section
-        className="section-card card labo-chat"
+        className="labo-page"
+        aria-label="Nidhi chat"
         onDragOver={(event) => {
           if (event.dataTransfer.types.includes("Files")) event.preventDefault();
         }}
         onDrop={(event) => {
           if (!event.dataTransfer.files.length) return;
           event.preventDefault();
-          statement.attach(event.dataTransfer.files);
+          stageFiles(event.dataTransfer.files);
         }}
       >
-        <div className="section-title" style={{ flexWrap: "wrap", gap: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <header className="labo-header">
+          <div className="labo-heading">
             <Bot size={20} color="var(--green)" />
-            <h2 style={{ margin: 0 }}>Ask Nidhi</h2>
+            <h1>Nidhi</h1>
             {isListening && (
               <span className="status-pill due_soon" role="status">
                 🎤 Listening ({voiceLang === "ja-JP" ? "JA" : "EN"})…
@@ -110,7 +123,7 @@ export default function LaboView() {
             )}
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div className="labo-voice-controls">
             <div className="segmented" aria-label="Voice recognition language">
               <button
                 type="button"
@@ -141,15 +154,18 @@ export default function LaboView() {
               {voiceMuted ? <VolumeX size={15} /> : <Volume2 size={15} />}
               <span>{voiceMuted ? "Muted" : "Voice On"}</span>
             </button>
-            <button type="button" className="btn secondary compact" disabled={busy}
+            <button type="button" className="btn secondary compact" disabled={busy} aria-label="Hear alerts" title="Hear alerts"
               onClick={() => ask(voiceLang === "ja-JP" ? "アラートを聞く" : "Hear alerts")}>
-              <Volume2 size={15} /> Hear alerts
+              <BellRing size={15} aria-hidden="true" /> <span>Hear alerts</span>
             </button>
           </div>
-        </div>
+        </header>
 
         <div className="labo-log-frame">
           <div className="labo-chat-log" ref={logRef} onScroll={onScroll} role="log" aria-label="Chat messages" tabIndex={0}>
+            <p className="labo-review-note muted small">
+              <Info size={15} aria-hidden="true" /> Review proposed transactions before saving.
+            </p>
             <LaboResources categories={categories} />
             {messages.length === 0 && (
               <p className="muted small" style={{ margin: 0 }}>
@@ -221,85 +237,23 @@ export default function LaboView() {
           )}
         </div>
 
-        <div className="labo-quick">
-          {quickQuestions.map((q) => (
-            <button key={q} type="button" className="labo-chip" onClick={() => ask(q)} disabled={busy}>
-              {q}
-            </button>
-          ))}
+        <div className="labo-composer">
+          <div className="labo-quick">
+            {quickQuestions.map((q) => (
+              <button key={q} type="button" className="labo-chip" onClick={() => ask(q)} disabled={busy}>
+                {q}
+              </button>
+            ))}
+          </div>
+          {(attachmentError || error) && (
+            <p className="labo-composer-error small" role="alert">{attachmentError || error}</p>
+          )}
+          <LaboComposer
+            input={input} setInput={setInput} attachment={attachment} stageFiles={stageFiles}
+            removeAttachment={removeAttachment} send={send} busy={busy} statementPending={statement.rows.length > 0}
+            voiceLang={voiceLang} isListening={isListening} speechSupported={speechSupported} toggleListening={toggleListening}
+          />
         </div>
-
-        {error && (
-          <p className="small" style={{ color: "var(--red, #c0392b)" }} role="alert">
-            {error}
-          </p>
-        )}
-
-        <form
-          className="labo-input-row"
-          onSubmit={(e) => {
-            e.preventDefault();
-            ask();
-          }}
-        >
-          <input
-            ref={photoInputRef}
-            type="file"
-            accept="image/*"
-            hidden
-            aria-label="Upload receipt or bill photo"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              e.target.value = "";
-              if (file) scanPhoto(file);
-            }}
-          />
-
-          <button
-            type="button"
-            className="btn secondary compact"
-            onClick={() => photoInputRef.current?.click()}
-            disabled={busy}
-            aria-label="Attach bill or receipt photo"
-            title="Attach a photo of a bill or receipt (📷)"
-          >
-            <Camera size={15} />
-          </button>
-
-          <button
-            type="button"
-            className={`btn ${isListening ? "primary" : "secondary"} compact`}
-            onClick={toggleListening}
-            disabled={busy || !speechSupported}
-            aria-pressed={isListening}
-            aria-label={isListening ? "Stop voice input" : "Start voice input"}
-            title={
-              speechSupported
-                ? isListening
-                  ? "Listening — tap to stop"
-                  : `Speak in ${voiceLang === "ja-JP" ? "Japanese" : "English"}`
-                : "Speech recognition not supported in this browser"
-            }
-          >
-            {isListening ? <MicOff size={15} /> : <Mic size={15} />}
-          </button>
-
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about your money or say 'spent 500 on lunch and 1200 on train'…"
-            maxLength={500}
-            aria-label="Ask Nidhi a question or enter transactions"
-          />
-
-          <button type="submit" className="btn primary compact" disabled={busy || !input.trim()}>
-            <Send size={15} /> Ask
-          </button>
-        </form>
-        <StatementAttachment onAttach={statement.attach} disabled={busy || statement.rows.length > 0} />
       </section>
-
-    </div>
   );
 }

@@ -100,10 +100,14 @@ export const apiClient = {
   async laboScan(body) {
     return request('/labo/scan', { method: 'POST', body: JSON.stringify(body) });
   },
-  async laboImport(file, format) {
+  async laboImport(file, format, message = '') {
     return request('/labo/import', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/octet-stream', 'X-Statement-Format': format },
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'X-Statement-Format': format,
+        ...(message && { 'X-Statement-Message': encodeURIComponent(message.toWellFormed()) }),
+      },
       body: file,
       signal: AbortSignal.timeout(120_000),
     });
