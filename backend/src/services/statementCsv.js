@@ -161,7 +161,7 @@ function readTransaction(record, columns, dateOrder) {
   };
 }
 
-export function parseStatementTable([headers, ...records], { onInvalidRow } = {}) {
+export function parseStatementTable([headers, ...records], { onInvalidRow, onParsedRow } = {}) {
   const columns = headers && findStatementColumns(headers);
   if (!columns) throw new StatementCsvError(UNSUPPORTED_HEADER);
   if (records.length === 0) throw new StatementCsvError('The statement contains no transaction rows.');
@@ -169,7 +169,9 @@ export function parseStatementTable([headers, ...records], { onInvalidRow } = {}
   return records.map((record, index) => {
     try {
       if (record.length !== headers.length) throw new Error('column count differs from the header');
-      return readTransaction(record, columns, order);
+      const row = readTransaction(record, columns, order);
+      onParsedRow?.(index, row);
+      return row;
     } catch (error) {
       if (onInvalidRow) {
         onInvalidRow(index, error.message);
@@ -181,13 +183,24 @@ export function parseStatementTable([headers, ...records], { onInvalidRow } = {}
 }
 
 export function parseStatementCsv(text) {
+  const records = readStatementCsvRecords(text);
+  if (records?.length && isStatementHeader(records[0])) return parseStatementTable(records);
+  throw new StatementCsvError(UNSUPPORTED_HEADER);
+}
+
+export function readStatementCsvRecords(text) {
   if (typeof text !== 'string' || text.includes('\0')) {
     throw new StatementCsvError('I could not read the statement as CSV.');
   }
   const csv = text.replace(/^\uFEFF/, '');
+  let best = [];
   for (const delimiter of [',', ';', '\t']) {
     const records = readRecords(csv, delimiter);
-    if (records?.length && isStatementHeader(records[0])) return parseStatementTable(records);
+    if (!records?.length) continue;
+    if (isStatementHeader(records[0])) return records;
+    if (!best.length || structuredRows(records) > structuredRows(best)) best = records;
   }
-  throw new StatementCsvError(UNSUPPORTED_HEADER);
+  return best;
 }
+
+const structuredRows = (rows) => rows.filter((row) => row.length > 1).length;

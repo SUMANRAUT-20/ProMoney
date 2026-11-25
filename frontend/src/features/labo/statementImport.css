@@ -22,6 +22,15 @@
   margin-inline-start: 8px;
 }
 
+.labo-statement-sheets {
+  max-height: 10rem;
+  overflow-y: auto;
+}
+
+.labo-statement-review details summary {
+  cursor: pointer;
+}
+
 .labo-statement-account {
   display: flex;
   align-items: center;

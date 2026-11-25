@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { parseStatementPdf } from '../src/services/statementPdf.js';
+import { parseStatementImport } from '../src/services/statementImport.js';
 
 function pdfFixture(stream) {
   const objects = [
@@ -86,4 +87,28 @@ test('PDF with an unusable transaction text layer attempts document extraction',
     },
   }), { code: 'STATEMENT_UNREADABLE', message: /could not read transactions/ });
   assert.equal(calls, 1);
+});
+
+test('A messy text PDF sends numbered text rows through the same cleaning and review path', async () => {
+  const statement = pdfFixture([
+    textCell(30, 720, 'Date'), textCell(154, 720, 'Description'), textCell(330, 720, 'Amount'),
+    textCell(30, 700, 'Nov 9, 2026'), textCell(154, 700, 'Train ticket'), textCell(330, 700, '-450'),
+  ].join('\n'));
+  let dump;
+  const result = await parseStatementImport(statement, 'pdf', {
+    categories: [{ id: 7, name: 'Transportation', kind: 'expense' }], env: metaEnv,
+    logUsage: () => {},
+    fetchImpl: async (_, options) => {
+      dump = JSON.parse(JSON.parse(options.body).messages[1].content);
+      return { ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({
+        rows: [{ sourceRow: 2, date: '2026-11-09', type: 'expense', title: 'Train ticket',
+          amount: 450, category: 'Transportation', confidence: 0.95 }],
+        skipped: [],
+      }) } }] }) };
+    },
+  });
+  assert.deepEqual(dump.data, [[2, ['Nov 9, 2026', 'Train ticket', '-450']]]);
+  assert.equal(result.sheets[0].parseMethod, 'ai');
+  assert.equal(result.rows[0].amount, 450);
+  assert.equal(result.rows[0].aiCategoryId, 7);
 });

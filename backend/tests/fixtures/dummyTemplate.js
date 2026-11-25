@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 
-export async function dummyTemplateBytes() {
+export async function dummyTemplateBytes({ invalidDate = true } = {}) {
   const workbook = new ExcelJS.Workbook();
   workbook.addWorksheet('START HERE').addRows([
     ['ProMoney  |  Demo Data Workbook'], [], [], ['PURPOSE', 'One tab per month.'],
@@ -28,7 +28,7 @@ export async function dummyTemplateBytes() {
       'Rent', 'Demo Bank', description, amount, 'Bank Transfer', null, null,
       'Expenses', { formula: 'SUMIF(B6:B155,"Expense",F6:F155)' },
     ];
-    if (name === '02 Feb') sheet.getRow(16).values = [
+    if (name === '02 Feb' && invalidDate) sheet.getRow(16).values = [
       '            2026-02-30', 'Expense', 'Utilities', 'Demo Cash', 'Electricity Bill', 5000, 'Cash',
     ];
   }
