@@ -1,4 +1,5 @@
 import { verifyAnswerNumbers } from './laboGrounding.js';
+import { LIVE_WEB_TOOL, selectWebExcerpt } from './tavilySearch.js';
 
 const WONDER = 'muse-wonder-1.0';
 const UNVERIFIED = "I couldn't verify those figures in ProMoney. Please check the Home or Transactions page.";
@@ -59,7 +60,8 @@ async function getModelReply(complete, messages, tools, ember, logUsage) {
   } catch (error) {
     logUsage('[Nidhi chat fallback]', { from: WONDER, to: ember, reason: error.status ?? error.code ?? error.name });
     try {
-      return { ...await modelTurn(complete, messages, tools, ember, logUsage), model: ember };
+      const fallbackTools = tools.filter(({ function: tool }) => tool.name !== LIVE_WEB_TOOL);
+      return { ...await modelTurn(complete, messages, fallbackTools, ember, logUsage), model: ember };
     } catch (fallbackError) {
       if (fallbackError.code === 'LABO_NOT_CONFIGURED') throw fallbackError;
       throw Object.assign(new Error('Meta conversation unavailable.'), { code: 'META_UPSTREAM' });
@@ -75,8 +77,19 @@ export async function completeWonderTurn({
   if (!calls.length) return { ...scope, answer: groundReply(answer, snapshot, messages.at(-1).content, logUsage) };
   const call = calls.length === 1 && calls[0]?.function;
   if (!call || !tools.some((tool) => tool.function.name === call.name)) return { ...scope, answer: CLARIFY };
+  if (call.name === LIVE_WEB_TOOL && model !== WONDER) return { ...scope, answer: CLARIFY };
   let args;
   try { args = JSON.parse(call.arguments); } catch { return { ...scope, answer: CLARIFY }; }
   const result = await resolveTool?.(call.name, args);
+  if (call.name === LIVE_WEB_TOOL && result?.evidence) {
+    const selected = await selectWebExcerpt(result, messages.at(-1).content, (evidence) => complete(evidence, {
+      model: WONDER, json: true, maxTokens: 1000,
+      onUsage: (counts) => logUsage('[Nidhi chat usage]', {
+        model: WONDER, inputTokens: counts?.prompt_tokens ?? counts?.input_tokens ?? 0,
+        outputTokens: counts?.completion_tokens ?? counts?.output_tokens ?? 0, totalTokens: counts?.total_tokens ?? 0,
+      }),
+    }));
+    return { ...scope, ...selected };
+  }
   return { ...scope, ...(result ?? { answer: CLARIFY }) };
 }

@@ -179,6 +179,19 @@ export default function LaboView() {
                 className={`labo-msg ${m.role === "user" ? "labo-msg-user" : "labo-msg-ai"}`}
               >
                 {m.role === "user" ? <div>{m.text}</div> : <ChatMarkdown text={m.text} />}
+                {m.web && (
+                  <ul className="labo-web-sources" aria-label="Live web sources">
+                    {m.web.sources.map(({ title, url }) => (
+                      <li key={url}><a href={url} target="_blank" rel="noopener noreferrer">{title}</a></li>
+                    ))}
+                  </ul>
+                )}
+                {m.chart && (
+                  <figure className="labo-chat-chart">
+                    <img src={m.chart.dataUrl} alt={m.chart.alt} width={m.chart.width} height={m.chart.height} />
+                    <a href={m.chart.dataUrl} download={m.chart.filename}>Download PNG</a>
+                  </figure>
+                )}
                 {m.memoryProposal && <MemoryReview proposal={m.memoryProposal} onDecision={(remembered) => decideMemory(m.id, remembered)} />}
                 {m.remembered && <p className="muted small" role="status">Remembered</p>}
                 {m.report && <ReportCard report={m.report} signature={m.signature} downloadFormat={m.downloadFormat} />}
