@@ -2,37 +2,32 @@
  * ProMoney LA-BO Controller (Phase 4 & Phase 6 Branch 1: Multi-Add Parse).
  * Joint Owners: Arpan Khatiwada & Suman Raut
  *
- * Uses `askLabo` and `parseTransactionWithLabo`, which route to Meta
- * Model API (`muse-ember-1.0`, primary) or Groq (`openai/gpt-oss-120b`,
- * fallback) based on `AI_PROVIDER` in root `.env`.
+ * Chat uses Muse Wonder with Ember fallback. Photo extraction uses Ember.
  */
-import { askLabo, parseTransactionWithLabo, scanReceiptWithLabo } from '../services/laboChat.js';
-import { getLaboInsight } from './laboInsights.js';
+import { parseTransactionWithLabo, scanReceiptWithLabo } from '../services/laboChat.js';
+import { getLaboShortcut } from './laboInsights.js';
 import { MemoryModel } from '../models/memoryModel.js';
-import { aboutThisUser, memoryCategory } from '../services/nidhiMemory.js';
+import { memoryCategory } from '../services/nidhiMemory.js';
+import { requestedImportGuidance } from '../services/nidhiTools.js';
+import { chatForUser } from './nidhiChatContext.js';
 
 export const laboController = {
   async chat(req, res, next) {
     try {
-      const { question, snapshot, history } = req.body ?? {};
+      const { question, history } = req.body ?? {};
       if (typeof question !== 'string' || !question.trim()) {
         return res.status(400).json({ error: 'question is required', status: 400 });
       }
       if (question.length > 500) {
         return res.status(400).json({ error: 'question is too long (max 500 characters)', status: 400 });
       }
-      const insight = await getLaboInsight(question.trim(), req.user?.id);
-      if (insight) return res.set('Cache-Control', 'no-store').json({ status: 'ok', data: insight });
-      if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
-        return res.status(400).json({ error: 'snapshot (finance data) is required', status: 400 });
-      }
-      const { answer, provider, model } = await askLabo({
-        question: question.trim(),
-        snapshot,
-        history,
-        aboutUser: aboutThisUser(await MemoryModel.findByUser(req.user?.id)),
-      });
-      return res.json({ status: 'ok', data: { answer, provider, model } });
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: 'Sign in to chat with Nidhi.', status: 401 });
+      const text = question.trim();
+      const guidance = requestedImportGuidance(text);
+      const data = guidance ? { answer: guidance }
+        : await getLaboShortcut(text, userId) || await chatForUser({ userId, question: text, history });
+      return res.set('Cache-Control', 'no-store').json({ status: 'ok', data });
     } catch (err) {
       if (err.code === 'GROQ_UPSTREAM' || err.code === 'META_UPSTREAM') {
         return res.status(502).json({ error: 'The AI service is busy right now. Please try again.', status: 502 });

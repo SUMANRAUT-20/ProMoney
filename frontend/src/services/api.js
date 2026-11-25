@@ -74,9 +74,6 @@ export const apiClient = {
     return request('/labo/chat', { method: 'POST', body: JSON.stringify(body) });
   },
 
-  async previewLaboAction(text) {
-    return request('/labo/actions/preview', { method: 'POST', body: JSON.stringify({ text }) });
-  },
   async previewNidhiMemory(question, answer) {
     return request('/labo/memory/preview', { method: 'POST', body: JSON.stringify({ question, answer }) });
   },
@@ -91,10 +88,6 @@ export const apiClient = {
   },
   async calculateLoanPayoff(body) {
     return request('/labo/loans', { method: 'POST', body: JSON.stringify(body) });
-  },
-
-  async laboParse(body) {
-    return request('/labo/parse', { method: 'POST', body: JSON.stringify(body) });
   },
 
   async laboScan(body) {

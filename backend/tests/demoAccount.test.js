@@ -13,7 +13,7 @@ import { SettingsModel } from '../src/models/settingsModel.js';
 import { getDemoCredentials, seedDemoAccount } from '../src/services/demoSeed.js';
 import { getAccountTotals } from '../src/services/financeMath.js';
 import { buildLaboMessages } from '../src/services/laboChat.js';
-import { buildFinanceSnapshot } from '../../frontend/src/features/labo/buildSnapshot.js';
+import { buildFinanceSnapshot } from '../src/services/laboSnapshot.js';
 
 function createMockRes() {
   return {

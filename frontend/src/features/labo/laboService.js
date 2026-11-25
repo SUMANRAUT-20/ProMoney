@@ -1,6 +1,5 @@
 import { apiClient } from '../../services/api';
-import { currentMonthISO, makeId, todayISO } from '../../utils/formatters';
-import { buildFinanceSnapshot } from './buildSnapshot.js';
+import { makeId, todayISO } from '../../utils/formatters';
 
 /**
  * LA-BO Frontend Service Module (Phase 4 & Phase 6 Branch 1: Voice, Multi-Add, Undo)
@@ -142,72 +141,13 @@ export function isUndoCommand(text) {
   return clean === 'undo' || clean === 'undo that' || clean === '取り消し' || clean === '元に戻す';
 }
 
-/**
- * Heuristic check for whether a user message might be adding one or more
- * transactions (e.g. "spent 500 on lunch and 1200 on train", "khana 800, bus 220").
- */
-export function looksLikeAddIntent(text) {
-  const str = String(text || '').trim();
-  if (!str || str.endsWith('?') || str.endsWith('？')) return false;
-  if (!/\d{2,}/.test(str)) return false;
-  const lower = str.toLowerCase();
-  if (/^(how|what|why|when|where|am i|can i|could i|do i|show|tell|check before)\b/.test(lower)) return false;
-  if (/\b(by category|category breakdown|category spending|report|monthly comparison)\b|\bincome\b.*\bexpenses?\b|\bexpenses?\b.*\bincome\b|カテゴリ別|レポート|収入.*支出/.test(lower)) return false;
-  if (
-    /\b(spent|spend|paid|pay|bought|buy|add|record|received|got|salary|baito|khana|kharcha|aayo|lunch|dinner|coffee|bus|train|groceries|rent)\b/i.test(
-      str
-    )
-  ) {
-    return true;
-  }
-  if (/(払った|買った|使った|給料|バイト|追加)/.test(str)) {
-    return true;
-  }
-  // Also match comma/and-separated "word number" pairs like "tea 300, snack 450"
-  return /[a-zA-Z\u3040-\u9faf]+\s+[¥￥]?\d{2,}/.test(str);
-}
-
-export async function sendLaboQuestion({ question, finance, messages = [] }) {
-  const snapshot = buildFinanceSnapshot(finance, currentMonthISO(), todayISO());
+export async function sendLaboQuestion({ question, messages = [] }) {
   const history = messages.slice(-8).map(({ role, text }) => ({
     role: role === 'ai' ? 'assistant' : role, content: text,
   }));
-  const payload = await apiClient.laboChat({ question, snapshot, history });
+  const payload = await apiClient.laboChat({ question, history });
   if (!payload?.data?.answer) throw new Error('Nidhi did not return a reply.');
-  return {
-    answer: payload.data.answer,
-    provider: payload?.data?.provider || 'meta',
-    model: payload?.data?.model || null,
-    report: payload?.data?.report,
-    signature: payload?.data?.signature,
-    downloadFormat: payload?.data?.downloadFormat,
-    warnings: payload?.data?.warnings,
-    purchase: payload?.data?.purchase,
-    allocation: payload?.data?.allocation,
-  };
-}
-
-export async function parseLaboTransaction({ text, categories }) {
-  const payload = await apiClient.laboParse({
-    text,
-    categories,
-    today: todayISO(),
-  });
-  const rawList = Array.isArray(payload?.data?.proposals)
-    ? payload.data.proposals
-    : payload?.data?.proposal
-      ? [payload.data.proposal]
-      : [];
-  const proposals = rawList.map((item) => ({
-    ...item,
-    itemId: item.itemId || makeId('prop'),
-  }));
-  return {
-    proposal: proposals[0] || null,
-    proposals,
-    provider: payload?.data?.provider || 'meta',
-    model: payload?.data?.model || null,
-  };
+  return payload.data;
 }
 
 /**

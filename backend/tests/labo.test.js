@@ -16,7 +16,6 @@ import {
   getActiveProvider,
   verifyAnswerNumbers,
   LABO_MODEL,
-  META_MODEL,
   META_MAX_COMPLETION_TOKENS,
 } from '../src/services/laboChat.js';
 import { laboController } from '../src/controllers/laboController.js';
@@ -58,7 +57,7 @@ test('buildLaboMessages embeds the snapshot numbers and the no-inventing rule', 
   assert.equal(messages[1].content, 'How much did I spend?');
 });
 
-test('Both chat providers receive the latest eight history turns and use their chat-only model override', async () => {
+test('Wonder receives the latest eight history turns with extraction models configured separately', async () => {
   const history = Array.from({ length: 10 }, (_, index) => ({
     role: index % 2 ? 'assistant' : 'user', content: `Turn ${index}`,
   }));
@@ -66,7 +65,7 @@ test('Both chat providers receive the latest eight history turns and use their c
   for (const provider of ['meta', 'groq']) {
     const env = {
       AI_PROVIDER: provider, META_API_KEY: 'test-meta', GROQ_API_KEY: 'test-groq',
-      META_MODEL: 'extraction-model', GROQ_MODEL: 'extraction-model', CHAT_MODEL: 'conversation-model',
+      META_MODEL: 'extraction-model', GROQ_MODEL: 'extraction-model', CHAT_MODEL: 'ignored-chat-override',
     };
     const bodies = [];
     const fetchImpl = async (_url, { body }) => {
@@ -74,8 +73,8 @@ test('Both chat providers receive the latest eight history turns and use their c
       return Response.json({ choices: [{ message: { content: '{"action":"none"}' } }] });
     };
     const reply = await askLabo({ question: 'Remind me', snapshot, history, env, fetchImpl });
-    assert.equal(reply.model, 'conversation-model');
-    assert.equal(bodies[0].model, 'conversation-model');
+    assert.equal(reply.model, 'muse-wonder-1.0');
+    assert.equal(bodies[0].model, 'muse-wonder-1.0');
     assert.deepEqual(bodies[0].messages.slice(1, -1), history.slice(-8));
     assert.deepEqual(bodies[0].messages.at(-1), { role: 'user', content: 'Remind me' });
 
@@ -132,7 +131,7 @@ test('providers log the upstream status and error body while masking their API k
   }
 });
 
-test('askMeta posts to Meta Model API (Llama 4) and askLabo routes by AI_PROVIDER + enforces Q1', async () => {
+test('askLabo posts to Muse Wonder over the Meta Model API and enforces Q1', async () => {
   assert.equal(getActiveProvider({}), 'meta');
   assert.equal(getActiveProvider({ AI_PROVIDER: 'meta' }), 'meta');
   assert.equal(getActiveProvider({ AI_PROVIDER: 'groq' }), 'groq');
@@ -157,9 +156,9 @@ test('askMeta posts to Meta Model API (Llama 4) and askLabo routes by AI_PROVIDE
     fetchImpl: fakeMetaFetch,
   });
   assert.equal(metaRes.provider, 'meta');
-  assert.equal(metaRes.model, META_MODEL);
+  assert.equal(metaRes.model, 'muse-wonder-1.0');
   assert.match(seenUrl, /api\.meta\.ai\/v1\/chat\/completions/);
-  assert.equal(seenBody.model, META_MODEL);
+  assert.equal(seenBody.model, 'muse-wonder-1.0');
   assert.equal(seenBody.max_tokens, META_MAX_COMPLETION_TOKENS);
   assert.match(metaRes.answer, /¥48,500/);
 
@@ -169,6 +168,9 @@ test('askMeta posts to Meta Model API (Llama 4) and askLabo routes by AI_PROVIDE
   const checkBad = verifyAnswerNumbers('You spent ¥999,999 this month.', snapshot);
   assert.equal(checkBad.valid, false);
   assert.deepEqual(checkBad.mismatchedNumbers, [999999]);
+  assert.equal(verifyAnswerNumbers('You spent 48,500.50.', snapshot).valid, false);
+  assert.equal(verifyAnswerNumbers('You spent ¥48.5k.', snapshot).valid, false);
+  assert.equal(verifyAnswerNumbers('You spent fifty thousand yen.', snapshot).valid, false);
 });
 
 test('laboController validates input before calling the AI', async () => {
@@ -178,7 +180,7 @@ test('laboController validates input before calling the AI', async () => {
 
   const res2 = mockRes();
   await laboController.chat({ body: { question: 'Hi' } }, res2, next);
-  assert.equal(res2.statusCode, 400);
+  assert.equal(res2.statusCode, 401);
 });
 
 const parseCategories = [
@@ -242,14 +244,14 @@ test('laboController.parse validates input and the missing-key case', async () =
   }
 });
 
-test('laboController returns 503 when the active provider API key is missing', async () => {
+test('laboController returns 503 when the Meta API key is missing', async () => {
   const savedGroq = process.env.GROQ_API_KEY;
   const savedMeta = process.env.META_API_KEY;
   delete process.env.GROQ_API_KEY;
   delete process.env.META_API_KEY;
   try {
     const res = mockRes();
-    await laboController.chat({ body: { question: 'How much did I spend?', snapshot } }, res, next);
+    await laboController.chat({ user: { id: 1 }, body: { question: 'How much did I spend?' } }, res, next);
     assert.equal(res.statusCode, 503);
     assert.match(res.body.error, /not configured/);
   } finally {
@@ -394,12 +396,12 @@ test('Phase 6 F3 (a): photo scan extraction result becomes a proposal in the con
     categories: parseCategories,
     today: '2026-11-17',
     language: 'en-US',
-    env: { AI_PROVIDER: 'meta', META_API_KEY: 'meta-vision-key' },
+    env: { AI_PROVIDER: 'meta', META_API_KEY: 'meta-vision-key', META_MODEL: 'unrelated-model' },
     fetchImpl: fakeVisionFetch,
   });
 
   // Verify multimodal image_url request structure sent to Muse Ember
-  assert.equal(seenBody.model, META_MODEL);
+  assert.equal(seenBody.model, 'muse-ember-1.0');
   assert.equal(seenBody.max_tokens, META_MAX_COMPLETION_TOKENS);
   const userContent = seenBody.messages[1].content;
   assert.ok(Array.isArray(userContent));

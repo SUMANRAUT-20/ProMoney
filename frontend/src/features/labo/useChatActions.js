@@ -1,38 +1,24 @@
 import { useState } from 'react';
 import { apiClient } from '../../services/api';
 import { makeId } from '../../utils/formatters';
-import { isRecordAction } from './laboIntent';
 import { actionEntities } from './chatActionFields';
 import { chatActionLabel, confirmChatAction, makeChatProposal } from './chatActionProposal';
 
 export function useChatActions({ finance, setMessages, setBusy, setError }) {
   const [pending, setPending] = useState(null);
-  const [clarification, setClarification] = useState('');
   const reply = (text) => setMessages((previous) => [...previous, { id: makeId('msg'), role: 'ai', text }]);
 
   const cancel = () => {
     setPending(null);
-    setClarification('');
     reply('Action cancelled.');
   };
 
-  async function preview(question, replyToPreview) {
-    if (clarification && /^cancel[.!]?$/i.test(question)) return cancel();
-    if (pending) return replyToPreview('Confirm or cancel the current action first.');
-    const text = isRecordAction(question) || !clarification ? question : `${clarification}\nClarification: ${question}`;
-    if (text.length > 500) {
-      setClarification('');
-      return replyToPreview('Can you restate the action and the record details in one short message?');
-    }
-    const { data } = await apiClient.previewLaboAction(text);
-    const result = makeChatProposal(data.action, finance);
-    if (result.question) {
-      setClarification(text);
-      return replyToPreview(result.question);
-    }
-    setClarification('');
+  function preview(action) {
+    if (pending) return 'Confirm or cancel the current action first.';
+    const result = makeChatProposal(action, finance);
+    if (result.question) return result.question;
     setPending({ ...result.proposal, id: makeId('action') });
-    return replyToPreview('Review the proposed change below.');
+    return null;
   }
 
   async function confirm(draft, step) {
@@ -54,5 +40,5 @@ export function useChatActions({ finance, setMessages, setBusy, setError }) {
     }
   }
 
-  return { pending, matches: (question) => Boolean(clarification) || isRecordAction(question), preview, confirm, cancel };
+  return { pending, preview, confirm, cancel };
 }

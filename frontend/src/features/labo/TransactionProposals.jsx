@@ -103,6 +103,7 @@ export default function TransactionProposals({
                 </select>
               </label>
 
+              {item.account_name && <span className="small">Account · {item.account_name}</span>}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
                 <strong>{money(Math.round(Number(item.amount || 0)))}</strong>
                 <button

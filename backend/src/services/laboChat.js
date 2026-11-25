@@ -10,6 +10,7 @@
  */
 
 import { buildLaboMessages } from './laboConversation.js';
+import { completeWonderTurn } from './wonderConversation.js';
 
 export { buildLaboMessages } from './laboConversation.js';
 export const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
@@ -18,7 +19,8 @@ export const LABO_MODEL = 'openai/gpt-oss-120b';
 export const META_URL =
   process.env.META_API_URL || 'https://api.meta.ai/v1/chat/completions';
 export const META_EMBER_MODEL = 'muse-ember-1.0';
-export const META_MODEL = process.env.META_MODEL || META_EMBER_MODEL;
+const standardMetaModel = (model) => model && !/contributor/i.test(model) ? model : META_EMBER_MODEL;
+export const META_MODEL = standardMetaModel(process.env.META_MODEL);
 export const META_MAX_COMPLETION_TOKENS = 3000;
 
 export function getActiveProvider(env = process.env) {
@@ -44,7 +46,7 @@ export function getProviderConfig(env = process.env) {
   return {
     provider: 'meta',
     apiKey: normalizeMetaApiKey(env?.META_API_KEY),
-    model: env?.META_MODEL || META_MODEL,
+    model: standardMetaModel(env?.META_MODEL || META_MODEL),
     url: env?.META_API_URL || META_URL,
     missingKeyMessage: 'AI is not configured yet (META_API_KEY is missing on the server).',
   };
@@ -72,38 +74,7 @@ function extractCompletionText(payload) {
   return '';
 }
 
-function collectSnapshotNumbers(value, set = new Set()) {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    set.add(Math.abs(Math.round(value)));
-  } else if (Array.isArray(value)) {
-    for (const item of value) collectSnapshotNumbers(item, set);
-  } else if (value && typeof value === 'object') {
-    for (const v of Object.values(value)) collectSnapshotNumbers(v, set);
-  }
-  return set;
-}
-
-export function verifyAnswerNumbers(answer, snapshot) {
-  if (typeof answer !== 'string' || !snapshot || typeof snapshot !== 'object') {
-    return { valid: true, mismatchedNumbers: [] };
-  }
-  const allowed = collectSnapshotNumbers(snapshot);
-  const yenMatches = [
-    ...answer.matchAll(/[¥￥]\s*([0-9][0-9,]*)/g),
-    ...answer.matchAll(/\b([0-9][0-9,]*)\s*(?:JPY|yen)\b/gi),
-  ];
-  const mismatched = [];
-  for (const m of yenMatches) {
-    const num = Number(String(m[1]).replace(/,/g, ''));
-    if (Number.isFinite(num) && num > 0 && !allowed.has(Math.abs(Math.round(num)))) {
-      mismatched.push(num);
-    }
-  }
-  return {
-    valid: mismatched.length === 0,
-    mismatchedNumbers: mismatched,
-  };
-}
+export { verifyAnswerNumbers } from './wonderConversation.js';
 
 // --- Groq Provider (Fallback — KEPT intact) ---
 
@@ -172,7 +143,7 @@ export async function askGroq({ question, snapshot, history, aboutUser, ...optio
 
 // --- Meta Model API Provider (Muse Ember — Primary) ---
 
-async function metaAttempt(messages, { apiKey, model, url, fetchImpl, temperature, maxTokens, privateInput }) {
+async function metaAttempt(messages, { apiKey, model, url, fetchImpl, temperature, maxTokens, privateInput, chatOptions }) {
   const response = await fetchProvider('meta', fetchImpl, url, {
     method: 'POST',
     headers: {
@@ -184,10 +155,11 @@ async function metaAttempt(messages, { apiKey, model, url, fetchImpl, temperatur
       temperature,
       max_tokens: maxTokens,
       messages,
+      ...chatOptions,
     }),
   });
   if (!response.ok) {
-    if (privateInput) console.warn('[LA-BO Meta import]', 'HTTP status', response.status);
+    if (privateInput) console.warn('[Nidhi Meta]', 'HTTP status', response.status);
     else await logProviderHttpError('meta', response, apiKey);
     const err = new Error(`Meta API request failed with status ${response.status}`);
     err.code = 'META_UPSTREAM';
@@ -200,7 +172,7 @@ async function metaAttempt(messages, { apiKey, model, url, fetchImpl, temperatur
 export async function metaComplete(messages, {
   apiKey, model = META_MODEL, url = META_URL, fetchImpl = fetch,
   temperature = 0.2, maxTokens = META_MAX_COMPLETION_TOKENS,
-  onUsage, privateInput = false,
+  onUsage, privateInput = false, tools, json = false,
 }) {
   const cleanKey = normalizeMetaApiKey(apiKey);
   if (!cleanKey) {
@@ -208,19 +180,28 @@ export async function metaComplete(messages, {
     err.code = 'LABO_NOT_CONFIGURED';
     throw err;
   }
+  const chatOptions = tools || json ? {
+    reasoning_effort: 'low',
+    ...(tools ? { tools, parallel_tool_calls: false } : { response_format: { type: 'json_object' } }),
+  } : {};
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const { payload, status } = await metaAttempt(messages, {
-      apiKey: cleanKey, model, url, fetchImpl, temperature, maxTokens, privateInput,
+      apiKey: cleanKey, model: standardMetaModel(model), url, fetchImpl, temperature, maxTokens, privateInput, chatOptions,
     });
     onUsage?.(payload?.usage);
     const answer = extractCompletionText(payload);
+    if (tools) {
+      const calls = payload?.choices?.[0]?.message?.tool_calls;
+      if (Array.isArray(calls) && calls.length) return { answer, calls };
+      if (answer) return { answer, calls: [] };
+    }
     if (answer) return answer;
     if (attempt === 0 && payload?.choices?.[0]?.finish_reason === 'length') {
       maxTokens *= 2;
       console.warn('[LA-BO provider retry]', 'meta', status, 'Empty length-truncated completion. Retrying once with max_tokens', maxTokens);
       continue;
     }
-    if (privateInput) console.warn('[LA-BO Meta import]', 'Empty completion', status);
+    if (privateInput) console.warn('[Nidhi Meta]', 'Empty completion', status);
     else logProviderFailure('meta', status, JSON.stringify(payload), cleanKey);
     const err = new Error('Meta API returned an empty answer.');
     err.code = 'META_UPSTREAM';
@@ -415,30 +396,28 @@ export async function askLabo({
   snapshot,
   history,
   aboutUser,
+  appContext,
+  tools,
+  resolveTool,
+  logUsage,
   env = process.env,
   fetchImpl = fetch,
 }) {
-  const cfg = getProviderConfig(env);
+  const cfg = getProviderConfig({ ...env, AI_PROVIDER: 'meta' });
   if (!cfg.apiKey) {
     const err = new Error(cfg.missingKeyMessage);
     err.code = 'LABO_NOT_CONFIGURED';
     throw err;
   }
 
-  const model = env.CHAT_MODEL?.trim() || cfg.model;
-  const ask = cfg.provider === 'groq' ? askGroq : askMeta;
-  const rawAnswer = await ask({ question, snapshot, history, aboutUser, apiKey: cfg.apiKey, model, url: cfg.url, fetchImpl });
-
-  const check = verifyAnswerNumbers(rawAnswer, snapshot);
-  const answer = check.valid
-    ? rawAnswer
-    : "I couldn't verify those figures against your ProMoney data snapshot. Please check your Transactions or Home numbers directly.";
-
-  return {
-    answer,
-    provider: cfg.provider,
-    model,
-  };
+  const messages = buildLaboMessages({ question, snapshot, history, aboutUser, appContext });
+  return completeWonderTurn({
+    messages, snapshot, tools, resolveTool, logUsage, ember: META_EMBER_MODEL,
+    complete: (turn, options) => metaComplete(turn, {
+      apiKey: cfg.apiKey, url: cfg.url, privateInput: true, ...options,
+      fetchImpl: (url, init) => fetchImpl(url, { ...init, signal: AbortSignal.timeout(30_000) }),
+    }),
+  });
 }
 
 export async function parseTransactionWithLabo({
@@ -668,7 +647,7 @@ export async function scanReceiptWithLabo({
   // Ember's completion budget includes reasoning before the visible answer.
   const rawContent = await metaComplete(messages, {
     apiKey: cfg.apiKey,
-    model: cfg.model,
+    model: META_EMBER_MODEL,
     url: cfg.url,
     fetchImpl,
     temperature: 0,
@@ -679,6 +658,6 @@ export async function scanReceiptWithLabo({
   return {
     ...result,
     provider: cfg.provider,
-    model: cfg.model,
+    model: META_EMBER_MODEL,
   };
 }

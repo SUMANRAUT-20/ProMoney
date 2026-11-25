@@ -1,7 +1,7 @@
 import { tokyoTodayISO, yen } from './financeMath.js';
 import { completeLaboExtraction } from './laboChat.js';
 
-const fields = {
+export const chatActionFields = {
   account: ['name', 'kind', 'provider', 'parent_account', 'manual_balance', 'note'],
   category: ['name', 'kind'],
   transaction: ['note', 'kind', 'amount', 'category', 'account', 'transaction_date'],
@@ -19,12 +19,13 @@ const instructions = [
   'Use only values explicitly supplied by the user. Use the latest clarification for corrected fields. Omit missing fields. Do not guess money, labels, categories, account names, frequency, dates or IDs. Convert explicit relative dates using TODAY when unambiguous.',
   'Use ISO YYYY-MM-DD dates and YYYY-MM budget months. JPY amounts are whole integers exactly as stated. For ambiguous requests or multiple actions return {}.',
   'Account kinds: bank, cash, digital, prepaid, debit_card, credit_card, loan. Category and transaction kinds: income or expense. Bill frequencies: monthly, yearly, one_time.',
-  `Allowed fields by entity: ${JSON.stringify(fields)}`,
+  `Allowed fields by entity: ${JSON.stringify(chatActionFields)}`,
 ].join('\n');
 
 function statedAmounts(text) {
-  const withoutDates = text.normalize('NFKC').replace(/\b\d{4}[-/]\d{1,2}(?:[-/]\d{1,2})?\b/g, ' ');
-  return new Set([...withoutDates.matchAll(/(?<![\d.,])-?\d+(?:,\d{3})*(?:\.\d+)?(?!\d|[.,]\d)/g)]
+  const withoutDates = text.normalize('NFKC').replace(/\b\d{4}[-/]\d{1,2}(?:[-/]\d{1,2})?\b/g, ' ')
+    .replace(/JPY(?=\d)/gi, ' ');
+  return new Set([...withoutDates.matchAll(/(?<![\p{Script=Latin}\d.,−])-?\d+(?:,\d{3})*(?:\.\d+)?(?!\d|[.,]\d|[kKmMbB万億兆])/gu)]
     .map(([value]) => Number(value.replaceAll(',', ''))));
 }
 
@@ -35,13 +36,17 @@ export function readChatAction(answer, text) {
   } catch {
     return null;
   }
-  if (!parsed || !Object.hasOwn(fields, parsed.entity)) return null;
+  return cleanChatAction(parsed, text);
+}
+
+export function cleanChatAction(parsed, text) {
+  if (!parsed || !Object.hasOwn(chatActionFields, parsed.entity)) return null;
   const { entity, operation, target, values } = parsed;
   if (!(operations[entity] ?? ['create', 'edit', 'delete']).includes(operation)) return null;
 
   const stated = statedAmounts(text);
   const clean = {};
-  for (const key of fields[entity]) {
+  for (const key of chatActionFields[entity]) {
     const value = values?.[key];
     if (amounts.has(key)) {
       if ((typeof value === 'number' || typeof value === 'string') && String(value).trim()
