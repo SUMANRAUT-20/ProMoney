@@ -20,7 +20,7 @@ async function currentAlerts(userId, japanese) {
   return { answer, warnings };
 }
 
-async function prepareChatExport(question, format, userId) {
+export async function prepareChatExport(question, format, userId) {
   const data = await loadChatExportData(userId);
   const exportQuery = parseChatExport(question, { format, categories: data.categories, accounts: data.accounts });
   if (exportQuery.error) return { answer: exportQuery.error };
@@ -34,15 +34,17 @@ async function prepareChatExport(question, format, userId) {
   return { answer: 'Your report is ready to download.', report, signature: signReport(report, userId), downloadFormat: format };
 }
 
-export async function getLaboInsight(question, userId) {
+export async function getLaboShortcut(question, userId) {
   const format = chatExportFormat(question);
   if (format) return prepareChatExport(question, format, userId);
   if (/^(?:any |hear (?:my )?|show (?:me )?(?:my )?|read (?:out )?(?:my )?|do i have (?:any )?|what are (?:my |the )?|are there (?:any )?)?(?:current )?(?:alerts|warnings)(?: today)?[.!?\s]*$/i.test(question)
     || /^(?:アラート|警告)(?:を聞く|はある|はありますか)?[？?。\s]*$/.test(question)) {
     return currentAlerts(userId, /[\u3040-\u30ff\u4e00-\u9faf]/.test(question));
   }
-  const simulation = await getSimulatorInsight(question, userId);
-  if (simulation) return simulation;
+  return await getSimulatorInsight(question, userId) || prepareChatReport(question, userId);
+}
+
+export async function prepareChatReport(question, userId) {
   const request = reportRequest(question);
   if (!request) return null;
   if (!request.months) {

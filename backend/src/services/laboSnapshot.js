@@ -6,16 +6,18 @@ import {
   getHealthScore,
   getMonthlySummary,
   getSafeToSpend,
-} from "../../utils/financeMath.js";
+  tokyoTodayISO,
+} from './financeMath.js';
 
 /**
- * Builds the finance snapshot the LA-BO chat sends to the backend.
+ * Builds the authenticated user's compact finance snapshot for Nidhi.
  * Every number here is calculated by the app's own financeMath engine —
  * the AI only phrases answers from these figures, it never invents any.
  */
-export function buildFinanceSnapshot(finance, month, today) {
+export function buildFinanceSnapshot(finance, month, today = tokyoTodayISO()) {
   const { transactions, budgets, bills, goals, accounts, categories, preferences } = finance;
 
+  month ??= today.slice(0, 7);
   const summary = getMonthlySummary(transactions, month);
   const breakdown = getCategoryBreakdown(transactions, month, categories);
   const monthlyBudgets = budgets
@@ -44,7 +46,15 @@ export function buildFinanceSnapshot(finance, month, today) {
 
   return {
     month,
+    today,
     currency: "JPY",
+    data_status: {
+      transactions_this_month: summary.count > 0,
+      accounts: accounts.length > 0,
+      budgets_this_month: monthlyBudgets.length > 0,
+      goals: goals.length > 0,
+      bills: bills.length > 0,
+    },
     income_jpy: summary.income,
     expense_jpy: summary.expense,
     net_jpy: summary.net,

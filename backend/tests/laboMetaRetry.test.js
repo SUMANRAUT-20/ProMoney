@@ -1,11 +1,56 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { askLabo, askGroq, metaComplete, scanReceiptWithLabo, META_MAX_COMPLETION_TOKENS } from '../src/services/laboChat.js';
+import { nidhiTools } from '../src/services/nidhiTools.js';
 
 const truncated = { choices: [{ finish_reason: 'length', message: { content: null } }] };
 const complete = { choices: [{ finish_reason: 'stop', message: { content: 'Hello!' } }] };
 const env = { AI_PROVIDER: 'meta', META_API_KEY: 'fixture-meta-key' };
 const messages = [{ role: 'user', content: 'Hello' }];
+
+test('Chat falls back from Wonder to Ember and logs model and usage without exposing prompts', async (t) => {
+  t.mock.method(console, 'warn', () => {});
+  const logs = [];
+  const models = [];
+  const result = await askLabo({
+    question: 'Hello', snapshot: {}, env: { ...env, META_MODEL: 'muse-spark-1.3-contributor' }, tools: nidhiTools,
+    logUsage: (event, data) => logs.push([event, data]),
+    fetchImpl: async (_, { body }) => {
+      models.push(JSON.parse(body).model);
+      if (models.length === 1) return new Response(null, { status: 503 });
+      return Response.json({ ...complete, usage: { prompt_tokens: 14, completion_tokens: 4, total_tokens: 18 } });
+    },
+  });
+  assert.equal(result.answer, 'Hello!');
+  assert.equal(result.model, 'muse-ember-1.0');
+  assert.deepEqual(models, ['muse-wonder-1.0', 'muse-ember-1.0']);
+  assert.ok(logs.some(([event, data]) => event.endsWith('fallback]') && data.reason === 503));
+  assert.deepEqual(logs.at(-1)[1], { model: 'muse-ember-1.0', inputTokens: 14, outputTokens: 4, totalTokens: 18 });
+});
+
+test('Wonder uses structured proposals if native tools are rejected', async (t) => {
+  t.mock.method(console, 'warn', () => {});
+  const calls = [];
+  const result = await askLabo({
+    question: 'Help me import my file', snapshot: {}, env, tools: nidhiTools, logUsage() {},
+    resolveTool: (name, args) => {
+      assert.equal(name, 'start_import_guidance');
+      assert.deepEqual(args, { legacy_xls: true });
+      return { answer: 'Convert to XLSX first.' };
+    },
+    fetchImpl: async (_, { body }) => {
+      calls.push(JSON.parse(body));
+      if (calls.length === 1) return new Response(null, { status: 400 });
+      return Response.json({ choices: [{ message: { content: JSON.stringify({
+        tool: { name: 'start_import_guidance', arguments: { legacy_xls: true } },
+      }) } }] });
+    },
+  });
+  assert.equal(result.answer, 'Convert to XLSX first.');
+  assert.equal(result.model, 'muse-wonder-1.0');
+  assert.equal(calls[0].tools.length, 10);
+  assert.deepEqual(calls[1].response_format, { type: 'json_object' });
+});
 
 test('Meta chat retries an empty length-truncated completion once with twice the raised cap', async (t) => {
   const logging = t.mock.method(console, 'warn', () => {});

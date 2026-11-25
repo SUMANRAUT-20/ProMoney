@@ -6,7 +6,6 @@ import { makeId, money } from '../../utils/formatters';
 import { useStatementImport } from './useStatementImport';
 import { useAllocationConfirmation } from './useAllocationConfirmation';
 import { useChatActions } from './useChatActions';
-import { routeLaboQuestion } from './laboIntent';
 import {
   QUICK_QUESTIONS,
   compressReceiptImage,
@@ -15,8 +14,6 @@ import {
   isUndoCommand,
   loadVoiceLang,
   loadVoiceMuted,
-  looksLikeAddIntent,
-  parseLaboTransaction,
   saveVoiceLang,
   saveVoiceMuted,
   scanLaboReceiptPhoto,
@@ -153,42 +150,20 @@ export function useLaboAgent() {
         return;
       }
 
-      const route = routeLaboQuestion(question, chatActions.matches);
-      if (route.guidance) {
-        setMessages((prev) => [...prev, { id: makeId('msg'), role: 'ai', text: route.guidance }]);
-        speak(route.guidance);
+      if (chatActions.pending && /^cancel[.!]?$/i.test(question)) {
+        chatActions.cancel();
         return;
       }
 
       setBusy(true);
       try {
-        if (route.action) {
-          await chatActions.preview(question, (text) => replyWithMemory(question, text));
-          return;
-        }
-        // Check if the message is adding one or more transactions (F1 / F5)
-        if (looksLikeAddIntent(question)) {
-          const { proposals } = await parseLaboTransaction({
-            text: question,
-            categories: finance.categories || [],
-          });
-          if (proposals.length > 0) {
-            setPendingProposals(proposals);
-            const totalYen = proposals.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-            const summaryText =
-              proposals.length === 1
-                ? `I prepared 1 ${proposals[0].kind} proposal: ${money(proposals[0].amount)} for ${proposals[0].category_name} (${proposals[0].note}). Tap "Confirm & Save" below to record it.`
-                : `I prepared ${proposals.length} proposals totaling ${money(totalYen)}. You can remove any item below before tapping "Confirm & Save".`;
-            replyWithMemory(question, summaryText);
-            speak(summaryText);
-            return;
-          }
-        }
-
-        const { answer, report, signature, downloadFormat, warnings, purchase, allocation } = await sendLaboQuestion({ question, finance, messages });
-        replyWithMemory(question, answer, { report, signature, downloadFormat, warnings, purchase, allocation });
-        if (warnings) speak([answer, ...warnings].join('\n'), true);
-        else speak(answer);
+        const { answer, action, transactions, report, signature, downloadFormat, warnings, purchase, allocation } =
+          await sendLaboQuestion({ question, messages });
+        const reply = (action && chatActions.preview(action)) || answer;
+        if (transactions?.length) setPendingProposals(transactions.map((item) => ({ ...item, itemId: makeId('prop') })));
+        replyWithMemory(question, reply, { report, signature, downloadFormat, warnings, purchase, allocation });
+        if (warnings) speak([reply, ...warnings].join('\n'), true);
+        else speak(reply);
       } catch (err) {
         if (err.status === 503) {
           setError('AI is not switched on yet — the server needs its AI API key in the root .env.');
@@ -201,30 +176,7 @@ export function useLaboAgent() {
         setBusy(false);
       }
     },
-    [input, busy, finance, messages, speak, undoSave, chatActions, replyWithMemory]
-  );
-
-  const parseEntry = useCallback(
-    async (rawText) => {
-      const text = (rawText ?? input).trim();
-      if (!text || busy) return [];
-      setError('');
-      setBusy(true);
-      try {
-        const { proposals } = await parseLaboTransaction({
-          text,
-          categories: finance.categories || [],
-        });
-        setPendingProposals(proposals);
-        return proposals;
-      } catch (err) {
-        setError(err.message || 'Could not parse transaction proposal.');
-        return [];
-      } finally {
-        setBusy(false);
-      }
-    },
-    [input, busy, finance.categories]
+    [input, busy, messages, speak, undoSave, chatActions, replyWithMemory]
   );
 
   const removeProposalItem = useCallback((itemId) => {
@@ -333,7 +285,7 @@ export function useLaboAgent() {
           amount: cleanAmt,
           category_id: item.category_id,
           category_name: item.category_name,
-          account_id: defaultAccId,
+          account_id: item.account_id ?? defaultAccId,
           transaction_date: item.transaction_date,
           note: cleanNote,
           title: cleanNote,
@@ -444,7 +396,6 @@ export function useLaboAgent() {
     speechSupported,
     toggleListening,
     ask,
-    parseEntry,
     scanPhoto,
     updateProposalItem,
     removeProposalItem,

@@ -8,7 +8,7 @@ import { errorHandler } from '../src/middleware/errorHandler.js';
 import { UserModel } from '../src/models/userModel.js';
 import apiRouter from '../src/routes/index.js';
 import { buildFinanceReport } from '../src/services/financeReport.js';
-import { buildFinanceSnapshot } from '../../frontend/src/features/labo/buildSnapshot.js';
+import { buildFinanceSnapshot } from '../src/services/laboSnapshot.js';
 
 async function categoryFixture(t) {
   process.env.JWT_SECRET ||= randomBytes(32).toString('hex');

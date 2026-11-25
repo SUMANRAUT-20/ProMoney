@@ -8,6 +8,7 @@ import { errorHandler } from '../src/middleware/errorHandler.js';
 import { UserModel } from '../src/models/userModel.js';
 import apiRouter from '../src/routes/index.js';
 import { readChatAction } from '../src/services/laboActions.js';
+import { tokyoTodayISO } from '../src/services/financeMath.js';
 import { makeChatProposal, confirmChatAction } from '../../frontend/src/features/labo/chatActionProposal.js';
 
 async function fixture(t) {
@@ -70,6 +71,117 @@ async function actionFinance(request) {
     createCategory: (values) => mutate('categories', 'POST', values),
   };
 }
+
+const turn = (content) => Response.json({ choices: [{ message: { content } }] });
+const toolTurn = (name, args) => Response.json({ choices: [{ message: {
+  tool_calls: [{ type: 'function', function: { name, arguments: JSON.stringify(args) } }],
+} }] });
+
+function mockMeta(t, respond) {
+  const fetchReal = globalThis.fetch;
+  const key = process.env.META_API_KEY;
+  const url = process.env.META_API_URL;
+  process.env.META_API_KEY = 'fixture-meta';
+  process.env.META_API_URL = 'https://api.meta.ai/v1/chat/completions';
+  t.after(() => {
+    if (key === undefined) delete process.env.META_API_KEY;
+    else process.env.META_API_KEY = key;
+    if (url === undefined) delete process.env.META_API_URL;
+    else process.env.META_API_URL = url;
+  });
+  t.mock.method(globalThis, 'fetch', (target, options) => (
+    target === 'https://api.meta.ai/v1/chat/completions'
+      ? respond(JSON.parse(options.body))
+      : fetchReal(target, options)
+  ));
+}
+
+test('Wonder carries the Yamaha R1 goal across turns, explains the target, and proposes the same goal in one shot', async (t) => {
+  const session = await fixture(t);
+  const owner = await session();
+  mockMeta(t, ({ model, messages, tools }) => {
+    assert.equal(model, 'muse-wonder-1.0');
+    assert.equal(tools.length, 10);
+    assert.match(messages[0].content, /explain the term in plain words/);
+    const question = messages.at(-1).content;
+    if (question === 'create a new goal') return turn('What are you saving for?');
+    if (question === 'yahama R1') return turn('What target amount do you want to save for the Yamaha R1?');
+    if (question === 'what do you mean?') {
+      assert.equal(messages.at(-3).content, 'yahama R1');
+      return turn('The target is the full amount you want to save. It lets me show how close you are to buying the Yamaha R1.');
+    }
+    if (question === '500000') assert.equal(messages.at(-5).content, 'yahama R1');
+    if (question === 'I want a Yamaha R1 goal') return toolTurn('propose_goal', { title: 'Yamaha R1', target_amount: 1 });
+    return toolTurn('propose_goal', { title: 'Yamaha R1', target_amount: 500000 });
+  });
+  const history = [];
+  for (const question of ['create a new goal', 'yahama R1', 'what do you mean?']) {
+    const { data } = await owner('labo/chat', 'POST', { question, history });
+    assert.equal(data.action, undefined);
+    if (question === 'what do you mean?') assert.match(data.answer, /full amount.*close/);
+    history.push({ role: 'user', content: question }, { role: 'assistant', content: data.answer });
+  }
+  const { data: multi } = await owner('labo/chat', 'POST', { question: '500000', history });
+  const { data: one } = await owner('labo/chat', 'POST', { question: 'save 500000 for a Yamaha R1' });
+  assert.deepEqual(multi.action, one.action);
+  assert.equal((await owner('labo/chat', 'POST', { question: 'I want a Yamaha R1 goal' })).data.action, undefined);
+  const finance = await actionFinance(owner);
+  const { proposal } = makeChatProposal(one.action, finance);
+  assert.equal(proposal.draft.title, 'Yamaha R1');
+  assert.equal(proposal.draft.target_amount, 500000);
+  assert.deepEqual(finance.goals, []);
+  assert.deepEqual((await owner('goals')).data, []);
+});
+
+test('Wonder uses the authenticated snapshot, memory and tools, and delete previews still require double confirmation', async (t) => {
+  const session = await fixture(t);
+  const owner = await session();
+  const other = await session();
+  const finance = await actionFinance(owner);
+  const goal = await finance.addGoal({ title: 'Private goal', target_amount: 87000 });
+  const category = finance.categories.find(({ kind }) => kind === 'expense');
+  await finance.addTransaction({ kind: 'expense', amount: 18400, title: 'Private entry',
+    category_id: category.id, transaction_date: tokyoTodayISO() });
+  const remembered = await owner('settings/memory', 'PATCH', { patch: { facts: [{ key: 'hobby', value: 'Private preference' }] } });
+  assert.equal(remembered.status, 200);
+  const prompts = [];
+  mockMeta(t, ({ messages }) => {
+    prompts.push(messages[0].content);
+    const question = messages.at(-1).content;
+    if (question === 'Delete my last record') return toolTurn('propose_delete', { entity: 'goal', target: '#' + goal.id });
+    if (question === 'Could you put that in a table?') return toolTurn('get_report', { request: 'by category this month' });
+    if (question === 'Could I download that?') return toolTurn('make_export', { format: 'pdf', request: 'transactions this month' });
+    return turn('Your expenses this month were ¥18,400.');
+  });
+  const chat = (request, question, body = {}) => request('labo/chat', 'POST', { question, ...body });
+  const question = 'How much did I spend this month?';
+  assert.match((await chat(owner, question)).data.answer, /¥18,400/);
+  assert.match((await chat(other, question, { userId: goal.user_id, snapshot: { expense_jpy: 18400 } })).data.answer, /couldn't verify/);
+  assert.match(prompts[0], /Private preference/);
+  assert.doesNotMatch(prompts[1], /Private preference|Private goal|Private entry|18400/);
+  assert.equal((await chat(owner, 'Could you put that in a table?')).data.report.hasData, true);
+  assert.equal((await chat(other, 'Could you put that in a table?')).data.report.hasData, false);
+  const downloadable = (await chat(owner, 'Could I download that?')).data;
+  assert.equal(downloadable.downloadFormat, 'pdf');
+  assert.equal((await chat(other, 'Could I download that?')).data.report, undefined);
+  assert.equal((await other('labo/report/export', 'POST', {
+    format: 'pdf', report: downloadable.report, signature: downloadable.signature,
+  })).status, 400);
+  assert.equal((await chat(other, 'Delete my last record')).data.action, undefined);
+  const { data } = await chat(owner, 'Delete my last record');
+  const latest = await actionFinance(owner);
+  const { proposal } = makeChatProposal(data.action, latest);
+  assert.equal(proposal.record.id, goal.id);
+  assert.deepEqual(await confirmChatAction(proposal, proposal.draft, latest, latest.createCategory, 'confirmed'), { needsDeleteConfirmation: true });
+  assert.ok((await owner('goals')).data.some(({ id }) => id === goal.id));
+  await confirmChatAction(proposal, proposal.draft, latest, latest.createCategory, 'delete-confirmed');
+  assert.equal((await owner('goals')).data.length, 0);
+  const promptCount = prompts.length;
+  const upload = await chat(owner, "i'll uplode the xls file can you access whole file tabs and add all transistion in my accounts?");
+  assert.match(upload.data.answer, /save the old \.xls file as \.xlsx/i);
+  assert.equal(upload.data.action, undefined);
+  assert.equal(prompts.length, promptCount);
+});
 
 test('Action preview whitelists fields and only keeps monetary amounts present in the request', () => {
   const raw = JSON.stringify({ entity: 'goal', operation: 'create', values: {
