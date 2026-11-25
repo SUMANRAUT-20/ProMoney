@@ -5,14 +5,12 @@ import { AuthNotice, PasswordField, SocialSignIn } from './AuthControls';
 import WelcomeView from './WelcomeView';
 import { useAuth } from '../../context/AuthContext';
 
-export default function LoginView() {
-  const [params] = useSearchParams();
+export function LoginForm() {
   const [notice, setNotice] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login, loginDemo } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  if (params.get('view') === 'welcome') return <WelcomeView />;
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -54,15 +52,7 @@ export default function LoginView() {
   }
 
   return (
-    <AuthLayout
-      title="Sign in to ProMoney"
-      subtitle="Access your personal finance workspace (JPY)."
-      footer={
-        <span>
-          New to ProMoney? <Link to="/register">Create an account</Link>
-        </span>
-      }
-    >
+    <>
       <form className="form" onSubmit={handleSubmit}>
         <label>
           Email address
@@ -92,6 +82,25 @@ export default function LoginView() {
         </button>
       </form>
       <SocialSignIn />
+    </>
+  );
+}
+
+export default function LoginView() {
+  const [params] = useSearchParams();
+  if (params.get('view') === 'welcome') return <WelcomeView />;
+
+  return (
+    <AuthLayout
+      title="Sign in to ProMoney"
+      subtitle="Access your personal finance workspace (JPY)."
+      footer={
+        <span>
+          New to ProMoney? <Link to="/register">Create an account</Link>
+        </span>
+      }
+    >
+      <LoginForm />
     </AuthLayout>
   );
 }

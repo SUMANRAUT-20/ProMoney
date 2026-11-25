@@ -1,0 +1,35 @@
+.landing-root .landing-login-dialog {
+  width: min(calc(100% - 32px), 464px);
+  max-height: calc(100% - 48px);
+  padding: 0;
+  border: 1px solid var(--landing-border);
+  border-radius: 16px;
+  background: var(--landing-paper);
+  color: var(--landing-ink);
+  box-shadow: 0 24px 80px #0a251c40;
+}
+.landing-root .landing-login-dialog::backdrop { background: #102c25a6; }
+.landing-root .landing-login-surface { position: relative; padding: 32px; }
+.landing-root .landing-login-close { position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 8px; background: transparent; color: var(--landing-forest); font: inherit; font-size: 28px; cursor: pointer; }
+.landing-root .landing-login-close:hover { background: var(--landing-field); }
+.landing-root .landing-login-surface h2 { padding-right: 24px; font-size: 32px; }
+.landing-root .landing-login-surface > p { margin: 8px 0 24px; color: var(--landing-muted); font-size: 14px; }
+.landing-root .landing-login-surface > p:last-child { margin: 24px 0 0; }
+.landing-root .landing-login-surface > p a, .landing-root .landing-login-surface .pm-auth-text-button { color: var(--landing-forest); }
+.landing-root .landing-login-surface .form { gap: 12px; }
+.landing-root .landing-login-surface .pm-auth-field { display: flex; flex-direction: column; gap: 6px; }
+.landing-root .landing-login-surface label { color: var(--landing-ink); font-size: 14px; }
+.landing-root .landing-login-surface input { min-height: 44px; font: inherit; font-size: 16px; }
+.landing-root .landing-login-surface .pm-auth-password input { padding-right: 48px; }
+.landing-root .landing-login-surface .pm-auth-password button { top: 6px; }
+.landing-root .landing-login-surface .pm-auth-submit { min-height: 44px; font: inherit; font-weight: 700; }
+.landing-root .landing-login-surface .pm-auth-submit.primary { background: var(--landing-forest); }
+.landing-root .landing-login-surface .pm-auth-submit.primary:hover { background: var(--landing-forest-hover); }
+.landing-root .landing-login-surface .pm-auth-submit.secondary { background: var(--landing-intro); }
+.landing-root .landing-login-surface .pm-auth-submit.secondary:hover { background: var(--landing-field); }
+.landing-root .landing-login-surface .pm-auth-text-button { min-height: 32px; }
+
+@media (max-width: 680px) {
+  .landing-root .landing-login-dialog { inset: 0; margin: 0; width: 100%; max-width: none; height: 100%; max-height: none; border: 0; border-radius: 0; }
+  .landing-root .landing-login-surface { padding: 48px 24px 24px; }
+}

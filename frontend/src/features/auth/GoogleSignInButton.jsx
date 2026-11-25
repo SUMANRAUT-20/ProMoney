@@ -52,6 +52,7 @@ export default function GoogleSignInButton() {
   useEffect(() => {
     if (!clientId) return undefined;
     let cancelled = false;
+    let observer;
     loadGsiScript()
       .then(() => {
         if (cancelled || !containerRef.current) return;
@@ -71,20 +72,28 @@ export default function GoogleSignInButton() {
             }
           },
         });
-        window.google.accounts.id.renderButton(containerRef.current, {
-          theme: 'outline',
-          size: 'large',
-          text: 'continue_with',
-          shape: 'rectangular',
-          logo_alignment: 'left',
-          width: 240,
-        });
+        const buttonContainer = containerRef.current;
+        let lastWidth = 0;
+        const render = () => {
+          const width = Math.min(400, buttonContainer.clientWidth);
+          if (!width || width === lastWidth) return;
+          lastWidth = width;
+          buttonContainer.replaceChildren();
+          window.google.accounts.id.renderButton(buttonContainer, {
+            type: 'standard', theme: 'outline', size: 'large', text: 'signin_with',
+            shape: 'rectangular', logo_alignment: 'left', width: String(width),
+          });
+        };
+        render();
+        observer = new ResizeObserver(render);
+        observer.observe(buttonContainer);
       })
       .catch(() => {
         if (!cancelled) setNotice('Google sign-in could not be loaded. Check your connection and try again.');
       });
     return () => {
       cancelled = true;
+      observer?.disconnect();
     };
     // location.state is only read inside the callback; init once per page.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -96,7 +105,7 @@ export default function GoogleSignInButton() {
 
   return (
     <div className="pm-auth-google">
-      <div ref={containerRef} aria-label="Continue with Google" />
+      <div ref={containerRef} style={{ width: '100%', maxWidth: 400 }} aria-label="Sign in with Google" />
       {notice ? (
         <div className="status-banner pm-auth-notice" role="status">
           <Info size={17} aria-hidden="true" />

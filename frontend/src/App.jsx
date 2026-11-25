@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { FinanceProvider, useFinance } from './context/FinanceContext';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './features/auth/ProtectedRoute';
 import Sidebar from './components/layout/Sidebar';
 import Topbar from './components/layout/Topbar';
@@ -19,6 +19,8 @@ import LaboView from './features/labo/LaboView';
 import SettingsView from './features/settings/SettingsView';
 import LoginView from './features/auth/LoginView';
 import RegisterView from './features/auth/RegisterView';
+
+const LandingPage = lazy(() => import('./features/landing/LandingPage'));
 
 function WorkspaceLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -87,25 +89,46 @@ function WorkspaceLayout() {
   );
 }
 
+function LandingEntry({ sessionAvailable = false }) {
+  return <Suspense fallback={null}><LandingPage sessionAvailable={sessionAvailable} /></Suspense>;
+}
+
+function RootEntry() {
+  const { user, isCheckingSession } = useAuth();
+  if (isCheckingSession) return <p role="status">Checking your session…</p>;
+  return user ? <Navigate to="/home" replace /> : <LandingEntry sessionAvailable />;
+}
+
+function AppRoutes() {
+  return (
+    <FinanceProvider>
+      <Routes>
+        <Route path="/login" element={<LoginView />} />
+        <Route path="/register" element={<RegisterView />} />
+        <Route path="/*" element={<ProtectedRoute><WorkspaceLayout /></ProtectedRoute>} />
+      </Routes>
+    </FinanceProvider>
+  );
+}
+
+function SessionRoutes() {
+  return (
+    <AuthProvider>
+      <Routes>
+        <Route path="/" element={<RootEntry />} />
+        <Route path="/*" element={<AppRoutes />} />
+      </Routes>
+    </AuthProvider>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <FinanceProvider>
-          <Routes>
-            <Route path="/login" element={<LoginView />} />
-            <Route path="/register" element={<RegisterView />} />
-            <Route
-              path="/*"
-              element={
-                <ProtectedRoute>
-                  <WorkspaceLayout />
-                </ProtectedRoute>
-              }
-            />
-          </Routes>
-        </FinanceProvider>
-      </AuthProvider>
+      <Routes>
+        <Route path="/landing" element={<LandingEntry />} />
+        <Route path="/*" element={<SessionRoutes />} />
+      </Routes>
     </BrowserRouter>
   );
 }
