@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState } from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useSearchParams } from 'react-router-dom';
 import { FinanceProvider, useFinance } from './context/FinanceContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './features/auth/ProtectedRoute';
@@ -17,8 +17,7 @@ import LoansView from './features/loans/LoansView';
 import ReportsView from './features/analytics/ReportsView';
 import LaboView from './features/labo/LaboView';
 import SettingsView from './features/settings/SettingsView';
-import LoginView from './features/auth/LoginView';
-import RegisterView from './features/auth/RegisterView';
+import AuthView from './features/auth/AuthView';
 
 const LandingPage = lazy(() => import('./features/landing/LandingPage'));
 
@@ -96,15 +95,27 @@ function LandingEntry({ sessionAvailable = false }) {
 function RootEntry() {
   const { user, isCheckingSession } = useAuth();
   if (isCheckingSession) return <p role="status">Checking your session…</p>;
-  return user ? <Navigate to="/home" replace /> : <LandingEntry sessionAvailable />;
+  return <ResolvedRootEntry signedIn={Boolean(user)} />;
+}
+
+function ResolvedRootEntry({ signedIn }) {
+  // The auth view needs to show its confirmation before it navigates.
+  const [startedSignedIn] = useState(signedIn);
+  return startedSignedIn ? <Navigate to="/home" replace /> : <LandingEntry sessionAvailable />;
+}
+
+function AuthRoute({ signup }) {
+  const [params] = useSearchParams();
+  if (!signup && params.get('view') === 'welcome') return <Navigate to="/" replace />;
+  return <main className="pm-auth-page"><AuthView signup={signup} /></main>;
 }
 
 function AppRoutes() {
   return (
     <FinanceProvider>
       <Routes>
-        <Route path="/login" element={<LoginView />} />
-        <Route path="/register" element={<RegisterView />} />
+        <Route path="/login" element={<AuthRoute />} />
+        <Route path="/register" element={<AuthRoute signup />} />
         <Route path="/*" element={<ProtectedRoute><WorkspaceLayout /></ProtectedRoute>} />
       </Routes>
     </FinanceProvider>

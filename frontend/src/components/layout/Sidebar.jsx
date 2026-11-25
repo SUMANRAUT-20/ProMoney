@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   ArrowLeftRight,
   ChartNoAxesColumn,
@@ -35,7 +35,6 @@ const planItems = [
  */
 export default function Sidebar({ onNavigate }) {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
   const location = useLocation();
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
@@ -55,7 +54,6 @@ export default function Sidebar({ onNavigate }) {
     setProfileMenuOpen(false);
     await logout();
     if (onNavigate) onNavigate();
-    navigate('/login', { replace: true });
   };
 
   return (

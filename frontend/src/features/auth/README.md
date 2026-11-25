@@ -9,26 +9,20 @@ Backend: `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`
 Run the frontend with `npm run dev` from `frontend/` and the backend from `backend/`:
 - `/login`: login form — submits to the real API
 - `/register`: registration form — submits to the real API
-- `/login?view=welcome`: welcome screen (uses the existing login route)
+- `/` and `/landing`: public landing and direct demo entry. The old welcome query redirects to `/`.
 
-The auth header contains Log in, Sign up, and a live Japan Standard Time clock.
+The landing modal, `/login`, and `/register` use the same auth view with a login/sign-up switch.
 
 ## How the session works
 
-- `frontend/src/context/AuthContext.jsx` (`AuthProvider` / `useAuth()`) owns the session.
-  Login and register store the returned token in `localStorage` under `pm_auth_token`
-  (the key `frontend/src/services/api.js` sends as `Authorization: Bearer <token>`)
-  and the public user (`{ id, display_name, email }`) under `pm_auth_user`.
-- On load, a stored token is verified with `GET /api/auth/me`. If the backend rejects
-  it (401/expired) or is unreachable, the stored session is cleared — a stored string
-  alone is never treated as a logged-in session.
-- `ProtectedRoute.jsx` wraps the whole workspace in `App.jsx`: unauthenticated
-  visitors are redirected to `/login`, and login returns them to the page they
-  originally requested. Logout is available in the Sidebar; it clears
-  both storage keys (the JWT is stateless, so there is no server logout call).
-- Backend error messages are shown as returned (400 validation, 401 invalid
-  email/password, 409 duplicate email). A network failure shows a distinct
-  "could not reach the server" message.
+- `AuthContext.jsx` verifies the httpOnly session cookie with `GET /api/auth/me`.
+- `ProtectedRoute.jsx` sends signed-out visits to the login form and preserves the
+  requested page. On logout the Sidebar calls the existing endpoint, then the route
+  guard returns the user to the landing at `/`.
+- Client-side sign-up validation matches the server rules, including 10–128
+  password characters with at least one letter and one digit. Field errors appear
+  under their input and clear when fixed. Credential and demo submits show
+  confirmation before navigating.
 
 ## Register fields — contract decision
 

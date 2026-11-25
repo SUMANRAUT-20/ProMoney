@@ -101,9 +101,9 @@
   color: var(--landing-paper);
 }
 .landing-root .landing-final p { max-width: 36ch; margin-block: 12px 24px; color: #d4e6d8; }
-.landing-root .landing-final a { background: var(--landing-accent); color: var(--landing-forest); }
-.landing-root .landing-final a:hover { background: #edf7b6; }
-.landing-root .landing-final a:focus-visible { outline-color: var(--landing-paper); }
+.landing-root .landing-final .landing-demo-link { background: var(--landing-accent); color: var(--landing-forest); }
+.landing-root .landing-final .landing-demo-link:hover { background: #edf7b6; }
+.landing-root .landing-final .landing-demo-link:focus-visible { outline-color: var(--landing-paper); }
 .landing-root .landing-qr {
   display: grid;
   place-items: center;
