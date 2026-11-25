@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test, { after } from 'node:test';
+import ExcelJS from 'exceljs';
 import { randomUUID } from 'node:crypto';
 import { getDbPool } from '../src/db.js';
 import { AccountModel } from '../src/models/accountModel.js';
@@ -41,13 +42,45 @@ test('The corrected template and sheets at the 90% threshold stay on the exact c
   const template = await parseStatementImport(await dummyTemplateBytes({ invalidDate: false }), 'xlsx', options);
   assert.equal(template.rows.length, 2);
   assert.deepEqual(template.sheets.filter((sheet) => sheet.found).map((sheet) => sheet.parseMethod), ['exact', 'exact']);
-  const csv = ['Date,Description,Amount', ...Array(9).fill('2026-11-12,Train,-250'), '2026-02-30,Trip,-500'].join('\n');
+  const csv = ['Date,Description,Amount', ...Array(9).fill('2026-11-12,Train,-250'), '2026-11-13,Trip,unknown'].join('\n');
   const result = await parseStatementImport(Buffer.from(csv), 'csv', options);
   assert.equal(result.rows.length, 9);
   assert.equal(result.sheets[0].parseMethod, 'exact');
   assert.equal(result.sheets[0].skipped, 1);
-  assert.ok(result.warnings[0].includes('Invalid calendar date'));
+  assert.ok(result.warnings[0].includes('amount must be whole JPY'));
   assert.deepEqual(logs.map(({ requests, totalTokens }) => [requests, totalTokens]), [[0, 0], [0, 0]]);
+});
+
+test('Recognized calendar warnings and annual totals never send the team workbook to Meta', async () => {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await dummyTemplateBytes());
+  workbook.getWorksheet('02 Feb').getRow(17).values = [
+    '2026-02-31', 'Expense', 'Utilities', 'Demo Cash', 'Water bill', 2200, 'Cash',
+  ];
+  const aggregate = workbook.getWorksheet('YEAR SUMMARY');
+  aggregate.getRow(4).values = ['Month', 'Income (JPY)', 'Expenses (JPY)', 'Surplus (JPY)', 'Transactions'];
+  aggregate.getRow(5).values = ['01 Jan', 50000, 40000, 10000, 2];
+  aggregate.getRow(6).values = ['02 Feb', 75000, 9000, 66000, 3];
+
+  const logs = [];
+  const result = await parseStatementImport(Buffer.from(await workbook.xlsx.writeBuffer()), 'xlsx', {
+    categories, env: metaEnv, fetchImpl: unused, logUsage: (_, usage) => logs.push(usage),
+  });
+  assert.equal(result.rows.length, 2);
+  assert.deepEqual(result.sheets.filter(({ found }) => found).map(({ name, parseMethod }) => [name, parseMethod]), [
+    ['01 Jan', 'exact'], ['02 Feb', 'exact'],
+  ]);
+  assert.deepEqual(result.sheets.find(({ name }) => name === '02 Feb'), {
+    name: '02 Feb', found: 3, skipped: 2, reasons: [{ reason: 'Invalid calendar date', count: 2 }],
+    note: null, parseMethod: 'exact',
+  });
+  assert.deepEqual(result.warnings, ['02 Feb, row 16: Invalid calendar date.', '02 Feb, row 17: Invalid calendar date.']);
+  for (const name of ['START HERE', 'REFERENCE LISTS', 'YEAR SUMMARY']) {
+    const sheet = result.sheets.find((entry) => entry.name === name);
+    assert.equal(sheet.note, 'No transaction table');
+    assert.equal(sheet.parseMethod, undefined);
+  }
+  assert.equal(logs[0].requests, 0);
 });
 
 test('Messy XLSX sends the source rows only to standard Ember and records provider token usage', async () => {

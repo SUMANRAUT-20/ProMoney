@@ -93,7 +93,7 @@ function applyExtraction(sheet, data, result, categories) {
 export async function cleanStatementSheet(sheet, categories, meta) {
   const code = { rows: [...sheet.rows.values()], failures: sheet.failures };
   if (!sheet.data.length) return { ...code, summary: statementSheetSummary(sheet) };
-  if (sheet.headerMatched && sheet.rows.size * 10 >= sheet.data.length * 9) {
+  if (sheet.headerMatched && sheet.handled * 10 >= sheet.data.length * 9) {
     return { ...code, summary: { ...statementSheetSummary(sheet), parseMethod: 'exact' } };
   }
   try {

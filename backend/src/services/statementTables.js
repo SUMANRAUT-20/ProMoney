@@ -33,33 +33,42 @@ export function inspectStatementTable(name, entries, { headerAt, firstData } = {
   const headers = lastHeader < 0 ? [] : entries.slice(Math.max(0, lastHeader - 2), lastHeader + 1);
   const rows = new Map();
   const failures = new Map();
-  if (headerMatched && data.length) parseCodeRows(entries[headerAt].cells, data, rows, failures);
+  const handled = headerMatched && data.length ? parseCodeRows(entries[headerAt].cells, data, rows, failures) : 0;
   if (!headerMatched) {
     for (const { number } of data) failures.set(number, 'Unrecognized transaction columns');
   }
-  return { name, headerMatched, headers, data, rows, failures };
+  return { name, headerMatched, headers, data, rows, failures, handled };
 }
 
 function parseCodeRows(header, data, rows, failures) {
-  try {
-    parseStatementTable([header, ...data.map(({ cells }) => cells)], {
-      onParsedRow: (index, row) => rows.set(data[index].number, row),
-      onInvalidRow: (index, reason) => failures.set(data[index].number, reason),
+  const handled = new Set();
+  function parse(entries) {
+    parseStatementTable([header, ...entries.map(({ cells }) => cells)], {
+      onParsedRow(index, row) {
+        const { number } = entries[index];
+        rows.set(number, row);
+        handled.add(number);
+      },
+      onInvalidRow(index, reason, structurallyRead) {
+        const { number } = entries[index];
+        failures.set(number, reason);
+        if (structurallyRead) handled.add(number);
+      },
     });
+  }
+  try {
+    parse(data);
   } catch (error) {
     if (!(error instanceof StatementCsvError)) throw error;
-    for (const { number, cells } of data) {
-      parseStatementTable([header, cells], {
-        onParsedRow: (_, row) => rows.set(number, row),
-        onInvalidRow: (_, reason) => failures.set(number, reason),
-      });
-    }
+    for (const entry of data) parse([entry]);
   }
   for (const { number, error } of data) {
     if (!error) continue;
     rows.delete(number);
+    handled.delete(number);
     failures.set(number, error);
   }
+  return handled.size;
 }
 
 export function statementSheetSummary(sheet, failures = sheet.failures) {
