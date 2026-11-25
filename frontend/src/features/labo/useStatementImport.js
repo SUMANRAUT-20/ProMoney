@@ -6,8 +6,6 @@ import {
   applyStatementAccount, saveSelectedStatementRows, statementMemoryCorrections, statementReviewNet, statementRowLabel,
 } from './saveSelectedStatementRows';
 
-const MAX_STATEMENT_BYTES = 8 * 1024 * 1024;
-
 function summarizeStatement({ rows, sheets, accountGroups }) {
   const summary = `${rows.length} ${rows.length === 1 ? 'transaction is' : 'transactions are'} ready to review.`;
   const details = sheets?.map((sheet) => [sheet.name, statementSheetBadge(sheet), statementSheetDetail(sheet)]
@@ -33,20 +31,15 @@ export function useStatementImport({ busy, setBusy, setError, setMessages, finan
     addMessage('ai', message.split('\n')[0]);
   };
 
-  const attach = async (files) => {
-    if (busy || !files.length) return;
+  const attach = async (file, format, message) => {
+    if (busy || !file) return;
     if (rows.length) return showFailure('Finish or cancel the current statement review first.');
-    const file = files[0];
-    const format = /\.(csv|pdf|xlsx)$/i.exec(file.name)?.[1].toLowerCase();
-    if (files.length !== 1 || !format) return showFailure('Choose one CSV, PDF, or XLSX statement. Older XLS files are unsupported.');
-    if (file.size === 0) return showFailure('This statement file is empty.');
-    if (file.size > MAX_STATEMENT_BYTES) return showFailure('Choose a statement no larger than 8 MB.');
 
     setBusy(true);
     setError('');
-    addMessage('user', `Attached statement: ${file.name}`);
+    addMessage('user', [message, `Attached statement: ${file.name}`].filter(Boolean).join('\n'));
     try {
-      const { data } = await apiClient.laboImport(file, format);
+      const { data } = await apiClient.laboImport(file, format, message);
       if (!data?.rows?.length) throw new Error('No readable transactions were found in this statement.');
       setAccountId(null);
       setSheets(data.sheets ?? []);

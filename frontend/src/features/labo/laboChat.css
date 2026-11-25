@@ -1,10 +1,14 @@
-.app-main:has(.labo-page) {
+.app-shell:has(> .app-main > .content > .labo-page) {
+  min-height: 100dvh;
+}
+
+.app-main:has(> .content > .labo-page) {
   display: flex;
   flex-direction: column;
   height: 100dvh;
 }
 
-.app-main:has(.labo-page) > .topbar {
+.app-main:has(> .content > .labo-page) > .topbar {
   flex: none;
 }
 
@@ -14,19 +18,46 @@
   flex-direction: column;
   min-height: 0;
   width: 100%;
-  padding-bottom: 16px;
+  max-width: none;
+  margin: 0;
+  padding: 0;
 }
 
-.labo-page,
-.labo-chat.section-card {
+.content:has(> .labo-page) > .status-banner {
+  flex: none;
+}
+
+.labo-page {
+  --chat-gutter: clamp(12px, 2vw, 24px);
   display: flex;
   flex: 1;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
-.labo-chat.section-card {
-  margin-bottom: 0;
+.labo-header,
+.labo-heading,
+.labo-voice-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.labo-header {
+  flex: none;
+  justify-content: space-between;
+  padding: 10px var(--chat-gutter);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.labo-header h1 {
+  margin: 0;
+  font-size: 19px;
+  letter-spacing: -0.4px;
 }
 
 .labo-log-frame {
@@ -45,7 +76,7 @@
   overflow-anchor: none;
   overflow-y: auto;
   overscroll-behavior-y: contain;
-  padding: 4px 0 8px;
+  padding: 12px var(--chat-gutter);
 }
 
 .labo-chat-log > * {
@@ -54,6 +85,60 @@
 
 .labo-chat-log .labo-msg {
   overflow-wrap: anywhere;
+}
+
+.labo-review-note {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+}
+
+.labo-composer {
+  flex: none;
+  min-width: 0;
+  padding: 8px var(--chat-gutter) max(12px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.labo-composer .labo-quick {
+  margin: 0 0 8px;
+}
+
+.labo-composer .labo-input-row .btn {
+  flex: none;
+  min-height: 40px;
+}
+
+.labo-composer-error {
+  margin: 0 0 8px;
+  color: var(--red);
+}
+
+.labo-attachment {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  min-height: 36px;
+  margin-bottom: 8px;
+  padding-inline: 10px 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-alt);
+}
+
+.labo-attachment > :not(.labo-attachment-name) {
+  flex: none;
+}
+
+.labo-attachment-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .labo-new-answer {
@@ -85,10 +170,14 @@
 }
 
 @media (max-width: 700px) {
-  .labo-chat.section-card { padding: 12px; }
-  .labo-chat .labo-quick { flex-wrap: nowrap; overflow-x: auto; }
-  .labo-chat .labo-chip { flex: 0 0 auto; }
+  .labo-composer .labo-quick { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+  .labo-composer .labo-chip { flex: 0 0 auto; }
+  .labo-composer .labo-input-row { gap: 5px; }
   .labo-chat-log .labo-msg { max-width: 100%; }
+}
+
+@media (max-width: 580px) {
+  .labo-voice-controls .btn span { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

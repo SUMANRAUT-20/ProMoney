@@ -5,9 +5,13 @@ const nearBottom = (log) => log.scrollHeight - log.clientHeight - log.scrollTop 
 export function useChatScroll(messages, busy, proposalCount, statementCount) {
   const logRef = useRef(null);
   const follow = useRef(true);
-  const lastTop = useRef(0);
+  const lastPosition = useRef({ top: 0, height: 0 });
   const lastMessage = useRef(null);
   const [newAnswer, setNewAnswer] = useState(false);
+
+  const rememberPosition = useCallback((log) => {
+    lastPosition.current = { top: log.scrollTop, height: log.clientHeight };
+  }, []);
 
   const showLatest = useCallback(() => {
     const log = logRef.current;
@@ -19,23 +23,37 @@ export function useChatScroll(messages, busy, proposalCount, statementCount) {
 
   useLayoutEffect(() => {
     const log = logRef.current;
-    if (log && log.scrollTop < lastTop.current && !nearBottom(log)) follow.current = false;
+    const { top, height } = lastPosition.current;
+    if (log && log.clientHeight === height && log.scrollTop < top && !nearBottom(log)) follow.current = false;
+    if (log) rememberPosition(log);
     const newest = messages.at(-1);
     const newReply = newest?.role === 'ai' && newest.id !== lastMessage.current;
     lastMessage.current = newest?.id;
     if (follow.current) showLatest();
     else if (newReply) setNewAnswer(true);
-  }, [messages, busy, proposalCount, statementCount, showLatest]);
+  }, [messages, busy, proposalCount, statementCount, showLatest, rememberPosition]);
+
+  useLayoutEffect(() => {
+    const log = logRef.current;
+    if (!log) return;
+    const observer = new ResizeObserver(() => {
+      rememberPosition(log);
+      if (follow.current) showLatest();
+    });
+    observer.observe(log);
+    return () => observer.disconnect();
+  }, [showLatest, rememberPosition]);
 
   function onScroll({ currentTarget: log }) {
+    const { top, height } = lastPosition.current;
     if (nearBottom(log)) {
       follow.current = true;
       setNewAnswer(false);
-    } else if (log.scrollTop < lastTop.current) {
-      // Smooth scrolling toward a new reply also fires scroll events.
+    } else if (log.clientHeight === height && log.scrollTop < top) {
+      // A taller message list can also clamp the previous scroll position.
       follow.current = false;
     }
-    lastTop.current = log.scrollTop;
+    rememberPosition(log);
   }
 
   return { logRef, onScroll, newAnswer, showLatest };

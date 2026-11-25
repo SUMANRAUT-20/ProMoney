@@ -123,12 +123,21 @@ test('The real import review reuses account matching and blocks confirmed rows w
     if (priorKey === undefined) delete process.env.META_API_KEY;
     else process.env.META_API_KEY = priorKey;
   });
-  t.mock.method(globalThis, 'fetch', async () => complete(messyExtraction));
+  const message = '今月の明細を確認';
+  t.mock.method(globalThis, 'fetch', async (_, options) => {
+    const { messages } = JSON.parse(options.body);
+    const { userMessage, data } = JSON.parse(messages[1].content);
+    assert.equal(userMessage, message);
+    assert.ok(data.some(([, cells]) => cells.includes('Train ticket')));
+    return complete(messyExtraction);
+  });
   const user = await UserModel.create({ displayName: 'Clean import test', email: randomUUID() + '@example.com', passwordHash: null });
   const bank = await AccountModel.create({ userId: user.id, name: 'Demo Bank', kind: 'bank' });
   const cash = await AccountModel.create({ userId: user.id, name: 'Demo Cash', kind: 'cash' });
   const preview = response();
-  await previewStatement({ user, body: await messyStatementBytes(), get: () => 'xlsx' }, preview, next);
+  await previewStatement({ user, body: await messyStatementBytes(), get: (name) => ({
+    'X-Statement-Format': 'xlsx', 'X-Statement-Message': encodeURIComponent(message),
+  })[name] }, preview, next);
   assert.equal(preview.statusCode, 200);
   const { rows, accountGroups } = preview.value.data;
   assert.deepEqual(accountGroups.map(({ count, accountId }) => [count, accountId]), [[2, String(bank.id)], [2, String(cash.id)]]);

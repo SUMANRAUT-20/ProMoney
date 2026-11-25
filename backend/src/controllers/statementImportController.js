@@ -6,6 +6,14 @@ import { emptyStatementMessage, parseStatementImport } from '../services/stateme
 import { buildStatementReview } from '../services/statementReview.js';
 import { matchStatementAccounts } from '../services/statementAccounts.js';
 
+function readStatementMessage(req) {
+  try {
+    return decodeURIComponent(req.get('X-Statement-Message') ?? '').slice(0, 500);
+  } catch {
+    return '';
+  }
+}
+
 export async function previewStatement(req, res, next) {
   const format = req.get('X-Statement-Format');
   const bytes = req.body;
@@ -15,7 +23,9 @@ export async function previewStatement(req, res, next) {
 
   try {
     const categories = await CategoryModel.findByUser(req.user.id, { seedDefaults: false });
-    const { rows, warnings, sheets } = await parseStatementImport(bytes, format, { categories });
+    const { rows, warnings, sheets } = await parseStatementImport(bytes, format, {
+      categories, userMessage: readStatementMessage(req),
+    });
     if (!rows.length) {
       return res.status(422).json({ error: emptyStatementMessage(sheets), status: 422 });
     }
