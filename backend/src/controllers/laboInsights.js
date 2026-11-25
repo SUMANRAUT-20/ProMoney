@@ -1,8 +1,9 @@
 import { BudgetModel } from '../models/budgetModel.js';
 import { CategoryModel } from '../models/categoryModel.js';
 import { TransactionModel } from '../models/transactionModel.js';
-import { buildHomeSummary } from '../services/financeMath.js';
+import { buildHomeSummary, tokyoTodayISO } from '../services/financeMath.js';
 import { buildFinanceReport, reportRequest } from '../services/financeReport.js';
+import { requestsSpendingChart, spendingChartReply } from '../services/laboChart.js';
 import { reportCsv, reportPdf, reportXlsx, signReport, verifyReport } from '../services/reportExport.js';
 import { chatExportFormat, parseChatExport } from '../services/chatExportRequest.js';
 import { buildChatExportReport, loadChatExportData } from '../services/chatExportReport.js';
@@ -35,6 +36,10 @@ export async function prepareChatExport(question, format, userId) {
 }
 
 export async function getLaboShortcut(question, userId) {
+  if (requestsSpendingChart(question)) {
+    const report = await loadFinanceReport({ kind: 'categories', months: [tokyoTodayISO().slice(0, 7)] }, userId);
+    return spendingChartReply(report);
+  }
   const format = chatExportFormat(question);
   if (format) return prepareChatExport(question, format, userId);
   if (/^(?:any |hear (?:my )?|show (?:me )?(?:my )?|read (?:out )?(?:my )?|do i have (?:any )?|what are (?:my |the )?|are there (?:any )?)?(?:current )?(?:alerts|warnings)(?: today)?[.!?\s]*$/i.test(question)
@@ -50,17 +55,21 @@ export async function prepareChatReport(question, userId) {
   if (!request.months) {
     return { answer: 'Try a category report for one month, or an income and expenses report for up to two months.' };
   }
-  const [transactions, categories] = await Promise.all([
-    TransactionModel.findByUser(userId),
-    request.kind === 'categories' ? CategoryModel.findByUser(userId, { seedDefaults: false }) : [],
-  ]);
-  const report = buildFinanceReport({ ...request, transactions, categories });
+  const report = await loadFinanceReport(request, userId);
   const answer = report.hasData && /\bpdf\b/i.test(question)
     ? 'Here’s your report. Choose Download PDF on the card.'
     : report.hasData
     ? 'Here’s your report from the ProMoney engine.'
     : 'There’s no activity to report for that scope. You can add records on the Transactions page.';
   return { answer, report, signature: signReport(report, userId) };
+}
+
+async function loadFinanceReport(request, userId) {
+  const [transactions, categories] = await Promise.all([
+    TransactionModel.findByUser(userId),
+    request.kind === 'categories' ? CategoryModel.findByUser(userId, { seedDefaults: false }) : [],
+  ]);
+  return buildFinanceReport({ ...request, transactions, categories });
 }
 
 export async function exportLaboReport(req, res, next) {

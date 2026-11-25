@@ -125,7 +125,7 @@ export function useLaboAgent() {
   const replyWithMemory = useCallback((question, text, extra) => {
     const id = makeId('msg');
     setMessages((previous) => [...previous, { id, role: 'ai', text, ...extra }]);
-    if (!text) return;
+    if (!text || extra?.web || extra?.chart) return;
     apiClient.previewNidhiMemory(question, text.slice(0, 2000)).then(({ data }) => {
       if (!data?.proposal) return;
       setMessages((previous) => previous.map((message) =>
@@ -157,11 +157,11 @@ export function useLaboAgent() {
 
       setBusy(true);
       try {
-        const { answer, action, transactions, report, signature, downloadFormat, warnings, purchase, allocation } =
+        const { answer, action, transactions, report, signature, downloadFormat, warnings, purchase, allocation, web, chart } =
           await sendLaboQuestion({ question, messages });
         const reply = (action && chatActions.preview(action)) || answer;
         if (transactions?.length) setPendingProposals(transactions.map((item) => ({ ...item, itemId: makeId('prop') })));
-        replyWithMemory(question, reply, { report, signature, downloadFormat, warnings, purchase, allocation });
+        replyWithMemory(question, reply, { report, signature, downloadFormat, warnings, purchase, allocation, web, chart });
         if (warnings) speak([reply, ...warnings].join('\n'), true);
         else speak(reply);
       } catch (err) {

@@ -92,6 +92,30 @@
   padding-inline-start: 20px;
 }
 
+.labo-web-sources {
+  margin: 8px 0 0;
+  padding-inline-start: 20px;
+}
+
+.labo-web-sources a,
+.labo-chat-chart a {
+  color: var(--green);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.labo-chat-chart {
+  margin: 10px 0 0;
+}
+
+.labo-chat-chart img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+
 .labo-review-note {
   display: flex;
   align-items: center;

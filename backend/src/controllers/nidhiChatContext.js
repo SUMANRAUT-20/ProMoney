@@ -6,6 +6,7 @@ import { conversationHistory } from '../services/laboConversation.js';
 import { buildFinanceSnapshot } from '../services/laboSnapshot.js';
 import { aboutThisUser } from '../services/nidhiMemory.js';
 import { actionFromTool, importGuidance, nidhiTools } from '../services/nidhiTools.js';
+import { canSearchWeb, LIVE_WEB_TOOL, liveWebTool, searchLiveWeb } from '../services/tavilySearch.js';
 import { prepareChatExport, prepareChatReport } from './laboInsights.js';
 import { loadLaboPlan } from './laboSimulators.js';
 
@@ -16,8 +17,9 @@ function availableLabels(finance) {
   };
 }
 
-function readTool(name, args, userId) {
+function readTool(name, args, userId, question) {
   if (name === 'start_import_guidance') return { answer: importGuidance(args?.legacy_xls === true) };
+  if (name === LIVE_WEB_TOOL) return searchLiveWeb(question, userId);
   const request = typeof args?.request === 'string' && args.request.trim();
   if (!request || request.length > 400) return null;
   if (name === 'get_report') return prepareChatReport('Report ' + request, userId);
@@ -36,9 +38,10 @@ export async function chatForUser({ userId, question, history }) {
   const snapshot = buildFinanceSnapshot(finance);
   const userText = [...conversationHistory(history).filter((turn) => turn.role === 'user').map((turn) => turn.content), question].join('\n');
   return askLabo({
-    question, snapshot, history, aboutUser: aboutThisUser(memory), appContext: availableLabels(finance), tools: nidhiTools,
+    question, snapshot, history, aboutUser: aboutThisUser(memory), appContext: availableLabels(finance),
+    tools: canSearchWeb(question) ? [...nidhiTools, liveWebTool] : nidhiTools,
     resolveTool: (name, args) => name.startsWith('propose_')
       ? actionFromTool(name, args, { finance, userText, today: snapshot.today })
-      : readTool(name, args, userId),
+      : readTool(name, args, userId, question),
   });
 }
