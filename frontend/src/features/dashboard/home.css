@@ -8,19 +8,38 @@
 
 .home-top-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
-  gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--mint-soft);
 }
 
 .home-tap-card {
   width: 100%;
+  min-width: 0;
   text-align: left;
+  overflow-wrap: anywhere;
   cursor: pointer;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .home-tap-card:hover {
   border-color: var(--green);
+}
+
+.home-top-grid .home-money-card {
+  padding: 20px;
+  box-shadow: 0 18px 32px -16px rgba(25, 56, 41, 0.32), 0 4px 12px rgba(25, 56, 41, 0.07);
+}
+
+.home-top-grid .home-safe-card {
+  padding: 4px 8px 8px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .home-card-head {
@@ -32,12 +51,61 @@
 }
 
 .home-big-amount {
-  font-size: 30px;
   font-weight: 800;
   letter-spacing: -0.9px;
   line-height: 1.15;
   margin: 4px 0 10px;
   color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.home-money-card .home-big-amount {
+  font-size: clamp(32px, 4vw, 42px);
+}
+
+.home-daily-pill {
+  position: relative;
+  z-index: 1;
+  width: fit-content;
+  max-width: 100%;
+  margin-block: 8px 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 6px 16px rgba(25, 56, 41, 0.10);
+  font-size: clamp(20px, 2.8vw, 26px);
+}
+
+.home-daily-pill > span {
+  white-space: nowrap;
+}
+
+.home-safe-card:hover .home-daily-pill {
+  border-color: var(--green);
+}
+
+@media (min-width: 940px) {
+  .home-top-grid {
+    --home-satellite-overlap: 28px;
+    --home-safe-inset: 24px;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 0;
+    padding: 16px;
+  }
+
+  /* Keep the breakdown clear of the pill's overlap even when both cards are open. */
+  .home-top-grid .home-money-card {
+    padding: 24px calc(var(--home-satellite-overlap) + 20px) 24px 24px;
+  }
+
+  .home-top-grid .home-safe-card {
+    padding: 18px 16px 12px var(--home-safe-inset);
+  }
+
+  .home-daily-pill {
+    margin-inline-start: calc(0px - var(--home-safe-inset) - var(--home-satellite-overlap));
+  }
 }
 
 .home-sublines {
@@ -178,8 +246,15 @@
   font-size: 13px;
 }
 
-@media (max-width: 640px) {
-  .home-big-amount {
-    font-size: 26px;
-  }
+.home-stack .recent-row {
+  border-bottom-color: color-mix(in srgb, var(--border) 65%, var(--surface));
+}
+
+.home-stack .recent-row .transaction-dot {
+  background: var(--surface-alt);
+}
+
+.home-stack .recent-row strong,
+.home-stack .recent-amount {
+  font-weight: 600;
 }

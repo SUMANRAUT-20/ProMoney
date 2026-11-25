@@ -126,7 +126,7 @@ export default function DashboardView() {
       {/* 1. Money you hold & 2. Safe to spend today */}
       <div className="home-top-grid">
         <section
-          className="section-card card home-tap-card"
+          className="section-card card home-tap-card home-money-card"
           style={{ marginBottom: 0 }}
           aria-label="Money you hold"
           onClick={() => setShowMoneyProof((v) => !v)}
@@ -180,7 +180,7 @@ export default function DashboardView() {
         </section>
 
         <section
-          className="section-card card home-tap-card"
+          className="section-card card home-tap-card home-safe-card"
           style={{ marginBottom: 0 }}
           aria-label="Safe to spend today"
           onClick={() => setShowSafeProof((v) => !v)}
@@ -203,7 +203,7 @@ export default function DashboardView() {
             </button>
           </div>
 
-          <div className="home-big-amount" style={{ color: home.safeToSpend.overPlan ? 'var(--red)' : 'var(--text)' }}>
+          <div className="home-big-amount home-daily-pill" style={{ color: home.safeToSpend.overPlan ? 'var(--red)' : 'var(--text)' }}>
             {money(home.safeToSpend.dailySafe)} <span className="muted" style={{ fontSize: 15, fontWeight: 500 }}>/ day</span>
           </div>
 
